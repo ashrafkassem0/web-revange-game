@@ -1,10 +1,33 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { AnimationController } from './AnimationController';
+import { sanitizeCharacterClips } from './animationUtils';
 import type { CharacterAnimConfig } from '../types';
+
+function createLoader(): GLTFLoader {
+  const loader = new GLTFLoader();
+  const draco = new DRACOLoader();
+  draco.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/');
+  loader.setDRACOLoader(draco);
+  return loader;
+}
+
+function findAnimationRoot(model: THREE.Object3D): THREE.Object3D {
+  let armature: THREE.Object3D | null = null;
+  model.traverse((child) => {
+    if (armature) return;
+    const name = child.name.toLowerCase();
+    if (name.includes('armature') || name.includes('skeleton')) {
+      armature = child;
+    }
+  });
+  return armature ?? model;
+}
 
 export class AnimatedCharacter {
   readonly root = new THREE.Group();
+  private readonly visual = new THREE.Group();
   anim: AnimationController;
   mixer: THREE.AnimationMixer | null = null;
   modelLoaded = false;
@@ -12,13 +35,16 @@ export class AnimatedCharacter {
   constructor(
     public readonly id: string,
     private animConfig: CharacterAnimConfig,
-    public scale = 1
+    public scale = 1,
+    public facingOffset = 0
   ) {
-    this.anim = new AnimationController(null, [], animConfig, this.root);
+    this.root.add(this.visual);
+    this.visual.rotation.y = this.facingOffset;
+    this.anim = new AnimationController(null, [], animConfig, this.visual);
   }
 
   async load(modelPath: string): Promise<void> {
-    const loader = new GLTFLoader();
+    const loader = createLoader();
     try {
       const gltf = await loader.loadAsync(modelPath);
       const model = gltf.scene;
@@ -34,20 +60,22 @@ export class AnimatedCharacter {
           child.receiveShadow = true;
         }
       });
-      this.root.add(model);
+      this.visual.add(model);
 
-      const hasClips = gltf.animations.length > 0;
-      this.mixer = hasClips ? new THREE.AnimationMixer(model) : null;
+      const clips = sanitizeCharacterClips(gltf.animations);
+      const hasClips = clips.length > 0;
+      const animRoot = findAnimationRoot(model);
+      this.mixer = hasClips ? new THREE.AnimationMixer(animRoot) : null;
       this.anim = new AnimationController(
         this.mixer,
-        gltf.animations,
+        clips,
         this.animConfig,
-        this.root
+        this.visual
       );
       this.modelLoaded = true;
     } catch {
       this.buildFallbackMesh();
-      this.anim = new AnimationController(null, [], this.animConfig, this.root);
+      this.anim = new AnimationController(null, [], this.animConfig, this.visual);
     }
   }
 
@@ -70,8 +98,8 @@ export class AnimatedCharacter {
     const legR = new THREE.Mesh(legGeo, legMat);
     legR.position.set(0.15, 0.55, 0);
 
-    this.root.add(torso, head, legL, legR);
-    this.root.scale.setScalar(this.scale);
+    this.visual.add(torso, head, legL, legR);
+    this.visual.scale.setScalar(this.scale);
   }
 
   update(delta: number, speed: number, isRunning: boolean, isGrounded: boolean) {

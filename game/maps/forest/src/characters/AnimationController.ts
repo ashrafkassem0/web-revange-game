@@ -24,10 +24,7 @@ export class AnimationController {
       ];
 
       for (const [state, clipName] of mapping) {
-        const clip =
-          clips.find((c) => c.name === clipName) ||
-          clips.find((c) => c.name.toLowerCase().includes(state)) ||
-          clips[0];
+        const clip = this.findClip(clips, clipName, state);
         if (clip) {
           const action = this.mixer.clipAction(clip);
           action.setLoop(THREE.LoopRepeat, Infinity);
@@ -36,8 +33,27 @@ export class AnimationController {
       }
 
       const idle = this.actions.get('idle');
-      idle?.play();
+      if (idle) {
+        idle.time = 0;
+        idle.timeScale = 0;
+        idle.play();
+      }
     }
+  }
+
+  private findClip(
+    clips: THREE.AnimationClip[],
+    clipName: string | undefined,
+    state: AnimState
+  ): THREE.AnimationClip | undefined {
+    if (clipName) {
+      const exact = clips.find((c) => c.name === clipName);
+      if (exact) return exact;
+    }
+    return (
+      clips.find((c) => c.name.toLowerCase().includes(state)) ||
+      clips.find((c) => c.name.toLowerCase().includes(clipName?.toLowerCase() ?? ''))
+    );
   }
 
   update(delta: number, speed: number, isRunning: boolean, isGrounded: boolean) {
@@ -52,9 +68,21 @@ export class AnimationController {
     }
 
     if (this.mixer && !this.useProcedural) {
+      this.applyStateSpeed(this.current);
       this.mixer.update(delta);
     } else if (this.useProcedural) {
       this.applyProcedural(delta, next, speed);
+    }
+  }
+
+  private applyStateSpeed(state: AnimState) {
+    for (const [name, action] of this.actions) {
+      if (name === 'idle') {
+        action.timeScale = state === 'idle' ? 0 : 1;
+        if (state === 'idle') action.time = 0;
+      } else {
+        action.timeScale = name === state ? 1 : 1;
+      }
     }
   }
 
@@ -62,27 +90,32 @@ export class AnimationController {
     const prev = this.actions.get(from);
     const next = this.actions.get(to);
     if (!next) return;
+
+    for (const action of this.actions.values()) {
+      action.timeScale = 1;
+    }
+
     prev?.fadeOut(duration);
     next.reset().fadeIn(duration).play();
+
+    if (to === 'idle') {
+      next.time = 0;
+      next.timeScale = 0;
+    }
   }
 
-  /** حركة بديلة عند غياب ملف GLB */
-  private applyProcedural(delta: number, state: AnimState, speed: number) {
+  private applyProcedural(delta: number, state: AnimState, _speed: number) {
     this.proceduralTime += delta;
     const t = this.proceduralTime;
 
     if (state === 'idle') {
       this.root.position.y = Math.sin(t * 2) * 0.03;
-      this.root.rotation.x = 0;
     } else if (state === 'walk') {
       this.root.position.y = Math.abs(Math.sin(t * 8)) * 0.08;
-      this.root.rotation.z = Math.sin(t * 8) * 0.04;
     } else if (state === 'run') {
       this.root.position.y = Math.abs(Math.sin(t * 12)) * 0.12;
-      this.root.rotation.z = Math.sin(t * 12) * 0.06;
     } else if (state === 'jump') {
       this.root.position.y = 0.4 + Math.sin(t * 6) * 0.1;
-      this.root.rotation.x = -0.2;
     }
   }
 

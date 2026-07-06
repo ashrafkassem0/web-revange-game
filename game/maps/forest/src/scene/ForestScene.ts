@@ -1,4 +1,7 @@
 import * as THREE from 'three';
+import { buildFallbackTrees, loadForestTrees } from './TreeLoader';
+import { buildGrassTufts, createGrassGroundTexture } from './GrassField';
+import { buildPebbles, buildRockScatter } from './RockScatter';
 
 export interface MapObstacle {
   x: number;
@@ -24,17 +27,25 @@ export class ForestScene {
 
   constructor(private mapData: ForestMapData) {
     this.scene.background = new THREE.Color(0x87ceeb);
-    this.scene.fog = new THREE.Fog(0x87ceeb, 80, 350);
+    this.scene.fog = new THREE.Fog(0x87ceeb, 60, 320);
     this.buildGround();
-    this.buildTrees();
+    this.buildGrass();
+    void this.buildTrees();
     this.buildRocks();
+    this.buildPebbles();
     this.buildLakes();
     this.buildLighting();
   }
 
   private buildGround() {
+    const tex = createGrassGroundTexture();
     const geo = new THREE.PlaneGeometry(this.mapData.widthM, this.mapData.heightM);
-    const mat = new THREE.MeshStandardMaterial({ color: 0x3d7a37, roughness: 0.9 });
+    const mat = new THREE.MeshStandardMaterial({
+      map: tex,
+      color: 0x9ec492,
+      roughness: 0.95,
+      metalness: 0
+    });
     this.ground = new THREE.Mesh(geo, mat);
     this.ground.rotation.x = -Math.PI / 2;
     this.ground.position.set(this.mapData.widthM / 2, 0, this.mapData.heightM / 2);
@@ -42,41 +53,34 @@ export class ForestScene {
     this.scene.add(this.ground);
   }
 
-  private buildTrees() {
-    const trunkGeo = new THREE.CylinderGeometry(0.3, 0.45, 3, 6);
-    const trunkMat = new THREE.MeshStandardMaterial({ color: 0x4a3020 });
-    const leafGeo = new THREE.ConeGeometry(1.8, 4, 8);
-    const leafMat = new THREE.MeshStandardMaterial({ color: 0x1f5c1a });
+  private buildGrass() {
+    buildGrassTufts(
+      this.scene,
+      this.mapData.spawnPoint,
+      this.mapData.widthM,
+      this.mapData.heightM
+    );
+  }
 
-    const sample = this.mapData.trees.filter((_, i) => i % 4 === 0);
-    for (const tree of sample) {
-      const group = new THREE.Group();
-      const trunk = new THREE.Mesh(trunkGeo, trunkMat);
-      trunk.position.y = 1.5;
-      trunk.castShadow = true;
-      const leaves = new THREE.Mesh(leafGeo, leafMat);
-      leaves.position.y = 4;
-      leaves.castShadow = true;
-      group.add(trunk, leaves);
-      group.position.set(tree.x + tree.width / 2, 0, tree.y + tree.height / 2);
-      const s = tree.width / 3;
-      group.scale.set(s, s, s);
-      this.scene.add(group);
+  private async buildTrees() {
+    try {
+      await loadForestTrees(this.scene, this.mapData.trees, this.mapData.spawnPoint);
+    } catch {
+      buildFallbackTrees(this.scene, this.mapData.trees, this.mapData.spawnPoint);
     }
   }
 
   private buildRocks() {
-    const geo = new THREE.DodecahedronGeometry(1, 0);
-    const mat = new THREE.MeshStandardMaterial({ color: 0x666666, flatShading: true });
-    const sample = this.mapData.rocks.filter((_, i) => i % 3 === 0);
-    for (const rock of sample) {
-      const mesh = new THREE.Mesh(geo, mat);
-      mesh.position.set(rock.x + rock.width / 2, rock.width * 0.4, rock.y + rock.height / 2);
-      mesh.scale.setScalar(rock.width * 0.5);
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      this.scene.add(mesh);
-    }
+    buildRockScatter(this.scene, this.mapData.rocks, this.mapData.spawnPoint);
+  }
+
+  private buildPebbles() {
+    buildPebbles(
+      this.scene,
+      this.mapData.spawnPoint,
+      this.mapData.widthM,
+      this.mapData.heightM
+    );
   }
 
   private buildLakes() {

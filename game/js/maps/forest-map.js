@@ -26,10 +26,72 @@ function generateObstacles(count, width, height, minSize, maxSize, rand, type) {
     return items;
 }
 
+function generateDenseTreesAround(spawn, radiusM, spacingM, widthM, heightM, rand, lakes) {
+    const trees = [];
+    const clearRadiusSq = 10 * 10;
+
+    for (let x = spawn.x - radiusM; x <= spawn.x + radiusM; x += spacingM) {
+        for (let z = spawn.y - radiusM; z <= spawn.y + radiusM; z += spacingM) {
+            const jx = x + (rand() - 0.5) * spacingM * 0.75;
+            const jz = z + (rand() - 0.5) * spacingM * 0.75;
+            const dx = jx - spawn.x;
+            const dz = jz - spawn.y;
+            const distSq = dx * dx + dz * dz;
+            if (distSq > radiusM * radiusM || distSq < clearRadiusSq) continue;
+            if (jx < 1 || jz < 1 || jx >= widthM - 1 || jz >= heightM - 1) continue;
+            if (isInLake({ lakes }, jx, jz)) continue;
+
+            const w = 1.4 + rand() * 1.6;
+            const h = w * (1.25 + rand() * 0.45);
+            trees.push({
+                x: jx - w / 2,
+                y: jz - h / 2,
+                width: w,
+                height: h,
+                type: 'tree',
+                solid: true
+            });
+        }
+    }
+    return trees;
+}
+
+function generateDenseRocksAround(spawn, radiusM, spacingM, widthM, heightM, rand, lakes) {
+    const rocks = [];
+    const clearRadiusSq = 8 * 8;
+
+    for (let x = spawn.x - radiusM; x <= spawn.x + radiusM; x += spacingM) {
+        for (let z = spawn.y - radiusM; z <= spawn.y + radiusM; z += spacingM) {
+            if (rand() > 0.38) continue;
+            const jx = x + (rand() - 0.5) * spacingM * 0.85;
+            const jz = z + (rand() - 0.5) * spacingM * 0.85;
+            const dx = jx - spawn.x;
+            const dz = jz - spawn.y;
+            const distSq = dx * dx + dz * dz;
+            if (distSq > radiusM * radiusM || distSq < clearRadiusSq) continue;
+            if (jx < 1 || jz < 1 || jx >= widthM - 1 || jz >= heightM - 1) continue;
+            if (isInLake({ lakes }, jx, jz)) continue;
+
+            const w = 0.7 + rand() * 1.8;
+            const h = w * (0.55 + rand() * 0.35);
+            rocks.push({
+                x: jx - w / 2,
+                y: jz - h / 2,
+                width: w,
+                height: h,
+                type: 'rock',
+                solid: true
+            });
+        }
+    }
+    return rocks;
+}
+
 function generateForestMap(seed = 42) {
     const rand = seededRandom(seed);
     const widthM = 2500;
     const heightM = 2000;
+    const spawnPoint = { x: 1250, y: 1900 };
 
     const lakes = [
         { id: 'north', x: 400, y: 200, width: 300, height: 250, fishCount: 8, crocodileCount: 3 },
@@ -37,8 +99,14 @@ function generateForestMap(seed = 42) {
         { id: 'pond', x: 900, y: 800, width: 150, height: 120, fishCount: 5, crocodileCount: 0 }
     ];
 
-    const trees = generateObstacles(800, widthM, heightM, 2, 4, rand, 'tree');
-    const rocks = generateObstacles(200, widthM, heightM, 1, 3, rand, 'rock');
+    const trees = [
+        ...generateObstacles(600, widthM, heightM, 2, 4, rand, 'tree'),
+        ...generateDenseTreesAround(spawnPoint, 200, 14, widthM, heightM, rand, lakes)
+    ];
+    const rocks = [
+        ...generateObstacles(200, widthM, heightM, 1, 3, rand, 'rock'),
+        ...generateDenseRocksAround(spawnPoint, 180, 22, widthM, heightM, rand, lakes)
+    ];
 
     const resourceNodes = [];
     for (let i = 0; i < 120; i++) {
@@ -64,7 +132,7 @@ function generateForestMap(seed = 42) {
         widthM,
         heightM,
         areaKm2: 5,
-        spawnPoint: { x: 1250, y: 1900 },
+        spawnPoint,
         safeRadiusM: 100,
         trees,
         rocks,
@@ -75,6 +143,8 @@ function generateForestMap(seed = 42) {
 }
 
 const FOREST_MAP = generateForestMap(42);
+
+window.FOREST_MAP = FOREST_MAP;
 
 function canMoveTo(map, x, y, size, excludeList) {
     const half = size / 2;

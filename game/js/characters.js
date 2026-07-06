@@ -13,7 +13,8 @@ const CHARACTERS = {
         type: 'player',
         map: 'forest',
         model: '/assets/models/hero.glb',
-        scale: 1.48,
+        scale: 1,
+        facingOffset: 0,
         appearance: {
             eyes: 'brown',
             hair: 'brown',
@@ -212,6 +213,8 @@ function initCharacterStats(character) {
 }
 
 Object.keys(CHARACTERS).forEach((key) => initCharacterStats(CHARACTERS[key]));
+
+window.CHARACTERS = CHARACTERS;
 
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {

@@ -12,12 +12,17 @@
     <div class="hud-panel">
       <h1>🌲 خريطة الغابة</h1>
       <p>الحياة: <span id="hp-value">100/100</span></p>
-      <p>السرعة: <span id="speed-value">1 م/ث</span></p>
+      <p>السرعة: <span id="speed-value">2.5 م/ث</span></p>
+      <p class="sprint-row">
+        طاقة الجري:
+        <span id="sprint-value">50/50 م</span>
+      </p>
+      <div id="sprint-bar" aria-hidden="true"><div id="sprint-bar-fill"></div></div>
       <p>المسافة: <span id="dist-value">0 كm</span></p>
       <p>الحركة: <span id="anim-value">idle</span></p>
     </div>
     <div class="hud-controls">
-      <p>WASD / أسهم — تحريك | Shift — جري | Space — قفz</p>
+      <p>WASD — تحريك | Shift — جري | Space — قفz | زر أيمن — الكamera | البكرة — تقريب/إبعاد</p>
       <button id="btn-menu" type="button">القائمة الرئيسية</button>
     </div>
   </div>

@@ -97,3 +97,7 @@ const GAME_CONFIG = {
     meatHealRabbit: 10,
     meatHealDeer: 15
 };
+
+window.GameState = GameState;
+window.navigateTo = navigateTo;
+window.GAME_CONFIG = GAME_CONFIG;

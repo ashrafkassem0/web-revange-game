@@ -3,6 +3,7 @@ import { AnimatedCharacter } from '../characters/AnimatedCharacter';
 import { ForestScene, checkObstacleCollision, type ForestMapData } from '../scene/ForestScene';
 import { CameraController } from '../scene/CameraController';
 import { PlayerInput } from '../input/PlayerInput';
+import { MovementConfig, SprintStamina } from './SprintStamina';
 
 declare global {
   interface Window {
@@ -19,6 +20,7 @@ declare global {
     CHARACTERS: Record<string, {
       model: string;
       scale: number;
+      facingOffset?: number;
       animations: Record<string, string>;
       stats: Record<string, number>;
       skills: Record<string, number>;
@@ -33,12 +35,15 @@ export class GameLoop {
   private camera: THREE.PerspectiveCamera;
   private forestScene: ForestScene;
   private cameraCtrl: CameraController;
-  private input = new PlayerInput();
+  private input: PlayerInput;
   private hero: AnimatedCharacter;
   private heroStats: { stats: Record<string, number>; skills: Record<string, number> };
   private velocityY = 0;
   private isGrounded = true;
   private totalDistance = 0;
+  private currentSpeedMps = 0;
+  private isSprinting = false;
+  private sprint = new SprintStamina();
   private clock = new THREE.Clock();
   private mapData: ForestMapData;
 
@@ -51,12 +56,22 @@ export class GameLoop {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
+    canvas.tabIndex = 0;
+    canvas.focus();
+
+    this.input = new PlayerInput(canvas);
+
     this.camera = new THREE.PerspectiveCamera(55, 1, 0.5, 2000);
     this.forestScene = new ForestScene(this.mapData);
     this.cameraCtrl = new CameraController(this.camera);
 
     this.heroStats = window.GameState.getHeroRuntime();
-    this.hero = new AnimatedCharacter('hero', heroDef.animations, heroDef.scale);
+    this.hero = new AnimatedCharacter(
+      'hero',
+      heroDef.animations,
+      heroDef.scale,
+      heroDef.facingOffset ?? 0
+    );
     this.forestScene.scene.add(this.hero.root);
 
     const spawn = this.mapData.spawnPoint;
@@ -64,6 +79,7 @@ export class GameLoop {
     this.totalDistance = window.GameState.getTotalDistanceRun();
 
     this.onResize();
+    this.cameraCtrl.follow(this.hero.root, 1);
     window.addEventListener('resize', () => this.onResize());
 
     void this.hero.load(heroDef.model);
@@ -83,28 +99,47 @@ export class GameLoop {
 
   private tick() {
     const delta = Math.min(this.clock.getDelta(), 0.05);
+    const camDelta = this.input.consumeCameraDelta();
+    this.cameraCtrl.addMouseDelta(camDelta.dx, camDelta.dy);
+    this.cameraCtrl.adjustZoom(this.input.consumeZoomSteps());
     this.updateHero(delta);
     this.cameraCtrl.follow(this.hero.root, delta);
     this.hero.update(
       delta,
-      this.getHorizontalSpeed(),
-      this.input.run,
+      this.currentSpeedMps,
+      this.isSprinting,
       this.isGrounded
     );
     this.updateHud();
     this.renderer.render(this.forestScene.scene, this.camera);
   }
 
-  private getHorizontalSpeed(): number {
-    const move = this.input.getMoveVector();
-    const speed = this.heroStats.stats.speed || 1;
-    const mult = this.input.run ? 2.2 : 1;
-    return Math.hypot(move.x, move.z) * speed * mult;
+  private getWorldMoveDirection(): THREE.Vector3 {
+    const axes = this.input.getAxes();
+    if (axes.forward === 0 && axes.strafe === 0) {
+      return new THREE.Vector3(0, 0, 0);
+    }
+
+    // حركة نسبة لاتجاه الكamera الأفقي
+    const moveForward = this.cameraCtrl.getForwardOnXZ();
+    const moveRight = this.cameraCtrl.getRightOnXZ();
+
+    const move = new THREE.Vector3();
+    move.addScaledVector(moveForward, axes.forward);
+    move.addScaledVector(moveRight, axes.strafe);
+    if (move.lengthSq() > 0) move.normalize();
+    return move;
   }
 
   private updateHero(delta: number) {
-    const move = this.input.getMoveVector();
-    const speed = (this.heroStats.stats.speed || 1) * (this.input.run ? 2.2 : 1);
+    const move = this.getWorldMoveDirection();
+    const isMoving = move.lengthSq() > 0;
+
+    const sprintState = this.sprint.update(delta, this.input.run, isMoving);
+    this.isSprinting = sprintState.sprinting;
+    this.currentSpeedMps = sprintState.speedMps;
+
+    const speed = this.currentSpeedMps;
     const dx = move.x * speed * delta;
     const dz = move.z * speed * delta;
 
@@ -138,8 +173,6 @@ export class GameLoop {
       const dist = Math.hypot(dx, dz);
       this.totalDistance += dist;
       window.GameState.saveTotalDistanceRun(this.totalDistance);
-      const km = Math.floor(this.totalDistance / 1000);
-      this.heroStats.stats.speed = (window.CHARACTERS.hero.stats.speed || 1) + km;
     }
   }
 
@@ -148,11 +181,23 @@ export class GameLoop {
     const speedEl = document.getElementById('speed-value');
     const distEl = document.getElementById('dist-value');
     const animEl = document.getElementById('anim-value');
+    const sprintEl = document.getElementById('sprint-bar-fill');
+    const sprintLabel = document.getElementById('sprint-value');
 
     if (hpEl) hpEl.textContent = `${Math.round(this.heroStats.stats.hp)}/${this.heroStats.stats.maxHp}`;
-    if (speedEl) speedEl.textContent = `${this.heroStats.stats.speed.toFixed(1)} م/ث`;
+    if (speedEl) {
+      const label = this.isSprinting ? 'جري' : 'مشي';
+      speedEl.textContent = `${this.currentSpeedMps.toFixed(1)} م/ث (${label})`;
+    }
     if (distEl) distEl.textContent = `${(this.totalDistance / 1000).toFixed(2)} كم`;
     if (animEl) animEl.textContent = this.hero.anim.getCurrentState();
+    if (sprintEl) sprintEl.style.width = `${this.sprint.ratio * 100}%`;
+    if (sprintLabel) {
+      const left = Math.round(this.sprint.ratio * MovementConfig.sprintMaxM);
+      sprintLabel.textContent = this.sprint.exhausted
+        ? 'منتهية — امشِ للاستعادة'
+        : `${left}/${MovementConfig.sprintMaxM} م`;
+    }
 
     window.GameState.saveHeroRuntime(this.heroStats);
   }

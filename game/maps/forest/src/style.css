@@ -48,6 +48,26 @@ html, body {
   margin: 4px 0;
 }
 
+.sprint-row {
+  margin-top: 8px !important;
+}
+
+#sprint-bar {
+  height: 6px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+#sprint-bar-fill {
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, #3a9a3a, #8fdf8f);
+  border-radius: 3px;
+  transition: width 0.08s linear;
+}
+
 .hud-controls {
   position: absolute;
   bottom: 16px;
