@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>الانتقام - قصة أشرف</title>
+    <link rel="stylesheet" href="css/shared.css">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: #000;
+        }
+
+        .game-container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+
+        /* Background Image */
+        .bg-image {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        .bg-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .bg-darken {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.3);
+            z-index: 2;
+        }
+
+        /* Rain overlay */
+        .rain-container {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            z-index: 3;
+        }
+
+        .raindrop {
+            position: absolute;
+            width: 2px;
+            background: linear-gradient(transparent, rgba(180, 200, 255, 0.5));
+            animation: fall linear infinite;
+        }
+
+        @keyframes fall {
+            0% {
+                transform: translateY(-100px);
+                opacity: 1;
+            }
+
+            100% {
+                transform: translateY(100vh);
+                opacity: 0.3;
+            }
+        }
+
+        /* Lightning */
+        .lightning {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            background: rgba(255, 255, 255, 0);
+            animation: lightning 7s infinite;
+            pointer-events: none;
+            z-index: 4;
+        }
+
+        @keyframes lightning {
+
+            0%,
+            88%,
+            90.5%,
+            92.5%,
+            100% {
+                background: rgba(255, 255, 255, 0);
+            }
+
+            89% {
+                background: rgba(200, 180, 255, 0.2);
+            }
+
+            90% {
+                background: rgba(200, 180, 255, 0.05);
+            }
+
+            91% {
+                background: rgba(200, 180, 255, 0.15);
+            }
+
+            92% {
+                background: rgba(200, 180, 255, 0.05);
+            }
+        }
+
+        /* Title Screen */
+        .title-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            text-align: center;
+        }
+
+        .title-content {
+            background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.7) 0%, transparent 70%);
+            padding: 60px 80px;
+            border-radius: 20px;
+        }
+
+        .game-title {
+            font-size: 5rem;
+            font-weight: 900;
+            color: #fff;
+            text-shadow:
+                0 0 20px rgba(231, 76, 60, 0.9),
+                0 0 60px rgba(231, 76, 60, 0.5),
+                0 0 100px rgba(231, 76, 60, 0.3),
+                0 4px 8px rgba(0, 0, 0, 0.8);
+            margin-bottom: 10px;
+            animation: titleGlow 3s ease-in-out infinite;
+            letter-spacing: 5px;
+        }
+
+        @keyframes titleGlow {
+
+            0%,
+            100% {
+                text-shadow:
+                    0 0 20px rgba(231, 76, 60, 0.9),
+                    0 0 60px rgba(231, 76, 60, 0.5),
+                    0 0 100px rgba(231, 76, 60, 0.3),
+                    0 4px 8px rgba(0, 0, 0, 0.8);
+            }
+
+            50% {
+                text-shadow:
+                    0 0 30px rgba(231, 76, 60, 1),
+                    0 0 80px rgba(231, 76, 60, 0.7),
+                    0 0 140px rgba(231, 76, 60, 0.4),
+                    0 4px 8px rgba(0, 0, 0, 0.8);
+            }
+        }
+
+        .game-subtitle {
+            font-size: 1.6rem;
+            color: #ccc;
+            margin-bottom: 15px;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+            font-weight: 400;
+        }
+
+        .game-tagline {
+            font-size: 1rem;
+            color: #888;
+            margin-bottom: 50px;
+            font-style: italic;
+        }
+
+        .start-btn {
+            padding: 18px 55px;
+            font-size: 1.5rem;
+            font-family: 'Cairo', sans-serif;
+            font-weight: 700;
+            border: none;
+            border-radius: 14px;
+            cursor: pointer;
+            background: linear-gradient(135deg, #e74c3c, #c0392b, #8e1a1a);
+            color: #fff;
+            box-shadow:
+                0 0 30px rgba(231, 76, 60, 0.6),
+                0 10px 30px rgba(0, 0, 0, 0.5),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            transition: all 0.3s ease;
+            animation: btnPulse 2.5s ease-in-out infinite;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .start-btn::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+            animation: btnShine 3s ease-in-out infinite;
+        }
+
+        @keyframes btnShine {
+
+            0%,
+            100% {
+                transform: translateX(-100%) rotate(45deg);
+            }
+
+            50% {
+                transform: translateX(100%) rotate(45deg);
+            }
+        }
+
+        @keyframes btnPulse {
+
+            0%,
+            100% {
+                transform: scale(1);
+                box-shadow: 0 0 30px rgba(231, 76, 60, 0.6), 0 10px 30px rgba(0, 0, 0, 0.5);
+            }
+
+            50% {
+                transform: scale(1.03);
+                box-shadow: 0 0 50px rgba(231, 76, 60, 0.8), 0 15px 40px rgba(0, 0, 0, 0.5);
+            }
+        }
+
+        .start-btn:hover {
+            transform: scale(1.08) !important;
+            box-shadow: 0 0 60px rgba(231, 76, 60, 0.9), 0 15px 40px rgba(0, 0, 0, 0.6) !important;
+        }
+
+        /* Story Screen */
+        .story-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 1s ease;
+        }
+
+        .story-screen.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        /* Scene image that shows behind story text */
+        .scene-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 5;
+            opacity: 0;
+            transition: opacity 1.5s ease;
+        }
+
+        .scene-bg.visible {
+            opacity: 1;
+        }
+
+        .scene-bg img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            filter: brightness(0.55);
+        }
+
+        .scene-bg .vignette {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(ellipse at center, transparent 40%, rgba(0, 0, 0, 0.8) 100%);
+        }
+
+        .story-text-box {
+            position: relative;
+            z-index: 12;
+            max-width: 750px;
+            padding: 35px 45px;
+            background: rgba(0, 0, 0, 0.65);
+            border-radius: 16px;
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        }
+
+        .story-text {
+            font-size: 1.4rem;
+            line-height: 2.2;
+            text-align: center;
+            color: #e8e8e8;
+            min-height: 80px;
+        }
+
+        .story-text .highlight {
+            color: #e74c3c;
+            font-weight: 700;
+            text-shadow: 0 0 10px rgba(231, 76, 60, 0.5);
+        }
+
+        .cursor-blink {
+            animation: blink 1s step-end infinite;
+            color: #e74c3c;
+        }
+
+        @keyframes blink {
+
+            0%,
+            50% {
+                opacity: 1;
+            }
+
+            51%,
+            100% {
+                opacity: 0;
+            }
+        }
+
+        /* Action button after story */
+        .action-container {
+            position: absolute;
+            bottom: 12%;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 30;
+            opacity: 0;
+            transition: opacity 1s ease;
+            pointer-events: none;
+        }
+
+        .action-container.visible {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .action-btn {
+            padding: 16px 45px;
+            font-size: 1.4rem;
+            font-family: 'Cairo', sans-serif;
+            font-weight: 700;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            background: linear-gradient(135deg, #27ae60, #1e8449);
+            color: #fff;
+            box-shadow: 0 0 25px rgba(39, 174, 96, 0.6), 0 8px 25px rgba(0, 0, 0, 0.4);
+            transition: all 0.3s ease;
+            animation: actionGlow 2s ease-in-out infinite;
+        }
+
+        .action-btn:hover {
+            transform: scale(1.06);
+            box-shadow: 0 0 40px rgba(39, 174, 96, 0.9), 0 12px 35px rgba(0, 0, 0, 0.5);
+        }
+
+        @keyframes actionGlow {
+
+            0%,
+            100% {
+                box-shadow: 0 0 25px rgba(39, 174, 96, 0.6), 0 8px 25px rgba(0, 0, 0, 0.4);
+            }
+
+            50% {
+                box-shadow: 0 0 45px rgba(39, 174, 96, 0.8), 0 8px 25px rgba(0, 0, 0, 0.4);
+            }
+        }
+
+        /* Skip button */
+        .skip-btn {
+            position: absolute;
+            top: 25px;
+            left: 25px;
+            z-index: 100;
+            padding: 10px 22px;
+            background: rgba(255, 255, 255, 0.08);
+            color: #777;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 8px;
+            font-family: 'Cairo', sans-serif;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            backdrop-filter: blur(4px);
+        }
+
+        .skip-btn:hover {
+            background: rgba(255, 255, 255, 0.15);
+            color: #fff;
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+
+        /* Floating particles */
+        .particles {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            z-index: 3;
+            pointer-events: none;
+        }
+
+        .particle {
+            position: absolute;
+            width: 3px;
+            height: 3px;
+            background: rgba(231, 76, 60, 0.4);
+            border-radius: 50%;
+            animation: particleFloat 6s ease-in-out infinite;
+        }
+
+        @keyframes particleFloat {
+
+            0%,
+            100% {
+                transform: translateY(0) scale(1);
+                opacity: 0.4;
+            }
+
+            50% {
+                transform: translateY(-30px) scale(1.5);
+                opacity: 0.8;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="fade-overlay"></div>
+
+    <div class="game-container">
+        <!-- Background -->
+        <div class="bg-image">
+            <img src="images/bg_title_screen.png" alt="">
+        </div>
+        <div class="bg-darken"></div>
+        <div class="lightning"></div>
+        <div class="rain-container" id="rainContainer"></div>
+        <div class="particles" id="particles"></div>
+
+        <!-- Scene Background Images (for story) -->
+        <div class="scene-bg" id="sceneBg">
+            <img id="sceneBgImg" src="" alt="">
+            <div class="vignette"></div>
+        </div>
+
+        <!-- Title Screen -->
+        <div class="title-screen" id="titleScreen">
+            <div class="title-content">
+                <h1 class="game-title">الانتقام</h1>
+                <p class="game-subtitle">قصة أشرف</p>
+                <p class="game-tagline">في ليلة ممطرة... بدأت رحلة الانتقام</p>
+                <button class="start-btn" onclick="startStory()">ابدأ القصة</button>
+            </div>
+        </div>
+
+        <!-- Story Screen -->
+        <div class="story-screen" id="storyScreen">
+            <div class="story-text-box">
+                <div class="story-text" id="storyText"></div>
+            </div>
+            <button class="skip-btn" onclick="skipStory()">تخطي ←</button>
+        </div>
+
+        <!-- Action Button -->
+        <div class="action-container" id="actionContainer">
+            <button class="action-btn" onclick="goToForestMap()">🌲 ادخل خريطة الغابة</button>
+        </div>
+    </div>
+
+    <script src="js/shared.js"></script>
+    <script src="js/sounds.js"></script>
+    <script>
+        const storyParts = [
+            { text: 'في يوم من الأيام... في منطقة جبلية ممطرة بجوار غابة مظلمة...', image: null },
+            { text: 'كان <span class="highlight">أشرف</span> (11 سنة) يجمع الحطب من الغابة...', image: 'images/scene_gathering_wood.png' },
+            { text: 'فجأة... شمّ رائحة دماء قوية قادمة من اتجاه البيت!', image: 'images/scene_gathering_wood.png' },
+            { text: 'أسرع ليرى ما يحدث... فإذا بعائلته ملقاة على الأرض تغوص في دمائها!', image: 'images/scene_witness_horror.png' },
+            { text: 'رأى شخصاً يرتدي رداءً أسود... عيناه حمراوتان كالجمر... وسيفه الأسود ملطخ بالدماء...', image: 'images/scene_witness_horror.png' },
+            { text: 'إنه <span class="highlight">ملك الرعب!</span>', image: 'images/scene_terror_king.png' },
+            { text: 'هجم ملك الرعب على أشرف وأصابه إصابة بالغة... وظنّ أنه مات...', image: 'images/scene_attack_hero.png' },
+            { text: 'لكن أشرف لم يمت!', image: 'images/scene_attack_hero.png' },
+            { text: 'عندما استيقظ... رأى عائلته بجانبه... أمه وأبوه وأخته  <span class="highlight">موتي</span>...', image: 'images/scene_sadness.png' },
+            { text: 'شعر بحزن شديد كاد يقتله... لكنه استفاق لنفسه...', image: 'images/scene_sadness.png' },
+            { text: 'دفن عائلته بجانب البيت... أمه... وأبوه... وأخته <span class="highlight">آية</span>...', image: 'images/scene_burial.png' },
+            { text: 'وقف أمام قبورهم تحت المطر... وأقسم أنه سينتقم لهم...', image: 'images/scene_burial.png' },
+            { text: 'وعزم على <span class="highlight">الانتقام!</span>', image: 'images/scene_burial.png' },
+            { text: 'أخذ القوس والسهم... وأخذ سيف أبيه... وذهب إلى الغابة ليتدرب على قتال الوحوش!', image: 'images/scene_entering_forest.png' }
+        ];
+
+        let currentPart = 0;
+        let charIndex = 0;
+        let typingInterval = null;
+
+        function createRain() {
+            const container = document.getElementById('rainContainer');
+            for (let i = 0; i < 100; i++) {
+                const drop = document.createElement('div');
+                drop.className = 'raindrop';
+                drop.style.left = Math.random() * 100 + '%';
+                drop.style.height = (12 + Math.random() * 20) + 'px';
+                drop.style.animationDuration = (0.4 + Math.random() * 0.4) + 's';
+                drop.style.animationDelay = Math.random() * 2 + 's';
+                container.appendChild(drop);
+            }
+        }
+
+        function createParticles() {
+            const container = document.getElementById('particles');
+            for (let i = 0; i < 15; i++) {
+                const p = document.createElement('div');
+                p.className = 'particle';
+                p.style.left = Math.random() * 100 + '%';
+                p.style.top = (60 + Math.random() * 35) + '%';
+                p.style.animationDelay = Math.random() * 6 + 's';
+                p.style.animationDuration = (4 + Math.random() * 4) + 's';
+                container.appendChild(p);
+            }
+        }
+
+        function showSceneImage(imageSrc) {
+            const sceneBg = document.getElementById('sceneBg');
+            const sceneBgImg = document.getElementById('sceneBgImg');
+            if (imageSrc) {
+                sceneBgImg.src = imageSrc;
+                sceneBg.classList.add('visible');
+            } else {
+                sceneBg.classList.remove('visible');
+            }
+        }
+
+        function startStory() {
+            SFX.click();
+            SFX.startRain();
+            setTimeout(() => SFX.thunder(), 1500);
+            setInterval(() => {
+                if (Math.random() > 0.65) SFX.thunder();
+            }, 9000);
+
+            document.getElementById('titleScreen').style.opacity = '0';
+            document.getElementById('titleScreen').style.pointerEvents = 'none';
+            setTimeout(() => {
+                document.getElementById('titleScreen').style.display = 'none';
+                document.getElementById('storyScreen').classList.add('active');
+                setTimeout(() => typeNextPart(), 800);
+            }, 1000);
+        }
+
+        function typeNextPart() {
+            if (currentPart >= storyParts.length) {
+                finishStory();
+                return;
+            }
+
+            const part = storyParts[currentPart];
+            const textEl = document.getElementById('storyText');
+            const fullText = part.text;
+            let displayText = '';
+            charIndex = 0;
+
+            showSceneImage(part.image);
+
+            if (currentPart === 5) SFX.bossAppear();
+            if (currentPart === 3) SFX.playerHurt();
+            if (currentPart === 6) SFX.bossAttack();
+
+            textEl.innerHTML = '<span class="cursor-blink">|</span>';
+
+            typingInterval = setInterval(() => {
+                if (charIndex < fullText.length) {
+                    if (fullText[charIndex] === '<') {
+                        const closeTag = fullText.indexOf('>', charIndex);
+                        if (closeTag !== -1) {
+                            displayText += fullText.substring(charIndex, closeTag + 1);
+                            charIndex = closeTag + 1;
+                        }
+                    } else {
+                        displayText += fullText[charIndex];
+                        charIndex++;
+                    }
+                    textEl.innerHTML = displayText + '<span class="cursor-blink">|</span>';
+                } else {
+                    clearInterval(typingInterval);
+                    textEl.innerHTML = displayText;
+                    currentPart++;
+                    setTimeout(() => typeNextPart(), 2200);
+                }
+            }, 45);
+        }
+
+        function skipStory() {
+            clearInterval(typingInterval);
+            finishStory();
+        }
+
+        function finishStory() {
+            clearInterval(typingInterval);
+            showSceneImage('images/scene_entering_forest.png');
+            const textEl = document.getElementById('storyText');
+            textEl.innerHTML = 'عزمت على <span class="highlight">الانتقام</span>...<br>أخذت القوس والسيف... وذهبت إلى الغابة لأتدرب!';
+            document.getElementById('actionContainer').classList.add('visible');
+            GameState.save('completedIntro', true);
+        }
+
+        function goToForestMap() {
+            SFX.click();
+            SFX.stopRain();
+            navigateTo('../maps/forest/index.html');
+        }
+
+        // Initialize
+        createRain();
+        createParticles();
+    </script>
+</body>
+
+</html>
