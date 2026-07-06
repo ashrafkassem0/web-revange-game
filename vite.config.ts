@@ -11,8 +11,25 @@ export default defineConfig({
     port: 5173,
     open: true
   },
+  optimizeDeps: {
+    include: ['three']
+  },
   build: {
     outDir: path.resolve(__dirname, 'dist/forest'),
-    emptyOutDir: true
+    emptyOutDir: true,
+    chunkSizeWarningLimit: 600,
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            {
+              name: 'three',
+              test: /node_modules[\\/]three/,
+              priority: 20
+            }
+          ]
+        }
+      }
+    }
   }
 });

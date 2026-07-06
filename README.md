@@ -41,7 +41,7 @@
 
 ### المتطلبات
 
-- [Node.js](https://nodejs.org/) 18 أو أحدث
+- [Node.js](https://nodejs.org/) 20.19 أو أحدث (مطلوب لـ Vite 8)
 - npm
 
 ### 1. استنساخ المشروع
