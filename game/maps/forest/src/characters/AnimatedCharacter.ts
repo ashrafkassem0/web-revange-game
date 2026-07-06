@@ -23,6 +23,11 @@ export class AnimatedCharacter {
       const gltf = await loader.loadAsync(modelPath);
       const model = gltf.scene;
       model.scale.setScalar(this.scale);
+      model.updateMatrixWorld(true);
+
+      const box = new THREE.Box3().setFromObject(model);
+      model.position.y -= box.min.y;
+
       model.traverse((child) => {
         if ((child as THREE.Mesh).isMesh) {
           child.castShadow = true;
@@ -30,7 +35,9 @@ export class AnimatedCharacter {
         }
       });
       this.root.add(model);
-      this.mixer = new THREE.AnimationMixer(model);
+
+      const hasClips = gltf.animations.length > 0;
+      this.mixer = hasClips ? new THREE.AnimationMixer(model) : null;
       this.anim = new AnimationController(
         this.mixer,
         gltf.animations,

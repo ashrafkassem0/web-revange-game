@@ -13,7 +13,7 @@ const CHARACTERS = {
         type: 'player',
         map: 'forest',
         model: '/assets/models/hero.glb',
-        scale: 1,
+        scale: 1.48,
         appearance: {
             eyes: 'brown',
             hair: 'brown',

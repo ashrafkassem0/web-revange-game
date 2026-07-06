@@ -228,10 +228,23 @@
             }
         }
 
+        function isFirstLaunch() {
+            for (let i = 0; i < localStorage.length; i++) {
+                if (localStorage.key(i)?.startsWith('revenge_')) return false;
+            }
+            return true;
+        }
+
+        function redirectFirstLaunch() {
+            if (isFirstLaunch()) {
+                window.location.replace('/start/index.html');
+            }
+        }
+
         function newGame() {
             SFX.click();
             GameState.reset();
-            navigateTo('start/index.html');
+            navigateTo('/start/index.html');
         }
 
         function continueGame() {
@@ -256,6 +269,7 @@
             }
         }
 
+        redirectFirstLaunch();
         checkContinue();
         createParticles();
     </script>

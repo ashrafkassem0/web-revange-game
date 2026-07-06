@@ -51,9 +51,9 @@ export class AnimationController {
       this.current = next;
     }
 
-    if (this.mixer) {
+    if (this.mixer && !this.useProcedural) {
       this.mixer.update(delta);
-    } else {
+    } else if (this.useProcedural) {
       this.applyProcedural(delta, next, speed);
     }
   }

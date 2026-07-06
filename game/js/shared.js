@@ -69,10 +69,10 @@ const GameState = {
 
     getMapEntryPath(mapId) {
         const paths = {
-            forest: 'maps/forest/index.html',
-            city: 'maps/city/index.html',
-            'death-valley': 'maps/death-valley/index.html',
-            'dark-kingdom': 'maps/dark-kingdom/index.html'
+            forest: '/maps/forest/index.html',
+            city: '/maps/city/index.html',
+            'death-valley': '/maps/death-valley/index.html',
+            'dark-kingdom': '/maps/dark-kingdom/index.html'
         };
         return paths[mapId] || paths.forest;
     }

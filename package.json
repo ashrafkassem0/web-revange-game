@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "dev:forest": "vite --open /index.html",
+    "dev:forest": "vite --open /maps/forest/index.html",
     "build": "vite build",
     "preview": "vite preview"
   },

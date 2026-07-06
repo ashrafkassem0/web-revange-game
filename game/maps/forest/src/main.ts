@@ -9,11 +9,11 @@ if (!progress.completedIntro) {
   window.navigateTo('/start/index.html');
 } else {
   window.GameState.save('currentMap', 'forest');
+
+  const game = new GameLoop(canvas);
+  game.start();
+
+  document.getElementById('btn-menu')?.addEventListener('click', () => {
+    window.navigateTo('/index.html');
+  });
 }
-
-const game = new GameLoop(canvas);
-game.start();
-
-document.getElementById('btn-menu')?.addEventListener('click', () => {
-  window.navigateTo('/index.html');
-});
