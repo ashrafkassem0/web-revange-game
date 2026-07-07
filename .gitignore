@@ -1,9 +1,2 @@
-node_modules/
-dist/
 *.log
 .DS_Store
-
-# ملف Blender خام كبير — النماذج المُصدَّرة tree-1.glb / tree-2.glb كافية
-game/assets/models/trees/Tree-Pack-of-2-Free.blend
-game/assets/models/trees/textures/
-game/assets/models/animations/

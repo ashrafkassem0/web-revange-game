@@ -237,14 +237,14 @@
 
         function redirectFirstLaunch() {
             if (isFirstLaunch()) {
-                window.location.replace('/start/index.html');
+                window.location.replace('start/index.html');
             }
         }
 
         function newGame() {
             SFX.click();
             GameState.reset();
-            navigateTo('/start/index.html');
+            navigateTo('start/index.html');
         }
 
         function continueGame() {
@@ -252,8 +252,15 @@
             if (!progress.completedIntro) return;
 
             SFX.click();
-            const mapId = progress.currentMap || 'forest';
-            navigateTo(GameState.getMapEntryPath(mapId));
+            const stage = GameState.getCurrentStage();
+            if (stage === 'forest') {
+                navigateTo('forest/index.html');
+            } else if (stage === 'intro') {
+                navigateTo('start/index.html');
+            } else {
+                // مراحل قادمة
+                navigateTo('forest/index.html');
+            }
         }
 
         function createParticles() {

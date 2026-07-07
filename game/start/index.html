@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>الانتقام - قصة أشرف</title>
-    <link rel="stylesheet" href="css/shared.css">
+    <link rel="stylesheet" href="../css/shared.css">
     <style>
         body {
             margin: 0;
@@ -492,12 +492,12 @@
 
         <!-- Action Button -->
         <div class="action-container" id="actionContainer">
-            <button class="action-btn" onclick="goToForestMap()">🌲 ادخل خريطة الغابة</button>
+            <button class="action-btn" onclick="goToMainMenu()">ادخل الغابة 🌲</button>
         </div>
     </div>
 
-    <script src="js/shared.js"></script>
-    <script src="js/sounds.js"></script>
+    <script src="../js/shared.js"></script>
+    <script src="../js/sounds.js"></script>
     <script>
         const storyParts = [
             { text: 'في يوم من الأيام... في منطقة جبلية ممطرة بجوار غابة مظلمة...', image: null },
@@ -630,10 +630,11 @@
             GameState.save('completedIntro', true);
         }
 
-        function goToForestMap() {
+        function goToMainMenu() {
             SFX.click();
             SFX.stopRain();
-            navigateTo('/maps/forest/index.html');
+            // الانتقال إلى الغابة مباشرة بعد اكتمال المقدمة
+            navigateTo('../forest/index.html');
         }
 
         // Initialize

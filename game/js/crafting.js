@@ -1,91 +1,108 @@
-/**
- * نظام الصناعة — وصفات قابلة للتعديل.
- */
-const CRAFTING_RECIPES = {
-    axe: {
-        id: 'axe',
-        nameAr: 'فأس',
-        requires: { stone: 1, stick: 2 },
-        unlocksSkill: 'woodcutting',
-        unlockValue: 1
-    },
-    fishingRod: {
-        id: 'fishingRod',
-        nameAr: 'سنارة',
-        requires: { stick: 2, teeth: 2 },
-        unlocksSkill: 'fishing',
-        unlockValue: 1
-    },
-    hornSpear: {
-        id: 'hornSpear',
-        nameAr: 'رمح قرن',
-        requires: { horn: 1, stick: 2 },
-        bonusAttack: 15
-    },
-    hornSword: {
-        id: 'hornSword',
-        nameAr: 'سيف قرن',
-        requires: { horn: 2, stone: 1 },
-        bonusSkill: { sword: 2 }
-    }
-};
+'use strict';
+// ===== نظام الصناعة =====
 
-const MEAT_HEAL = { rabbit: 10, deer: 15, meat: 10 };
+const CRAFTING_RECIPES = [
+    {
+        id: 'axe',
+        name: 'فأس',
+        emoji: '🪓',
+        description: 'لقطع الأشجار والحطب',
+        requires: { stone: 1, stick: 2 },
+        isUnique: true,
+        unlocks: 'woodcutting'
+    },
+    {
+        id: 'fishingRod',
+        name: 'سنارة صيد',
+        emoji: '🎣',
+        description: 'للصيد في البحيرات',
+        requires: { stick: 2, teeth: 2 },
+        isUnique: true,
+        unlocks: 'fishing'
+    },
+    {
+        id: 'hornSpear',
+        name: 'رمح القرن',
+        emoji: '🗡️',
+        description: '+18 هجوم',
+        requires: { horn: 1, stick: 2 },
+        isUnique: false,
+        attackBonus: 18
+    },
+    {
+        id: 'hornSword',
+        name: 'سيف القرن',
+        emoji: '⚔️',
+        description: '+3 مهارة سيف',
+        requires: { horn: 2, stone: 1 },
+        isUnique: false,
+        skillBonus: { sword: 3 }
+    }
+];
 
 const Crafting = {
-    canCraft(recipeId, inventory) {
-        const recipe = CRAFTING_RECIPES[recipeId];
-        if (!recipe) return false;
-        return Object.entries(recipe.requires).every(
-            ([item, count]) => (inventory[item] || 0) >= count
-        );
+    canCraft(recipe, inventory) {
+        for (const [item, amount] of Object.entries(recipe.requires)) {
+            if ((inventory[item] || 0) < amount) return false;
+        }
+        return true;
     },
 
-    craft(recipeId, inventory, hero) {
-        if (!this.canCraft(recipeId, inventory)) return { ok: false, message: 'مواد غير كافية' };
-
-        const recipe = CRAFTING_RECIPES[recipeId];
-        Object.entries(recipe.requires).forEach(([item, count]) => {
-            inventory[item] = (inventory[item] || 0) - count;
-        });
-
-        if (recipe.unlocksSkill) {
-            hero.skills[recipe.unlocksSkill] = Math.max(
-                hero.skills[recipe.unlocksSkill] || 0,
-                recipe.unlockValue || 1
-            );
+    getMissingItems(recipe, inventory) {
+        const missing = [];
+        for (const [item, amount] of Object.entries(recipe.requires)) {
+            const have = inventory[item] || 0;
+            if (have < amount) {
+                missing.push(`${amount - have} ${ITEM_NAMES[item]}`);
+            }
         }
-        if (recipe.bonusAttack) {
-            hero.stats.attack += recipe.bonusAttack;
-        }
-        if (recipe.bonusSkill) {
-            Object.entries(recipe.bonusSkill).forEach(([skill, val]) => {
-                hero.skills[skill] = (hero.skills[skill] || 0) + val;
-            });
-            hero.stats.attack = getAttackFromSkills(hero.skills);
-        }
-
-        inventory.tools = inventory.tools || {};
-        inventory.tools[recipeId] = true;
-
-        return { ok: true, recipe };
+        return missing;
     },
 
-    eatMeat(inventory, hero, type) {
-        const key = type === 'deer' ? 'deer' : 'meat';
-        if ((inventory.meat || 0) < 1) return { ok: false, message: 'لا يوجد لحم' };
+    craft(recipeId, player) {
+        const recipe = CRAFTING_RECIPES.find(r => r.id === recipeId);
+        if (!recipe) return { success: false, message: 'وصفة غير معروفة' };
 
-        inventory.meat -= 1;
-        const heal = MEAT_HEAL[key] || MEAT_HEAL.meat;
-        hero.stats.hp = Math.min(hero.stats.maxHp, hero.stats.hp + heal);
-        return { ok: true, heal };
-    },
+        if (recipe.isUnique && player.craftedItems[recipeId]) {
+            return { success: false, message: `${recipe.name} مصنوع مسبقاً!` };
+        }
 
-    getAvailableRecipes(inventory) {
-        return Object.keys(CRAFTING_RECIPES).filter((id) => this.canCraft(id, inventory));
+        if (!this.canCraft(recipe, player.inventory)) {
+            const missing = this.getMissingItems(recipe, player.inventory);
+            return { success: false, message: `ناقص: ${missing.join(', ')}` };
+        }
+
+        // استهلاك المواد
+        for (const [item, amount] of Object.entries(recipe.requires)) {
+            player.inventory[item] -= amount;
+        }
+
+        // تطبيق النتيجة
+        if (recipe.isUnique) {
+            player.craftedItems[recipeId] = true;
+        }
+
+        if (recipe.attackBonus) {
+            player.absorbedAttack = (player.absorbedAttack || 0) + recipe.attackBonus;
+        }
+
+        if (recipe.skillBonus) {
+            for (const [skill, bonus] of Object.entries(recipe.skillBonus)) {
+                player.skills[skill] = (player.skills[skill] || 0) + bonus;
+            }
+        }
+
+        if (recipe.unlocks) {
+            player.skills[recipe.unlocks] = (player.skills[recipe.unlocks] || 0) + 1;
+        }
+
+        return {
+            success: true,
+            message: `✅ صنعت: ${recipe.emoji} ${recipe.name}!`,
+            recipe
+        };
     }
 };
 
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { CRAFTING_RECIPES, MEAT_HEAL, Crafting };
-}
+window.CRAFTING_RECIPES = CRAFTING_RECIPES;
+window.Crafting = Crafting;

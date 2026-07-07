@@ -1,229 +1,253 @@
-/**
- * مصدر الحقيقة لكل شخصيات اللعبة — يُستخدم في كافة الخرائط.
- */
-const ABSORB_RATIO = 0.5;
+'use strict';
+// ===== بيانات الشخصيات والأعداء =====
 
-const ATTACK_SKILLS = ['sword', 'bow', 'bite', 'tusks', 'fangs', 'claw', 'whip', 'physicalPower', 'punch', 'poison'];
-const DEFENSE_SKILLS = ['physicalPower', 'pushPower', 'endurance', 'climbing', 'stealth'];
-
-const CHARACTERS = {
-    hero: {
-        id: 'hero',
-        nameAr: 'أشرف',
-        type: 'player',
-        map: 'forest',
-        model: '/assets/models/hero.glb',
-        scale: 1,
-        facingOffset: 0,
-        appearance: {
-            eyes: 'brown',
-            hair: 'brown',
-            heightCm: 140,
-            outfit: { pants: 'black', shirt: 'white', jacket: 'black', shoes: 'white' }
-        },
-        animations: {
-            idle: 'Idle',
-            walk: 'Walking',
-            run: 'Running',
-            jump: 'Jump',
-            attackBow: 'Shooting Arrow',
-            attackSword: 'Sword Slash'
-        },
-        stats: { hp: 100, maxHp: 100, speed: 1, attack: 1, defense: 1 },
-        skills: { bow: 1, sword: 1, swimming: 1, fishing: 0, woodcutting: 0 },
-        drops: {}
-    },
-
+const ENEMY_TEMPLATES = {
     wildRabbit: {
         id: 'wildRabbit',
-        nameAr: 'الأرنب البري',
-        type: 'enemy',
-        map: 'forest',
-        hasHorns: true,
-        model: '/assets/models/rabbit.glb',
-        scale: 0.4,
-        animations: { idle: 'Idle', walk: 'Walking', jump: 'Jump' },
-        stats: { hp: 20, maxHp: 20, speed: 1, attack: 1, defense: 1 },
-        skills: { jump: 1 },
+        name: 'أرنب بري',
+        emoji: '🐇',
+        color: '#d4a574',
+        radius: 11,
+        hp: 20,
+        defense: 0,
+        attackDmg: 0,
+        behavior: 'flee',
+        fleeRange: 120,
+        aggroRange: 0,
+        attackRange: 0,
+        attackCooldown: 0,
+        speed: 3.2,
+        xp: 5,
+        skills: { endurance: 2 },
         drops: {
-            meat: { chance: 1.0, min: 1, max: 1 },
-            horn: { chance: 0.5, min: 1, max: 1 }
+            meat:  { chance: 1.0, amount: 1 },
+            horn:  { chance: 0.5, amount: 1 }
         }
-    },
-
-    terrorKing: {
-        id: 'terrorKing',
-        nameAr: 'ملك الرعب',
-        type: 'boss',
-        map: 'dark-kingdom',
-        model: '/assets/models/terror-king.glb',
-        scale: 1.2,
-        appearance: { hair: 'black', eyes: 'black', clothes: 'black' },
-        animations: { idle: 'Idle', walk: 'Walking', attack: 'Sword Slash' },
-        stats: { hp: 1000, maxHp: 1000, speed: 1000, attack: 1000, defense: 1000 },
-        skills: { whip: 1000, sword: 1000, physicalPower: 1000 },
-        drops: {}
-    },
-
-    crocodile: {
-        id: 'crocodile',
-        nameAr: 'التمساح',
-        type: 'enemy',
-        map: 'forest',
-        model: '/assets/models/crocodile.glb',
-        scale: 0.8,
-        stats: { hp: 200, maxHp: 200, speed: 2, attack: 200, defense: 150 },
-        skills: { swimming: 100, pushPower: 150, bite: 200 },
-        drops: { teeth: { chance: 0.6, min: 1, max: 2 } }
-    },
-
-    gorilla: {
-        id: 'gorilla',
-        nameAr: 'الغوريلا',
-        type: 'enemy',
-        map: 'forest',
-        model: '/assets/models/gorilla.glb',
-        scale: 1,
-        stats: { hp: 150, maxHp: 150, speed: 2, attack: 70, defense: 75 },
-        skills: { physicalPower: 80, punch: 70, climbing: 60 },
-        drops: {}
-    },
-
-    wildBoar: {
-        id: 'wildBoar',
-        nameAr: 'الخنزير البري',
-        type: 'enemy',
-        map: 'forest',
-        model: '/assets/models/boar.glb',
-        scale: 0.7,
-        stats: { hp: 80, maxHp: 80, speed: 3, attack: 55, defense: 45 },
-        skills: { charge: 65, tusks: 60, endurance: 50 },
-        drops: { teeth: { chance: 0.6, min: 1, max: 2 } }
-    },
-
-    wolf: {
-        id: 'wolf',
-        nameAr: 'الذئب',
-        type: 'enemy',
-        map: 'forest',
-        model: '/assets/models/wolf.glb',
-        scale: 0.6,
-        stats: { hp: 60, maxHp: 60, speed: 4, attack: 40, defense: 30 },
-        skills: { bite: 40, packHunt: 35 },
-        drops: { teeth: { chance: 0.5, min: 1, max: 2 } }
     },
 
     deer: {
         id: 'deer',
-        nameAr: 'الغزال',
-        type: 'enemy',
-        map: 'forest',
-        hasHorns: true,
-        model: '/assets/models/deer.glb',
-        scale: 0.7,
-        stats: { hp: 40, maxHp: 40, speed: 6, attack: 5, defense: 10 },
-        skills: { run: 50, jump: 30 },
+        name: 'غزال',
+        emoji: '🦌',
+        color: '#9b7240',
+        radius: 15,
+        hp: 40,
+        defense: 5,
+        attackDmg: 0,
+        behavior: 'flee',
+        fleeRange: 140,
+        aggroRange: 0,
+        attackRange: 0,
+        attackCooldown: 0,
+        speed: 4.0,
+        xp: 10,
+        skills: { endurance: 5 },
         drops: {
-            meat: { chance: 1.0, min: 1, max: 2 },
-            horn: { chance: 1.0, min: 1, max: 2 }
+            meat: { chance: 1.0, amount: 2 },
+            horn: { chance: 1.0, amount: 2 }
         }
     },
 
     fox: {
         id: 'fox',
-        nameAr: 'الثعلب',
-        type: 'enemy',
-        map: 'forest',
-        model: '/assets/models/fox.glb',
-        scale: 0.5,
-        stats: { hp: 35, maxHp: 35, speed: 5, attack: 25, defense: 20 },
-        skills: { deception: 45, bite: 25 },
-        drops: { teeth: { chance: 0.4, min: 1, max: 1 } }
+        name: 'ثعلب',
+        emoji: '🦊',
+        color: '#d4630a',
+        radius: 12,
+        hp: 35,
+        defense: 3,
+        attackDmg: 0,
+        behavior: 'flee',
+        fleeRange: 100,
+        aggroRange: 0,
+        attackRange: 0,
+        attackCooldown: 0,
+        speed: 3.8,
+        xp: 8,
+        skills: { stealth: 3 },
+        drops: {
+            teeth: { chance: 0.4, amount: 1 }
+        }
+    },
+
+    wolf: {
+        id: 'wolf',
+        name: 'ذئب',
+        emoji: '🐺',
+        color: '#7a7a7a',
+        radius: 16,
+        hp: 60,
+        defense: 10,
+        attackDmg: 8,
+        behavior: 'aggressive',
+        fleeRange: 0,
+        aggroRange: 120,
+        attackRange: 28,
+        attackCooldown: 1100,
+        speed: 2.9,
+        xp: 20,
+        skills: { bite: 8, endurance: 4 },
+        drops: {
+            teeth: { chance: 0.5, amount: 2 }
+        }
     },
 
     snake: {
         id: 'snake',
-        nameAr: 'الأفعى',
-        type: 'enemy',
-        map: 'forest',
-        model: '/assets/models/snake.glb',
-        scale: 0.4,
-        stats: { hp: 30, maxHp: 30, speed: 2, attack: 55, defense: 15 },
-        skills: { poison: 55, stealth: 40 },
-        drops: { teeth: { chance: 0.7, min: 1, max: 2 } }
+        name: 'أفعى',
+        emoji: '🐍',
+        color: '#4a7a2a',
+        radius: 10,
+        hp: 30,
+        defense: 5,
+        attackDmg: 5,
+        behavior: 'aggressive',
+        fleeRange: 0,
+        aggroRange: 90,
+        attackRange: 22,
+        attackCooldown: 1500,
+        speed: 2.5,
+        poisonDamage: 3,
+        poisonDuration: 5000,
+        xp: 12,
+        skills: { fangs: 5, stealth: 3 },
+        drops: {
+            teeth: { chance: 0.7, amount: 1 }
+        }
+    },
+
+    wildBoar: {
+        id: 'wildBoar',
+        name: 'خنزير بري',
+        emoji: '🐗',
+        color: '#7a5030',
+        radius: 17,
+        hp: 80,
+        defense: 15,
+        attackDmg: 12,
+        behavior: 'aggressive',
+        fleeRange: 0,
+        aggroRange: 110,
+        attackRange: 30,
+        attackCooldown: 1200,
+        speed: 2.8,
+        xp: 25,
+        skills: { tusks: 12, endurance: 8 },
+        drops: {
+            teeth: { chance: 0.6, amount: 2 }
+        }
     },
 
     bear: {
         id: 'bear',
-        nameAr: 'الدب',
-        type: 'enemy',
-        map: 'forest',
-        model: '/assets/models/bear.glb',
-        scale: 1.1,
-        stats: { hp: 180, maxHp: 180, speed: 2.5, attack: 85, defense: 70 },
-        skills: { claw: 85, physicalPower: 80 },
+        name: 'دب',
+        emoji: '🐻',
+        color: '#5a3520',
+        radius: 24,
+        hp: 180,
+        defense: 20,
+        attackDmg: 20,
+        behavior: 'aggressive',
+        fleeRange: 0,
+        aggroRange: 130,
+        attackRange: 38,
+        attackCooldown: 1500,
+        speed: 2.2,
+        xp: 50,
+        skills: { claw: 20, physicalPower: 15 },
+        drops: {
+            meat: { chance: 0.7, amount: 3 }
+        }
+    },
+
+    gorilla: {
+        id: 'gorilla',
+        name: 'غوريلا',
+        emoji: '🦍',
+        color: '#2a2a2a',
+        radius: 21,
+        hp: 150,
+        defense: 18,
+        attackDmg: 18,
+        behavior: 'aggressive',
+        fleeRange: 0,
+        aggroRange: 120,
+        attackRange: 34,
+        attackCooldown: 1300,
+        speed: 2.4,
+        xp: 40,
+        skills: { punch: 18, physicalPower: 15 },
         drops: {}
+    },
+
+    crocodile: {
+        id: 'crocodile',
+        name: 'تمساح',
+        emoji: '🐊',
+        color: '#2a5a2a',
+        radius: 19,
+        hp: 200,
+        defense: 25,
+        attackDmg: 25,
+        behavior: 'aggressive',
+        fleeRange: 0,
+        aggroRange: 100,
+        attackRange: 32,
+        attackCooldown: 1800,
+        speed: 1.8,
+        xp: 55,
+        skills: { bite: 25, endurance: 15 },
+        drops: {
+            teeth: { chance: 0.6, amount: 3 }
+        }
     },
 
     eagle: {
         id: 'eagle',
-        nameAr: '\u0627\u0644\u0646\u0633\u0631',
-        type: 'enemy',
-        map: 'forest',
-        model: '/assets/models/eagle.glb',
-        scale: 0.5,
-        stats: { hp: 45, maxHp: 45, speed: 8, attack: 50, defense: 25 },
-        skills: { flight: 60, claw: 50 },
-        drops: {}
-    },
-
-    fish: {
-        id: 'fish',
-        nameAr: 'السمك',
-        type: 'neutral',
-        map: 'forest',
-        model: '/assets/models/fish.glb',
-        scale: 0.2,
-        stats: { hp: 10, maxHp: 10, speed: 2, attack: 0, defense: 5 },
-        skills: { swimming: 30, camouflage: 20 },
+        name: 'نسر',
+        emoji: '🦅',
+        color: '#8b5a20',
+        radius: 13,
+        hp: 45,
+        defense: 8,
+        attackDmg: 0,
+        behavior: 'flee',
+        fleeRange: 150,
+        aggroRange: 0,
+        attackRange: 0,
+        attackCooldown: 0,
+        speed: 4.5,
+        xp: 15,
+        skills: { claw: 10, endurance: 5 },
         drops: {}
     }
 };
 
-function getAttackFromSkills(skills) {
-    let max = 0;
-    for (const key of ATTACK_SKILLS) {
-        if (skills[key] && skills[key] > max) max = skills[key];
-    }
-    return max || 1;
-}
+// أسماء المواد بالعربية
+const ITEM_NAMES = {
+    stick:  'عصا',
+    stone:  'حجر',
+    meat:   'لحم',
+    horn:   'قرن',
+    teeth:  'أسنان',
+    axe:         'فأس',
+    fishingRod:  'سنارة',
+    hornSpear:   'رمح القرن',
+    hornSword:   'سيف القرن'
+};
 
-function getDefenseFromSkills(skills) {
-    let max = 0;
-    for (const key of DEFENSE_SKILLS) {
-        if (skills[key] && skills[key] > max) max = skills[key];
-    }
-    return max || 1;
-}
+const ITEM_EMOJIS = {
+    stick:  '🪵',
+    stone:  '🪨',
+    meat:   '🥩',
+    horn:   '🦷',
+    teeth:  '🦴',
+    axe:         '🪓',
+    fishingRod:  '🎣',
+    hornSpear:   '🗡️',
+    hornSword:   '⚔️'
+};
 
-function initCharacterStats(character) {
-    character.stats.attack = character.stats.attack || getAttackFromSkills(character.skills);
-    character.stats.defense = character.stats.defense || getDefenseFromSkills(character.skills);
-    return character;
-}
-
-Object.keys(CHARACTERS).forEach((key) => initCharacterStats(CHARACTERS[key]));
-
-window.CHARACTERS = CHARACTERS;
-
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = {
-        CHARACTERS,
-        ABSORB_RATIO,
-        ATTACK_SKILLS,
-        DEFENSE_SKILLS,
-        getAttackFromSkills,
-        getDefenseFromSkills,
-        initCharacterStats
-    };
-}
+window.ENEMY_TEMPLATES = ENEMY_TEMPLATES;
+window.ITEM_NAMES = ITEM_NAMES;
+window.ITEM_EMOJIS = ITEM_EMOJIS;

@@ -212,60 +212,6 @@ const SFX = (() => {
                 playTone(1200 + Math.random() * 800, 0.2, 'sine', 0.1);
                 playTone(800 + Math.random() * 600, 0.3, 'sine', 0.08);
             }, 100);
-        },
-
-        // أجواء الغابة (حشرات وأصوات خفيفة)
-        forestLoop: null,
-        startForest() {
-            if (this.forestLoop) return;
-            this._forestInterval = setInterval(() => {
-                if (Math.random() > 0.6) {
-                    playTone(2000 + Math.random() * 2000, 0.1, 'sine', 0.02);
-                }
-            }, 2000);
-            this.forestLoop = true;
-        },
-        stopForest() {
-            if (this._forestInterval) {
-                clearInterval(this._forestInterval);
-                this._forestInterval = null;
-                this.forestLoop = null;
-            }
-        },
-
-        // أجواء المعركة (صوت رياح مخيفة)
-        battleLoop: null,
-        startBattle() {
-            if (this.battleLoop) return;
-            const c = getCtx();
-            const bufferSize = c.sampleRate * 3;
-            const buffer = c.createBuffer(1, bufferSize, c.sampleRate);
-            const data = buffer.getChannelData(0);
-            for (let i = 0; i < bufferSize; i++) {
-                data[i] = Math.random() * 2 - 1;
-            }
-            const source = c.createBufferSource();
-            source.buffer = buffer;
-            source.loop = true;
-
-            const filter = c.createBiquadFilter();
-            filter.type = 'lowpass';
-            filter.frequency.value = 400;
-
-            const gain = c.createGain();
-            gain.gain.value = 0.04;
-
-            source.connect(filter);
-            filter.connect(gain);
-            gain.connect(c.destination);
-            source.start();
-            this.battleLoop = { source, gain };
-        },
-        stopBattle() {
-            if (this.battleLoop) {
-                this.battleLoop.source.stop();
-                this.battleLoop = null;
-            }
         }
     };
 })();

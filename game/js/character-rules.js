@@ -1,74 +1,66 @@
-/**
- * قواعد القتال والاكتساب والحركة — تُستخدم في كل الخرائط.
- */
+'use strict';
+// ===== قواعد القتال والاكتساب =====
+
 const CharacterRules = {
-    isAlive(character) {
-        return character.stats.hp > 0;
+    OFFENSIVE_SKILLS: ['sword', 'bow', 'bite', 'tusks', 'fangs', 'claw', 'whip', 'physicalPower', 'punch', 'poison'],
+    DEFENSIVE_SKILLS: ['physicalPower', 'pushPower', 'endurance', 'climbing', 'stealth'],
+
+    // حساب ضرر سيف اللاعب
+    playerSwordDamage(skills, absorbedAttack) {
+        const swordSkill = skills.sword || 1;
+        const base = swordSkill * 18 + 12;
+        const bonus = Math.floor((absorbedAttack || 0) * 0.4);
+        return base + bonus + Math.floor(Math.random() * 8);
     },
 
-    takeDamage(character, amount) {
-        character.stats.hp = Math.max(0, character.stats.hp - amount);
-        return character.stats.hp <= 0;
+    // حساب ضرر قوس اللاعب
+    playerBowDamage(skills, absorbedAttack) {
+        const bowSkill = skills.bow || 1;
+        const base = bowSkill * 15 + 8;
+        const bonus = Math.floor((absorbedAttack || 0) * 0.3);
+        return base + bonus + Math.floor(Math.random() * 6);
     },
 
-    canHeroKill(hero, target) {
-        return hero.stats.attack >= target.stats.defense;
+    // الاكتساب عند قتل عدو
+    absorb(playerSkills, enemySkills, ratio) {
+        ratio = ratio || 0.5;
+        const newSkills = Object.assign({}, playerSkills);
+        for (const [skill, val] of Object.entries(enemySkills)) {
+            newSkills[skill] = (newSkills[skill] || 0) + val * ratio;
+        }
+        return newSkills;
     },
 
-    absorbSkillsFromKill(hero, victim) {
-        const ratio = typeof ABSORB_RATIO !== 'undefined' ? ABSORB_RATIO : 0.5;
+    // الاكتساب عند القتل: يُعيد {skills, absorbedAttack, absorbedDefense, hpGain}
+    absorbOnKill(player, enemy) {
+        const newSkills = this.absorb(player.skills, enemy.skills || {}, 0.5);
 
-        Object.keys(victim.skills).forEach((key) => {
-            const gain = Math.floor(victim.skills[key] * ratio);
-            if (gain > 0) {
-                hero.skills[key] = (hero.skills[key] || 0) + gain;
+        // نقاط اكتساب الهجوم
+        let atkAbsorb = 0;
+        for (const skill of this.OFFENSIVE_SKILLS) {
+            if (enemy.skills && enemy.skills[skill]) {
+                atkAbsorb += enemy.skills[skill] * 0.5;
             }
-        });
+        }
 
-        const hpGain = Math.floor(victim.stats.maxHp * ratio);
-        hero.stats.maxHp += hpGain;
-        hero.stats.hp = Math.min(hero.stats.maxHp, hero.stats.hp + hpGain);
-
-        hero.stats.attack = getAttackFromSkills(hero.skills);
-        hero.stats.defense = getDefenseFromSkills(hero.skills);
-    },
-
-    updateSpeedFromDistance(hero, distanceMeters, state) {
-        state.totalDistanceRun = (state.totalDistanceRun || 0) + distanceMeters;
-        const km = Math.floor(state.totalDistanceRun / 1000);
-        const baseSpeed = CHARACTERS.hero.stats.speed;
-        hero.stats.speed = baseSpeed + km;
-        return state.totalDistanceRun;
-    },
-
-    rollDrop(min, max) {
-        return min + Math.floor(Math.random() * (max - min + 1));
-    },
-
-    collectLoot(victim, inventory) {
-        if (!victim.drops) return inventory;
-
-        Object.keys(victim.drops).forEach((item) => {
-            const drop = victim.drops[item];
-            if (Math.random() <= drop.chance) {
-                const amount = this.rollDrop(drop.min, drop.max);
-                inventory[item] = (inventory[item] || 0) + amount;
+        // نقاط اكتساب الدفاع
+        let defAbsorb = 0;
+        for (const skill of this.DEFENSIVE_SKILLS) {
+            if (enemy.skills && enemy.skills[skill]) {
+                defAbsorb += enemy.skills[skill] * 0.5;
             }
-        });
+        }
 
-        return inventory;
-    },
+        // استعادة صحة
+        const hpGain = Math.floor(enemy.maxHp * 0.08);
 
-    rectsCollide(a, b) {
-        return (
-            a.x < b.x + b.width &&
-            a.x + a.width > b.x &&
-            a.y < b.y + b.height &&
-            a.y + a.height > b.y
-        );
+        return {
+            skills: newSkills,
+            absorbedAttack: (player.absorbedAttack || 0) + atkAbsorb,
+            absorbedDefense: (player.absorbedDefense || 0) + defAbsorb,
+            hpGain
+        };
     }
 };
 
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { CharacterRules };
-}
+window.CharacterRules = CharacterRules;

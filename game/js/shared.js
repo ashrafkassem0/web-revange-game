@@ -10,71 +10,71 @@ const GameState = {
 
     getProgress() {
         return {
-            xp: this.load('xp', 0),
-            level: this.load('level', 1),
-            completedIntro: this.load('completedIntro', false),
-            completedForest: this.load('completedForest', false),
-            completedCity: this.load('completedCity', false),
-            completedDeathValley: this.load('completedDeathValley', false),
-            unlockedMaps: this.load('unlockedMaps', ['forest']),
-            currentMap: this.load('currentMap', 'forest')
+            completedIntro:      this.load('completedIntro', false),
+            completedForest:     this.load('completedForest', false),
+            completedCity:       this.load('completedCity', false),
+            completedDeathValley:this.load('completedDeathValley', false),
         };
     },
 
-    getHeroRuntime() {
-        const saved = this.load('heroStats', null);
-        if (saved) return saved;
-        if (typeof CHARACTERS !== 'undefined') {
-            const hero = JSON.parse(JSON.stringify(CHARACTERS.hero));
-            return { stats: hero.stats, skills: hero.skills };
-        }
-        return { stats: { hp: 100, maxHp: 100, speed: 1, attack: 1, defense: 1 }, skills: {} };
+    saveForestState(state) {
+        this.save('forestState', state);
     },
 
-    saveHeroRuntime(hero) {
-        this.save('heroStats', { stats: hero.stats, skills: hero.skills });
+    loadForestState() {
+        return this.load('forestState', null);
+    },
+
+    getHeroStats() {
+        return this.load('heroStats', {
+            hp: 100, maxHp: 100,
+            attack: 25, defense: 5,
+            skills: { sword: 1, bow: 1, swimming: 1, woodcutting: 0, fishing: 0 },
+            absorbedAttack: 0,
+            absorbedDefense: 0
+        });
+    },
+
+    saveHeroStats(stats) {
+        this.save('heroStats', stats);
     },
 
     getInventory() {
         return this.load('inventory', {
-            stick: 0,
-            stone: 0,
-            meat: 0,
-            horn: 0,
-            teeth: 0,
-            tools: {}
+            stick: 0, stone: 0, meat: 0, horn: 0, teeth: 0
         });
     },
 
-    saveInventory(inventory) {
-        this.save('inventory', inventory);
+    saveInventory(inv) {
+        this.save('inventory', inv);
     },
 
-    getTotalDistanceRun() {
-        return this.load('totalDistanceRun', 0);
+    getCraftedItems() {
+        return this.load('craftedItems', {
+            axe: false, fishingRod: false, hornSpear: false, hornSword: false
+        });
     },
 
-    saveTotalDistanceRun(meters) {
-        this.save('totalDistanceRun', meters);
+    saveCraftedItems(items) {
+        this.save('craftedItems', items);
+    },
+
+    getCurrentStage() {
+        const p = this.getProgress();
+        if (!p.completedIntro) return 'intro';
+        if (!p.completedForest) return 'forest';
+        if (!p.completedCity) return 'city';
+        if (!p.completedDeathValley) return 'deathValley';
+        return 'darkKingdom';
     },
 
     reset() {
         const keys = [
-            'xp', 'level', 'completedIntro', 'completedForest', 'completedCity',
-            'completedDeathValley', 'unlockedMaps', 'currentMap',
-            'heroStats', 'inventory', 'totalDistanceRun'
+            'completedIntro', 'completedForest', 'completedCity',
+            'completedDeathValley', 'heroStats', 'inventory',
+            'craftedItems', 'forestState'
         ];
-        keys.forEach((k) => localStorage.removeItem('revenge_' + k));
-    },
-
-    getMapEntryPath(mapId) {
-        const paths = {
-            forest: '/maps/forest/index.html',
-            city: '/maps/city/index.html',
-            'death-valley': '/maps/death-valley/index.html',
-            'dark-kingdom': '/maps/dark-kingdom/index.html'
-        };
-        return paths[mapId] || paths.forest;
+        keys.forEach(k => localStorage.removeItem('revenge_' + k));
     }
 };
 
@@ -90,14 +90,5 @@ function navigateTo(page) {
     }
 }
 
-const GAME_CONFIG = {
-    absorbRatio: 0.5,
-    forestCompleteKm: 3,
-    forestCompleteKills: 10,
-    meatHealRabbit: 10,
-    meatHealDeer: 15
-};
-
 window.GameState = GameState;
 window.navigateTo = navigateTo;
-window.GAME_CONFIG = GAME_CONFIG;
