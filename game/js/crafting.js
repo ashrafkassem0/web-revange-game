@@ -37,6 +37,24 @@ const CRAFTING_RECIPES = [
         requires: { horn: 2, stone: 1 },
         isUnique: false,
         skillBonus: { sword: 3 }
+    },
+    {
+        id: 'leatherArmor',
+        name: 'درع جلدي',
+        emoji: '🛡️',
+        description: '+15 دفاع دائم',
+        requires: { leather: 3, stick: 1 },
+        isUnique: true,
+        defenseBonus: 15
+    },
+    {
+        id: 'arrows',
+        name: 'سهام',
+        emoji: '🏹',
+        description: 'احصل على 10 سهام',
+        requires: { stick: 2 },
+        isUnique: false,
+        givesItem: { arrows: 10 }
     }
 ];
 
@@ -92,8 +110,18 @@ const Crafting = {
             }
         }
 
+        if (recipe.defenseBonus) {
+            player.defense = (player.defense || 5) + recipe.defenseBonus;
+        }
+
         if (recipe.unlocks) {
             player.skills[recipe.unlocks] = (player.skills[recipe.unlocks] || 0) + 1;
+        }
+
+        if (recipe.givesItem) {
+            for (const [item, amount] of Object.entries(recipe.givesItem)) {
+                player.inventory[item] = (player.inventory[item] || 0) + amount;
+            }
         }
 
         return {

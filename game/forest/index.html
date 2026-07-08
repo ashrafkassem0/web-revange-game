@@ -287,6 +287,15 @@
         .death-btn:hover { transform: scale(1.04); background: linear-gradient(135deg, #666, #444); }
 
         /* Controls hint */
+        #fishingStatus {
+            position: fixed; bottom: 70px; left: 50%; transform: translateX(-50%);
+            background: rgba(0,30,60,0.85); color: #aaddff;
+            padding: 8px 20px; border-radius: 20px; font-size: 1rem;
+            border: 2px solid #5dade2; font-family: 'Cairo', sans-serif;
+            display: none; text-align: center; z-index: 30;
+        }
+        @keyframes fishPulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+        .fish-bite { animation: fishPulse 0.4s infinite; color: #f0c040 !important; font-weight: bold; }
         #controlsHint {
             position: absolute; bottom: 14px; right: 14px;
             z-index: 45; font-size: 0.68rem; color: #555;
@@ -372,6 +381,9 @@
                 <div class="inv-item"><span class="inv-icon">🥩</span><span class="inv-count" id="inv-meat">0</span></div>
                 <div class="inv-item"><span class="inv-icon">🦷</span><span class="inv-count" id="inv-horn">0</span></div>
                 <div class="inv-item"><span class="inv-icon">🦴</span><span class="inv-count" id="inv-teeth">0</span></div>
+                <div class="inv-item"><span class="inv-icon">🧥</span><span class="inv-count" id="inv-leather">0</span></div>
+                <div class="inv-item"><span class="inv-icon">🐟</span><span class="inv-count" id="inv-fish">0</span></div>
+                <div class="inv-item"><span class="inv-icon">🏹</span><span class="inv-count" id="inv-arrows">∞</span></div>
             </div>
         </div>
     </div>
@@ -391,13 +403,16 @@
     </div>
 
     <!-- Controls Hint -->
+    <div id="fishingStatus">🎣 جارٍ الصيد... اضغط R للسحب</div>
+
     <div id="controlsHint">
         <span>WASD/↑↓←→</span> تحرك &nbsp;|&nbsp;
         <span>Shift</span> جري &nbsp;|&nbsp;
-        <span>E/Space</span> هجوم &nbsp;|&nbsp;
-        <span>1/2</span> سلاح &nbsp;|&nbsp;
+        <span>E</span> هجوم/التقط &nbsp;|&nbsp;
+        <span>1/2</span> سيف/قوس &nbsp;|&nbsp;
+        <span>R</span> صيد &nbsp;|&nbsp;
         <span>F</span> صناعة &nbsp;|&nbsp;
-        <span>Q</span> أكل لحم
+        <span>Q</span> أكل
     </div>
 
     <!-- Intro Overlay -->
@@ -417,16 +432,16 @@
                 <div>التحرك</div>
                 <div><span class="key">Shift</span></div>
                 <div>الجري</div>
-                <div><span class="key">E</span> أو <span class="key">Space</span></div>
-                <div>ضربة السيف</div>
+                <div><span class="key">E</span></div>
+                <div>ضربة السيف / التقاط غنيمة</div>
                 <div><span class="key">انقر</span> (مع القوس)</div>
-                <div>إطلاق سهم</div>
+                <div>إطلاق سهم — يصيد الحيوانات</div>
                 <div><span class="key">1 / 2</span></div>
-                <div>تبديل السلاح</div>
+                <div>تبديل السيف / القوس</div>
                 <div><span class="key">F</span></div>
                 <div>قائمة الصناعة</div>
                 <div><span class="key">Q</span></div>
-                <div>أكل لحم</div>
+                <div>أكل لحم للشفاء</div>
             </div>
         </div>
         <button class="intro-btn" id="introBtn" onclick="startGame()">ابدأ التدريب! 🌲</button>
@@ -468,6 +483,29 @@
     //  FOREST GAME — اللعبة الكاملة
     // =========================================================
 
+    // ===== roundRect polyfill (for older browsers) =====
+    (function() {
+        const p = CanvasRenderingContext2D.prototype;
+        if (p.roundRect) return;
+        p.roundRect = function(x, y, w, h, radii) {
+            let r = Array.isArray(radii) ? (radii[0] || 0) : (radii || 0);
+            r = Math.min(r, w / 2, h / 2);
+            this.moveTo(x + r, y);
+            this.lineTo(x + w - r, y);
+            this.quadraticCurveTo(x + w, y, x + w, y + r);
+            this.lineTo(x + w, y + h - r);
+            this.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+            this.lineTo(x + r, y + h);
+            this.quadraticCurveTo(x, y + h, x, y + h - r);
+            this.lineTo(x, y + r);
+            this.quadraticCurveTo(x, y, x + r, y);
+            this.closePath();
+        };
+    })();
+
+    // ===== ZOOM =====
+    const ZOOM = 2.0; // Scale factor — makes all objects larger on screen
+
     // ===== CONFIG =====
     const CFG = {
         WORLD_W: 3200, WORLD_H: 3200,
@@ -479,13 +517,14 @@
         STAMINA_DRAIN: 1.5,
         STAMINA_REGEN: 0.6,
         SWORD_RANGE: 58,
-        BOW_RANGE: 300,
-        ARROW_SPEED: 9,
+        BOW_RANGE: 320,
+        ARROW_SPEED: 10,
         ATTACK_CD: 700,
         KILLS_NEEDED: 10,
         DIST_NEEDED: 3000,
         CHALLENGES_NEEDED: 2,
-        MEAT_HEAL: { default: 10, deer: 15 }
+        MEAT_HEAL: { default: 10, deer: 15 },
+        ITEM_PICKUP_RANGE: 52
     };
 
     // ===== TILES =====
@@ -523,9 +562,11 @@
         attack: 30, defense: 5,
         skills: { sword: 1, bow: 1, swimming: 1, woodcutting: 0, fishing: 0 },
         absorbedAttack: 0, absorbedDefense: 0,
-        inventory: { stick: 0, stone: 0, meat: 0, horn: 0, teeth: 0 },
-        craftedItems: { axe: false, fishingRod: false, hornSpear: false, hornSword: false },
-        attackCd: 0, hurtTimer: 0,
+        inventory: { stick: 0, stone: 0, meat: 0, horn: 0, teeth: 0, leather: 0, fish: 0, arrows: 15 },
+        craftedItems: { axe: false, fishingRod: false, hornSpear: false, hornSword: false, leatherArmor: false },
+        attackCd: 0, hurtTimer: 0, chopCd: 0,
+        walkTimer: 0, isMoving: false,
+        isFishing: false, fishingTimer: 0, fishingBite: false, fishingBiteTimer: 0,
         poisoned: false, poisonTimer: 0, poisonDmg: 0,
         distanceTraveled: 0, lastX: 1600, lastY: 2800,
         killCount: 0, xp: 0,
@@ -535,11 +576,20 @@
     // ===== GAME STATE =====
     const keys = {};
     let mouseWorldX = 0, mouseWorldY = 0;
+    let lockedTarget = null;   // enemy currently aimed at
     let camera = { x: 1100, y: 2350 };
     let enemies = [];
     let arrows = [];
     let resources = [];
     let trees = [];
+    let droppedItems = [];
+
+    // City portal — south-center of the map (tile col 40, row 77)
+    const CITY_PORTAL = {
+        x: 40 * 40,   // world x = 1600
+        y: 77 * 40,   // world y = 3080
+        radius: 55,
+    };
     let gameRunning = false;
     let gamePaused = false;
     let gameCompleted = false;
@@ -572,6 +622,8 @@
         setCircleT(12,12,10,T.SAND); setCircleT(12,12,8,T.WATER);
         setCircleT(68,12,9,T.SAND);  setCircleT(68,12,7,T.WATER);
         setCircleT(40,38,6,T.SAND);  setCircleT(40,38,4,T.WATER);
+        // City road — sand path leading south to the city gate
+        setRect(37, 58, 43, 80, T.SAND);
 
         generateTrees();
     }
@@ -583,16 +635,16 @@
 
     function generateTrees() {
         const zones = [
-            { x1:50,y1:50,   x2:880,y2:1000, count:55, rMin:9,  rMax:22 },
-            { x1:2300,y1:50, x2:3150,y2:1000,count:48, rMin:9,  rMax:20 },
-            { x1:50,y1:50,   x2:320,y2:3150, count:60, rMin:10, rMax:22 },
-            { x1:800,y1:400, x2:2400,y2:2200,count:45, rMin:8,  rMax:17 },
-            { x1:800,y1:2000,x2:2800,y2:3150,count:28, rMin:8,  rMax:14 },
+            { x1:50,  y1:50,   x2:880,  y2:1000, count:42, rMin:18, rMax:38 },
+            { x1:2300,y1:50,   x2:3150, y2:1000, count:36, rMin:18, rMax:36 },
+            { x1:50,  y1:50,   x2:320,  y2:3150, count:44, rMin:20, rMax:40 },
+            { x1:800, y1:400,  x2:2400, y2:2200, count:34, rMin:16, rMax:30 },
+            { x1:800, y1:2000, x2:2800, y2:3150, count:22, rMin:15, rMax:26 },
         ];
         let seed = 0;
         for (const z of zones) {
             let placed = 0, tries = 0;
-            while (placed < z.count && tries < z.count * 4) {
+            while (placed < z.count && tries < z.count * 6) {
                 tries++;
                 const x = z.x1 + seededRand(seed++) * (z.x2 - z.x1);
                 const y = z.y1 + seededRand(seed++) * (z.y2 - z.y1);
@@ -600,9 +652,13 @@
                 if (isWater(x, y)) continue;
                 let ok = true;
                 for (const t of trees) {
-                    if (Math.hypot(t.x-x, t.y-y) < t.r + r + 5) { ok = false; break; }
+                    if (Math.hypot(t.x-x, t.y-y) < t.r + r + 8) { ok = false; break; }
                 }
-                if (ok) { trees.push({ x, y, r }); placed++; }
+                if (ok) {
+                    const maxHp = 3;
+                    trees.push({ x, y, r, hp: maxHp, maxHp, chopped: false, shakeTimer: 0 });
+                    placed++;
+                }
             }
         }
     }
@@ -620,6 +676,7 @@
             this.hurtTimer = 0;
             this.isDead = false;
             this.deathTimer = 0;
+            this.provoked = false;
             this.uid = Math.random().toString(36).slice(2);
         }
 
@@ -632,11 +689,32 @@
             const dy = player.y - this.y;
             const dist = Math.hypot(dx, dy);
 
-            if (this.behavior === 'flee') {
+            if (this.provoked && this.behavior === 'flee') {
+                // Provoked flee animal — charges and bites the player
+                this.provokedAttackTimer = Math.max(0, (this.provokedAttackTimer || 0) - dt);
+                const a = Math.atan2(dy, dx);
+                this.vx = Math.cos(a) * this.speed;
+                this.vy = Math.sin(a) * this.speed;
+                if (dist < this.provokedAttackRange + this.radius && this.provokedAttackTimer <= 0) {
+                    this.provokedAttackTimer = this.provokedAttackCd;
+                    const dmg = this.provokedAttackDmg;
+                    player.hp = Math.max(0, player.hp - dmg);
+                    player.hurtTimer = 400;
+                    SFX.playerHurt();
+                    flashScreen();
+                    notify(`-${dmg} 💔`, '#e74c3c', this.x, this.y - this.radius - 8);
+                    if (player.hp <= 0) killPlayer();
+                    updateHUD();
+                }
+            } else if (this.behavior === 'flee') {
+                // Unwounded flee animals slow down when hurt — easier to hunt
+                const fleeSpd = this.hurtTimer > 0
+                    ? this.speed * (0.4 + 0.4 * (this.hp / this.maxHp))
+                    : this.speed;
                 if (dist < this.fleeRange) {
                     const a = Math.atan2(-dy, -dx);
-                    this.vx = Math.cos(a) * this.speed;
-                    this.vy = Math.sin(a) * this.speed;
+                    this.vx = Math.cos(a) * fleeSpd;
+                    this.vy = Math.sin(a) * fleeSpd;
                 } else { this._wander(dt); }
             } else if (this.behavior === 'aggressive') {
                 if (dist < this.aggroRange) {
@@ -649,15 +727,30 @@
                 } else { this._wander(dt); }
             }
 
-            this.x = Math.max(this.radius, Math.min(CFG.WORLD_W - this.radius, this.x + this.vx));
-            this.y = Math.max(this.radius, Math.min(CFG.WORLD_H - this.radius, this.y + this.vy));
+            const nx = Math.max(this.radius, Math.min(CFG.WORLD_W - this.radius, this.x + this.vx));
+            const ny = Math.max(this.radius, Math.min(CFG.WORLD_H - this.radius, this.y + this.vy));
+
+            // Block animals from entering water — try axis separately to allow sliding
+            const inWaterX = isWater(nx, this.y);
+            const inWaterY = isWater(this.x, ny);
+            if (!inWaterX) this.x = nx; else { this.vx = 0; this.wanderAngle = Math.random() * Math.PI * 2; }
+            if (!inWaterY) this.y = ny; else { this.vy = 0; this.wanderAngle = Math.random() * Math.PI * 2; }
         }
 
         _wander(dt) {
             this.wanderTimer -= dt;
             if (this.wanderTimer <= 0) {
                 this.wanderTimer = 1500 + Math.random() * 2500;
-                this.wanderAngle = Math.random() * Math.PI * 2;
+                // Pick an angle that leads away from water
+                let bestAngle = Math.random() * Math.PI * 2;
+                const step = CFG.TILE_SIZE * 1.5;
+                for (let attempt = 0; attempt < 8; attempt++) {
+                    const a = Math.random() * Math.PI * 2;
+                    if (!isWater(this.x + Math.cos(a) * step, this.y + Math.sin(a) * step)) {
+                        bestAngle = a; break;
+                    }
+                }
+                this.wanderAngle = bestAngle;
             }
             const sp = this.speed * 0.3;
             this.vx = Math.cos(this.wanderAngle) * sp;
@@ -687,46 +780,68 @@
             this.hurtTimer = 300;
             SFX.hit();
             notify(`-${amount}`, '#ff8060', this.x, this.y - this.radius - 6);
-            if (this.hp <= 0) this._die();
+            if (this.hp <= 0) {
+                this._die();
+            } else if (!this.provoked) {
+                // Any surviving hit provokes the animal — it turns and fights back
+                this.provoked = true;
+                // Give flee animals just enough bite to hurt the player
+                if (this.behavior === 'flee') {
+                    this.provokedAttackDmg  = Math.max(3, Math.floor(this.maxHp * 0.08));
+                    this.provokedAttackRange = this.radius + 20;
+                    this.provokedAggroRange  = 400;
+                    this.provokedAttackCd    = 1200;
+                    this.provokedAttackTimer = 0;
+                    this.speed = Math.min(this.speed * 1.3, 5.5); // rage sprint
+                }
+                notify('😡 استشاط غضباً!', '#ff4400', this.x, this.y - this.radius - 18);
+            }
         }
 
         _die() {
             this.isDead = true;
             SFX.kill();
 
-            // Drops
-            const drops = {};
+            // Spawn drops on the ground — player must walk over and press E
+            let dropCount = 0;
             for (const [item, cfg] of Object.entries(this.drops || {})) {
-                if (Math.random() < cfg.chance) drops[item] = cfg.amount;
-            }
-            for (const [item, amt] of Object.entries(drops)) {
-                player.inventory[item] = (player.inventory[item] || 0) + amt;
-            }
-            if (Object.keys(drops).length > 0) {
-                const txt = Object.entries(drops).map(([k,v]) => `+${v}${ITEM_EMOJIS[k]}`).join(' ');
-                notify(txt, '#2ecc71', this.x, this.y);
+                if (Math.random() < cfg.chance) {
+                    droppedItems.push(new DroppedItem(item, cfg.amount, this.x, this.y));
+                    dropCount++;
+                }
             }
 
-            // Absorb
+            // Always spawn a health orb
+            const hpOrb = Math.max(3, Math.floor(this.maxHp * 0.12));
+            droppedItems.push(new DroppedItem('healthOrb', hpOrb, this.x, this.y));
+
+            if (dropCount > 0) {
+                notify('⬇️ اقترب لالتقاط الغنائم', '#f0c040', this.x, this.y - this.radius - 12);
+            } else {
+                notify('⬇️ ❤️ اقترب للتعافي', '#e74c3c', this.x, this.y - this.radius - 12);
+            }
+
+            // Absorb enemy skills
             const ab = CharacterRules.absorbOnKill(player, this);
             player.skills = ab.skills;
             player.absorbedAttack = ab.absorbedAttack;
             player.absorbedDefense = ab.absorbedDefense;
-            player.hp = Math.min(player.maxHp, player.hp + ab.hpGain);
             player.attack = CharacterRules.playerSwordDamage(player.skills, player.absorbedAttack);
             player.xp += this.xp || 10;
             player.killCount++;
 
-            if (ab.hpGain > 0) notify(`+${ab.hpGain}❤️`, '#e74c3c', this.x, this.y + 15);
+            if (ab.hpGain > 0) notify(`⚡ +${ab.hpGain} مهارة`, '#f0c040', this.x, this.y + 18);
             SFX.xp();
             updateHUD();
             checkCompletion();
+            // Save every 5 kills so progress is never lost
+            if (player.killCount % 5 === 0) saveForestProgress();
         }
 
         draw(cx, cy) {
             const sx = this.x - cx;
             const sy = this.y - cy;
-            const W = canvas.width, H = canvas.height;
+            const W = canvas.width / ZOOM, H = canvas.height / ZOOM;
             if (sx < -60 || sx > W+60 || sy < -60 || sy > H+60) return;
 
             ctx.save();
@@ -742,13 +857,21 @@
             ctx.fillStyle = 'rgba(0,0,0,0.3)';
             ctx.fill();
 
+            // Rage aura for provoked flee animals
+            if (this.provoked && this.behavior === 'flee') {
+                ctx.beginPath();
+                ctx.arc(sx, sy, this.radius + 5, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(255,50,0,${0.25 + 0.15 * Math.sin(Date.now() * 0.01)})`;
+                ctx.fill();
+            }
+
             // Body
             ctx.beginPath();
             ctx.arc(sx, sy, this.radius, 0, Math.PI*2);
-            ctx.fillStyle = this.hurtTimer > 0 ? '#ff5555' : this.color;
+            ctx.fillStyle = this.hurtTimer > 0 ? '#ff5555' : (this.provoked ? '#cc2200' : this.color);
             ctx.fill();
-            ctx.strokeStyle = 'rgba(0,0,0,0.55)';
-            ctx.lineWidth = 1.5;
+            ctx.strokeStyle = this.provoked ? 'rgba(255,80,0,0.8)' : 'rgba(0,0,0,0.55)';
+            ctx.lineWidth = this.provoked ? 2.5 : 1.5;
             ctx.stroke();
 
             // Emoji
@@ -812,6 +935,107 @@
         }
     }
 
+    // ===== DROPPED ITEM (ground loot) =====
+    class DroppedItem {
+        constructor(type, amount, x, y) {
+            this.type = type;
+            this.amount = amount;
+            this.x = x + (Math.random() - 0.5) * 44;
+            this.y = y + (Math.random() - 0.5) * 44;
+            this.collected = false;
+            this.bobTimer = Math.random() * Math.PI * 2;
+            this.glowTimer = Math.random() * 1000;
+            this.isHealth = (type === 'healthOrb');
+        }
+
+        update(dt) {
+            this.bobTimer += dt * 0.003;
+            this.glowTimer += dt;
+        }
+
+        isNearPlayer() {
+            return !this.collected &&
+                Math.hypot(player.x - this.x, player.y - this.y) < CFG.ITEM_PICKUP_RANGE;
+        }
+
+        pickup() {
+            if (this.collected) return;
+            this.collected = true;
+            if (this.isHealth) {
+                const gained = Math.min(this.amount, player.maxHp - player.hp);
+                player.hp = Math.min(player.maxHp, player.hp + this.amount);
+                if (gained > 0) notify(`+${gained} ❤️`, '#e74c3c', this.x, this.y - 18);
+            } else {
+                player.inventory[this.type] = (player.inventory[this.type] || 0) + this.amount;
+                const emoji = ITEM_EMOJIS[this.type] || '';
+                const name  = ITEM_NAMES[this.type]  || this.type;
+                notify(`+${this.amount} ${emoji} ${name}`, '#2ecc71', this.x, this.y - 18);
+            }
+            SFX.xp();
+            updateHUD();
+        }
+
+        draw(cx, cy) {
+            if (this.collected) return;
+            const VW = canvas.width / ZOOM, VH = canvas.height / ZOOM;
+            const sx = this.x - cx;
+            const sy = this.y - cy + Math.sin(this.bobTimer) * 3;
+            if (sx < -30 || sx > VW + 30 || sy < -30 || sy > VH + 30) return;
+
+            ctx.save();
+
+            // Ground shadow
+            ctx.beginPath();
+            ctx.ellipse(sx, sy + 9, 11, 4, 0, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(0,0,0,0.28)';
+            ctx.fill();
+
+            // Pulsing glow
+            const glow = 0.25 + 0.18 * Math.sin(this.glowTimer * 0.005);
+            ctx.beginPath();
+            ctx.arc(sx, sy, 15, 0, Math.PI * 2);
+            ctx.fillStyle = this.isHealth
+                ? `rgba(231,76,60,${glow})`
+                : `rgba(46,204,113,${glow})`;
+            ctx.fill();
+
+            // Item emoji
+            ctx.font = '20px serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(this.isHealth ? '❤️' : (ITEM_EMOJIS[this.type] || '?'), sx, sy);
+
+            // Amount badge
+            if (this.amount > 1) {
+                ctx.font = 'bold 9px Cairo';
+                ctx.fillStyle = '#fff';
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 2;
+                ctx.strokeText(`×${this.amount}`, sx + 10, sy + 10);
+                ctx.fillText(`×${this.amount}`, sx + 10, sy + 10);
+            }
+
+            // Pickup prompt when close
+            if (this.isNearPlayer()) {
+                ctx.beginPath();
+                ctx.arc(sx, sy, 18, 0, Math.PI * 2);
+                ctx.strokeStyle = 'rgba(255,220,50,0.85)';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                ctx.font = 'bold 10px Cairo';
+                ctx.fillStyle = '#ffe066';
+                ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+                ctx.lineWidth = 3;
+                const label = `[E] ${this.isHealth ? 'استعادة' : 'خذ'}`;
+                ctx.strokeText(label, sx, sy - 22);
+                ctx.fillText(label, sx, sy - 22);
+            }
+
+            ctx.restore();
+        }
+    }
+
     // ===== RESOURCE NODE =====
     class ResourceNode {
         constructor(type, x, y) {
@@ -820,10 +1044,20 @@
             this.amount = type === 'stick' ? 2 : 1;
             this.collected = false;
             this.radius = type === 'stick' ? 12 : 15;
+            this.glowTimer = Math.random() * 1000;
         }
-        tryCollect() {
+
+        update(dt) {
+            this.glowTimer += dt;
+        }
+
+        isNearPlayer() {
+            return !this.collected &&
+                Math.hypot(player.x - this.x, player.y - this.y) < CFG.ITEM_PICKUP_RANGE;
+        }
+
+        pickup() {
             if (this.collected) return false;
-            if (Math.hypot(player.x - this.x, player.y - this.y) > this.radius + 28) return false;
             this.collected = true;
             player.inventory[this.type] += this.amount;
             SFX.xp();
@@ -831,11 +1065,24 @@
             updateHUD();
             return true;
         }
+
         draw(cx, cy) {
             if (this.collected) return;
             const sx = this.x - cx, sy = this.y - cy;
-            if (sx < -40 || sx > canvas.width+40 || sy < -40 || sy > canvas.height+40) return;
+            if (sx < -40 || sx > canvas.width/ZOOM+40 || sy < -40 || sy > canvas.height/ZOOM+40) return;
+
+            const near = this.isNearPlayer();
             ctx.save();
+
+            // Pulsing glow when nearby
+            if (near) {
+                const glow = 0.22 + 0.16 * Math.sin(this.glowTimer * 0.005);
+                ctx.beginPath();
+                ctx.arc(sx, sy, this.radius + 8, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(255,220,50,${glow})`;
+                ctx.fill();
+            }
+
             if (this.type === 'stick') {
                 ctx.lineWidth = 4; ctx.lineCap = 'round';
                 for (let i=0;i<3;i++) {
@@ -853,10 +1100,29 @@
                 ctx.beginPath(); ctx.ellipse(sx-2,sy-3,7,5,-0.2,0,Math.PI*2); ctx.fill();
                 ctx.strokeStyle = '#555'; ctx.lineWidth = 1; ctx.stroke();
             }
-            // Glow/label
+
+            // Emoji label
             ctx.font = '11px Cairo'; ctx.fillStyle = '#ccc';
             ctx.textAlign = 'center'; ctx.textBaseline = 'top';
             ctx.fillText(ITEM_EMOJIS[this.type], sx, sy + this.radius + 2);
+
+            // Pickup prompt when close
+            if (near) {
+                ctx.beginPath();
+                ctx.arc(sx, sy, this.radius + 9, 0, Math.PI * 2);
+                ctx.strokeStyle = 'rgba(255,220,50,0.85)';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                ctx.font = 'bold 10px Cairo';
+                ctx.fillStyle = '#ffe066';
+                ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+                ctx.lineWidth = 3;
+                ctx.textBaseline = 'middle';
+                ctx.strokeText('[E] خذ', sx, sy - this.radius - 12);
+                ctx.fillText('[E] خذ', sx, sy - this.radius - 12);
+            }
+
             ctx.restore();
         }
     }
@@ -928,144 +1194,899 @@
         }
     }
 
-    // ===== WORLD DRAW =====
-    function drawWorld(camX, camY) {
-        const W = canvas.width, H = canvas.height;
+    // ===== PRE-RENDERED TERRAIN =====
+    let terrainCanvas = null;
+
+    function th(c, r, salt) {
+        // Fast per-tile deterministic hash → 0..1
+        return Math.abs(Math.sin(c * 127.1 * (salt||1) + r * 311.7)) % 1;
+    }
+
+    function prerenderTerrain() {
+        terrainCanvas = document.createElement('canvas');
+        terrainCanvas.width  = CFG.WORLD_W;
+        terrainCanvas.height = CFG.WORLD_H;
+        const tc = terrainCanvas.getContext('2d');
         const cs = CFG.TILE_SIZE;
-        const sc = Math.max(0,Math.floor(camX/cs));
-        const sr = Math.max(0,Math.floor(camY/cs));
-        const ec = Math.min(CFG.WORLD_COLS-1, Math.ceil((camX+W)/cs));
-        const er = Math.min(CFG.WORLD_ROWS-1, Math.ceil((camY+H)/cs));
 
-        for (let r=sr;r<=er;r++) {
-            for (let c=sc;c<=ec;c++) {
-                const t = getTile(c,r);
-                const sx = c*cs - camX, sy = r*cs - camY;
-                ctx.fillStyle = TILE_COLOR[t];
-                ctx.fillRect(sx, sy, cs+1, cs+1);
+        // World-space smooth noise — NOT tile-aligned, so no grid artifacts
+        function wn(wx, wy, freq, seed) {
+            const a = wx * freq + seed, b = wy * freq + seed * 1.618;
+            return (Math.sin(a + Math.cos(b * 0.7)) * Math.cos(b - Math.sin(a * 0.9)) + 1) * 0.5;
+        }
 
-                if (t===T.GRASS || t===T.DEEP) {
-                    // Grass tufts
-                    ctx.fillStyle = t===T.GRASS ? 'rgba(50,120,40,0.35)' : 'rgba(30,90,25,0.4)';
-                    const seed = c*7+r*13;
-                    for (let g=0;g<4;g++) {
-                        const gx = sx + ((seed*(g+1)*31)%cs);
-                        const gy = sy + ((seed*(g+2)*17)%cs);
-                        ctx.fillRect(gx, gy, 2, 3+g%2);
-                    }
-                } else if (t===T.WATER) {
-                    const wave = Math.sin(waveTime*0.002 + c*0.5 + r*0.4) * 0.12;
-                    ctx.fillStyle = `rgba(100,180,255,${0.06+wave})`;
-                    ctx.fillRect(sx, sy+cs*0.25, cs, cs*0.2);
-                    ctx.fillStyle = `rgba(255,255,255,${0.04+wave*0.5})`;
-                    ctx.fillRect(sx+cs*0.3, sy+cs*0.6, cs*0.4, cs*0.12);
-                } else if (t===T.ROCK) {
-                    ctx.fillStyle = 'rgba(100,100,90,0.3)';
-                    const seed2 = c*11+r*17;
-                    ctx.fillRect(sx+(seed2%cs), sy+(seed2%17), 5, 5);
+        // PASS 1: Uniform flat base — identical color per tile type → zero grid seam
+        for (let r = 0; r < CFG.WORLD_ROWS; r++) {
+            for (let c = 0; c < CFG.WORLD_COLS; c++) {
+                const t = getTile(c, r);
+                const tx = c*cs, ty = r*cs;
+                switch (t) {
+                    case T.GRASS: tc.fillStyle = '#3c8228'; break;
+                    case T.DEEP:  tc.fillStyle = '#1e5618'; break;
+                    case T.WATER: tc.fillStyle = '#1260c8'; break;
+                    case T.ROCK:  tc.fillStyle = '#68625a'; break;
+                    case T.DARK:  tc.fillStyle = '#18280e'; break;
+                    case T.SAND:  tc.fillStyle = '#c8a43c'; break;
+                    default:      tc.fillStyle = '#3c8228';
                 }
+                tc.fillRect(tx, ty, cs + 1, cs + 1);
             }
         }
 
-        // Trees (behind player)
+        // PASS 2: Large organic cross-tile color patches (world-space ellipses, ignore grid)
+        // These blend naturally across tile boundaries for an organic look
+        for (let i = 0; i < 600; i++) {
+            const wx = th(i, 0, 7) * CFG.WORLD_W;
+            const wy = th(i, 0, 8) * CFG.WORLD_H;
+            const col = Math.floor(wx / cs), row = Math.floor(wy / cs);
+            if (col < 0 || col >= CFG.WORLD_COLS || row < 0 || row >= CFG.WORLD_ROWS) continue;
+            const t = getTile(col, row);
+            const v = th(i, 1, 3);
+            const rx = 20 + th(i, 2, 4) * 70;
+            const ry = rx * (0.45 + th(i, 3, 2) * 0.55);
+            const angle = th(i, 4, 1) * Math.PI;
+            let clr;
+            switch (t) {
+                case T.GRASS: clr = v > 0.5
+                    ? `rgba(20,60,5,${0.07+v*0.06})`
+                    : `rgba(80,180,40,${0.06+v*0.05})`; break;
+                case T.DEEP:  clr = v > 0.5
+                    ? `rgba(5,30,2,0.1)`
+                    : `rgba(30,90,15,0.08)`; break;
+                case T.WATER: clr = v > 0.5
+                    ? `rgba(0,30,80,${0.08+v*0.06})`
+                    : `rgba(30,120,220,${0.07+v*0.05})`; break;
+                case T.ROCK:  clr = v > 0.5
+                    ? `rgba(20,20,14,0.09)`
+                    : `rgba(160,150,130,0.08)`; break;
+                case T.SAND:  clr = v > 0.5
+                    ? `rgba(160,120,10,0.08)`
+                    : `rgba(240,210,100,0.07)`; break;
+                case T.DARK:  clr = `rgba(5,15,2,${0.08+v*0.07})`; break;
+                default: continue;
+            }
+            tc.fillStyle = clr;
+            tc.beginPath();
+            tc.ellipse(wx, wy, rx, ry, angle, 0, Math.PI * 2);
+            tc.fill();
+        }
+
+        // PASS 3: Per-tile micro-detail (small strokes that don't reveal the grid)
+        for (let r = 0; r < CFG.WORLD_ROWS; r++) {
+            for (let c = 0; c < CFG.WORLD_COLS; c++) {
+                const t  = getTile(c, r);
+                const tx = c*cs, ty = r*cs;
+                const s1 = th(c, r, 1), s2 = th(c, r, 2), s3 = th(c, r, 3);
+
+                if (t === T.GRASS) {
+                    // Short grass blades — too small to reveal tile size
+                    tc.strokeStyle = `rgba(20,70,8,0.38)`;
+                    tc.lineWidth = 0.7;
+                    for (let i = 0; i < 9; i++) {
+                        const gx = tx + ((s1*(i*37+1))%1)*cs;
+                        const gy = ty + ((s2*(i*53+1))%1)*cs;
+                        const ht = 2 + ((s3*(i*11+1))%1)*4;
+                        tc.beginPath(); tc.moveTo(gx, gy+ht); tc.lineTo(gx+0.6, gy); tc.stroke();
+                    }
+                    if (s1 > 0.9) { // Rare flower
+                        tc.fillStyle = 'rgba(255,230,60,0.65)';
+                        tc.beginPath(); tc.arc(tx+s2*cs, ty+s3*cs, 1.1, 0, Math.PI*2); tc.fill();
+                    }
+
+                } else if (t === T.DEEP) {
+                    // Tall curved grass
+                    tc.strokeStyle = `rgba(8,45,5,0.5)`;
+                    tc.lineWidth = 1;
+                    for (let i = 0; i < 8; i++) {
+                        const gx = tx + ((s2*(i*41+1))%1)*cs;
+                        const gy = ty + ((s3*(i*31+1))%1)*cs;
+                        const ht = 5 + ((s1*(i*17+1))%1)*7;
+                        tc.beginPath(); tc.moveTo(gx, gy+ht);
+                        tc.quadraticCurveTo(gx+(s2>0.5?2:-2), gy+ht*0.5, gx, gy);
+                        tc.stroke();
+                    }
+                    if (s2 > 0.88) { // Mushroom
+                        tc.fillStyle = 'rgba(170,55,35,0.75)';
+                        tc.beginPath(); tc.arc(tx+s1*cs, ty+s3*cs, 2, 0, Math.PI*2); tc.fill();
+                    }
+
+                } else if (t === T.WATER) {
+                    // Only light shimmer — no filled rectangles!
+                    tc.strokeStyle = `rgba(120,210,255,0.12)`;
+                    tc.lineWidth = 0.7;
+                    tc.beginPath();
+                    tc.moveTo(tx, ty + cs*0.3 + s2*cs*0.35);
+                    tc.bezierCurveTo(
+                        tx + cs*0.3, ty + cs*0.2 + s1*4,
+                        tx + cs*0.7, ty + cs*0.4 + s3*4,
+                        tx + cs,     ty + cs*0.3 + s2*cs*0.35
+                    );
+                    tc.stroke();
+
+                } else if (t === T.ROCK) {
+                    // Subtle highlight
+                    tc.fillStyle = `rgba(255,255,240,0.07)`;
+                    tc.fillRect(tx+2, ty+2, cs*0.38*s2+3, cs*0.22*s3+2);
+                    // Single crack
+                    tc.strokeStyle = 'rgba(30,30,22,0.38)';
+                    tc.lineWidth = 0.7;
+                    tc.beginPath();
+                    tc.moveTo(tx+s1*cs*0.8, ty+s2*cs*0.1);
+                    tc.lineTo(tx+s3*cs*0.3, ty+s1*cs*0.8);
+                    tc.stroke();
+                    if (s2 > 0.72) { // Moss
+                        tc.fillStyle = 'rgba(38,88,26,0.28)';
+                        tc.beginPath();
+                        tc.ellipse(tx+s3*cs*0.6, ty+s2*cs*0.7, cs*0.16, cs*0.11, s1*Math.PI, 0, Math.PI*2);
+                        tc.fill();
+                    }
+
+                } else if (t === T.DARK) {
+                    if (s3 > 0.48) { // Root tendril
+                        tc.strokeStyle = 'rgba(6,12,3,0.42)';
+                        tc.lineWidth = 0.8;
+                        tc.beginPath();
+                        tc.moveTo(tx+s1*cs, ty);
+                        tc.quadraticCurveTo(tx+s2*cs*0.8, ty+cs*0.5, tx+s3*cs, ty+cs);
+                        tc.stroke();
+                    }
+
+                } else if (t === T.SAND) {
+                    // Gentle ripple lines
+                    tc.strokeStyle = 'rgba(155,115,25,0.22)';
+                    tc.lineWidth = 0.8;
+                    for (let i = 0; i < 3; i++) {
+                        const wy = ty + (i * cs / 3) + s2 * (cs / 4);
+                        tc.beginPath();
+                        tc.moveTo(tx, wy);
+                        tc.bezierCurveTo(tx+cs*0.3, wy+2*s3-1, tx+cs*0.7, wy+1-2*s1, tx+cs, wy);
+                        tc.stroke();
+                    }
+                    if (s1 > 0.8) { // Pebble
+                        tc.fillStyle = 'rgba(135,125,88,0.55)';
+                        tc.beginPath();
+                        tc.ellipse(tx+s2*cs, ty+s3*cs, 2.5*s1, 1.8*s1, s2*Math.PI, 0, Math.PI*2);
+                        tc.fill();
+                    }
+                }
+            }
+        }
+    }
+
+    // ===== WORLD DRAW =====
+    function drawWorld(camX, camY) {
+        // Smooth-scaled terrain canvas (pre-rendered at init — eliminates per-frame tile loop)
+        if (terrainCanvas) {
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            ctx.drawImage(terrainCanvas, -camX, -camY);
+        }
+
+        // Animated water overlay — smooth sine waves that span across tile boundaries
+        const W  = canvas.width / ZOOM, H = canvas.height / ZOOM;
+        const cs = CFG.TILE_SIZE;
+        const sc = Math.max(0, Math.floor(camX / cs));
+        const sr = Math.max(0, Math.floor(camY / cs));
+        const ec = Math.min(CFG.WORLD_COLS - 1, Math.ceil((camX + W) / cs));
+        const er = Math.min(CFG.WORLD_ROWS - 1, Math.ceil((camY + H) / cs));
+
+        // Build clipping region from all water tiles
+        ctx.save();
+        ctx.beginPath();
+        for (let r = sr; r <= er; r++) {
+            for (let c = sc; c <= ec; c++) {
+                if (getTile(c, r) !== T.WATER) continue;
+                ctx.rect(c * cs - camX, r * cs - camY, cs + 1, cs + 1);
+            }
+        }
+        ctx.clip();
+
+        // Draw smooth horizontal wave bands across the entire visible area
+        const t = waveTime * 0.001;
+        const bandCount = Math.ceil(H / 18) + 4;
+        for (let i = 0; i < bandCount; i++) {
+            const baseY = i * 18 - 9;
+            for (let x = -30; x < W + 30; x += 6) {
+                const wx = x + camX;
+                const wy = baseY + camY;
+                const wave = Math.sin(t * 1.8 + wx * 0.03 + i * 0.6) * 6
+                           + Math.sin(t * 1.1 + wx * 0.018 - i * 0.4) * 3;
+                const y2 = baseY + wave;
+                const alpha = 0.05 + Math.sin(t * 2.2 + wx * 0.04) * 0.02;
+                ctx.fillStyle = `rgba(100,210,255,${Math.max(0, alpha)})`;
+                ctx.fillRect(x, y2, 7, 2.5);
+            }
+        }
+
+        // Occasional bright foam crest
+        for (let fi = 0; fi < 8; fi++) {
+            const fw = (Math.sin(t * 0.7 + fi * 2.3) * 0.5 + 0.5) * W;
+            const fh = (Math.cos(t * 0.5 + fi * 1.8) * 0.5 + 0.5) * H;
+            const fa = Math.sin(t * 3 + fi) * 0.04 + 0.04;
+            if (fa > 0.01) {
+                ctx.fillStyle = `rgba(255,255,255,${fa})`;
+                ctx.beginPath();
+                ctx.ellipse(fw, fh, 18 + Math.sin(t + fi) * 8, 3, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        ctx.restore();
+
+        // Trees behind player
         for (const tree of trees) {
-            if (tree.y - tree.r > player.y) continue; // draw behind
-            drawTree(tree.x - camX, tree.y - camY, tree.r);
+            if (tree.y - tree.r > player.y) continue;
+            drawTree(tree, camX, camY);
         }
     }
 
     function drawTreesFront(camX, camY) {
         for (const tree of trees) {
-            if (tree.y - tree.r <= player.y) continue; // draw in front
-            drawTree(tree.x - camX, tree.y - camY, tree.r);
+            if (tree.y - tree.r <= player.y) continue;
+            drawTree(tree, camX, camY);
         }
     }
 
-    function drawTree(sx, sy, r) {
-        if (sx < -r-10 || sx > canvas.width+r+10 || sy < -r-20 || sy > canvas.height+r+10) return;
+    function drawTree(tree, camX, camY) {
+        const { x, y, r, chopped, hp, maxHp, shakeTimer } = tree;
+        const shake = shakeTimer > 0 ? Math.sin(shakeTimer * 0.05) * 3 * (shakeTimer / 300) : 0;
+        const sx = x - camX + shake;
+        const sy = y - camY;
+        const VW = canvas.width / ZOOM, VH = canvas.height / ZOOM;
+        if (sx < -r-10 || sx > VW+r+10 || sy < -r-20 || sy > VH+r+10) return;
+
+        const near = !chopped && Math.hypot(player.x - x, player.y - y) < r + 32;
         ctx.save();
-        // Trunk
-        ctx.fillStyle = '#5a3820';
-        ctx.fillRect(sx - r*0.14, sy - r*0.1, r*0.28, r*0.7);
-        // Shadow
-        ctx.beginPath(); ctx.ellipse(sx+3, sy+3, r*1.05, r*1.05, 0, 0, Math.PI*2);
-        ctx.fillStyle = 'rgba(0,0,0,0.18)'; ctx.fill();
-        // Dark green base
-        ctx.beginPath(); ctx.arc(sx, sy - r*0.18, r*1.08, 0, Math.PI*2);
+
+        if (chopped) {
+            // ── Stump ──
+            const tw = r * 0.55, th = r * 0.45;
+            ctx.fillStyle = '#4a2c10';
+            ctx.fillRect(sx - tw/2, sy - th/2, tw, th);
+            // Stump rings
+            ctx.strokeStyle = '#6a3c18'; ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.ellipse(sx, sy, tw*0.38, th*0.28, 0, 0, Math.PI*2); ctx.stroke();
+            ctx.beginPath(); ctx.ellipse(sx, sy, tw*0.2, th*0.15, 0, 0, Math.PI*2); ctx.stroke();
+            // Top face lighter
+            ctx.beginPath(); ctx.ellipse(sx, sy - th/2 + 3, tw/2, th*0.22, 0, 0, Math.PI*2);
+            ctx.fillStyle = '#7a4c28'; ctx.fill();
+            ctx.restore();
+            return;
+        }
+
+        // ── Full tree ──
+
+        // Ground shadow
+        ctx.beginPath(); ctx.ellipse(sx + r*0.2, sy + r*0.3, r*1.1, r*0.38, 0, 0, Math.PI*2);
+        ctx.fillStyle = 'rgba(0,0,0,0.22)'; ctx.fill();
+
+        // Trunk — tall prominent column
+        const trunkW = r * 0.36;
+        const trunkH = r * 1.0;
+        const trunkX = sx - trunkW / 2;
+        const trunkY = sy - r * 0.15;
+
+        // Trunk base gradient-ish (darker sides)
+        ctx.fillStyle = '#3e2210';
+        ctx.fillRect(trunkX, trunkY, trunkW, trunkH);
+        ctx.fillStyle = '#6a3c1a';
+        ctx.fillRect(trunkX + trunkW*0.15, trunkY, trunkW*0.55, trunkH);
+
+        // Bark lines
+        ctx.strokeStyle = 'rgba(30,12,2,0.45)';
+        ctx.lineWidth = 1.2;
+        for (let i = 0; i < 4; i++) {
+            const bx = trunkX + trunkW * (0.15 + i * 0.18);
+            ctx.beginPath();
+            ctx.moveTo(bx, trunkY + trunkH * 0.1);
+            ctx.lineTo(bx + (i%2===0?2:-2), trunkY + trunkH * 0.85);
+            ctx.stroke();
+        }
+
+        // Root flares
+        ctx.fillStyle = '#4a2c10';
+        ctx.beginPath();
+        ctx.moveTo(trunkX - r*0.12, trunkY + trunkH * 0.9);
+        ctx.quadraticCurveTo(trunkX, trunkY + trunkH * 0.6, trunkX + trunkW*0.2, trunkY + trunkH*0.5);
+        ctx.lineTo(trunkX, trunkY + trunkH);
+        ctx.closePath(); ctx.fill();
+
+        ctx.beginPath();
+        ctx.moveTo(trunkX + trunkW + r*0.12, trunkY + trunkH * 0.9);
+        ctx.quadraticCurveTo(trunkX + trunkW, trunkY + trunkH * 0.6, trunkX + trunkW*0.8, trunkY + trunkH*0.5);
+        ctx.lineTo(trunkX + trunkW, trunkY + trunkH);
+        ctx.closePath(); ctx.fill();
+
+        // Canopy — dark outer ring
+        ctx.beginPath(); ctx.arc(sx, sy - r*0.55, r*1.08, 0, Math.PI*2);
         ctx.fillStyle = '#1a5512'; ctx.fill();
         // Mid canopy
-        ctx.beginPath(); ctx.arc(sx, sy - r*0.22, r*0.9, 0, Math.PI*2);
+        ctx.beginPath(); ctx.arc(sx, sy - r*0.6, r*0.92, 0, Math.PI*2);
         ctx.fillStyle = '#237318'; ctx.fill();
-        // Highlight
-        ctx.beginPath(); ctx.ellipse(sx - r*0.3, sy - r*0.5, r*0.32, r*0.24, -0.4, 0, Math.PI*2);
-        ctx.fillStyle = 'rgba(80,190,60,0.35)'; ctx.fill();
+        // Inner bright
+        ctx.beginPath(); ctx.arc(sx, sy - r*0.65, r*0.7, 0, Math.PI*2);
+        ctx.fillStyle = '#2d8c1e'; ctx.fill();
+        // Highlight blob
+        ctx.beginPath(); ctx.ellipse(sx - r*0.32, sy - r*0.9, r*0.36, r*0.26, -0.5, 0, Math.PI*2);
+        ctx.fillStyle = 'rgba(80,210,60,0.32)'; ctx.fill();
+        // Second smaller highlight
+        ctx.beginPath(); ctx.ellipse(sx + r*0.18, sy - r*0.55, r*0.18, r*0.14, 0.3, 0, Math.PI*2);
+        ctx.fillStyle = 'rgba(100,220,70,0.22)'; ctx.fill();
+
+        // HP notches on trunk when damaged
+        if (hp < maxHp) {
+            ctx.strokeStyle = '#f0c040';
+            ctx.lineWidth = 2;
+            for (let i = 0; i < maxHp - hp; i++) {
+                const nx = trunkX + trunkW * 0.3 + i * (trunkW * 0.3);
+                const ny = trunkY + trunkH * 0.35;
+                ctx.beginPath();
+                ctx.moveTo(nx,      ny - 5);
+                ctx.lineTo(nx + 5,  ny + 5);
+                ctx.moveTo(nx + 5,  ny - 5);
+                ctx.lineTo(nx,      ny + 5);
+                ctx.stroke();
+            }
+        }
+
+        // Glow + prompt when nearby
+        if (near) {
+            const hasAxe = player.craftedItems && player.craftedItems.axe;
+            // Yellow ring around canopy base
+            ctx.beginPath(); ctx.arc(sx, sy - r*0.55, r*1.12, 0, Math.PI*2);
+            ctx.strokeStyle = hasAxe ? 'rgba(255,220,50,0.7)' : 'rgba(180,180,180,0.4)';
+            ctx.lineWidth = 2.5;
+            ctx.stroke();
+
+            // Prompt label
+            ctx.font = 'bold 11px Cairo';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            const label = hasAxe
+                ? `[E] 🪓 اقطع (${hp}/${maxHp})`
+                : `[E] 🪓 تحتاج فأس`;
+            ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+            ctx.lineWidth = 3;
+            ctx.strokeText(label, sx, sy - r * 1.75);
+            ctx.fillStyle = hasAxe ? '#ffe066' : '#aaa';
+            ctx.fillText(label, sx, sy - r * 1.75);
+
+            // HP bar
+            const bw = r * 2.4, bh = 6;
+            const bx = sx - bw/2, by = sy - r * 1.55;
+            ctx.fillStyle = '#333';
+            ctx.fillRect(bx, by, bw, bh);
+            ctx.fillStyle = hp === maxHp ? '#2ecc71' : '#f0c040';
+            ctx.fillRect(bx, by, bw * (hp / maxHp), bh);
+            ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(bx, by, bw, bh);
+        }
+
         ctx.restore();
+    }
+
+    // ===== FISHING =====
+    function isAdjacentToWater() {
+        const step = CFG.TILE_SIZE;
+        const checks = [
+            [player.x, player.y - step * 1.5],
+            [player.x, player.y + step * 1.5],
+            [player.x - step * 1.5, player.y],
+            [player.x + step * 1.5, player.y],
+        ];
+        return checks.some(([wx, wy]) => isWater(wx, wy));
+    }
+
+    function startFishing() {
+        if (!player.craftedItems.fishingRod) {
+            notify('🎣 تحتاج سنارة صيد أولاً!', '#e74c3c'); return;
+        }
+        if (!isAdjacentToWater()) {
+            notify('💧 اقترب من الماء أولاً!', '#5dade2'); return;
+        }
+        if (player.isFishing) {
+            // Second press while fishing → reel in
+            reelIn(); return;
+        }
+        player.isFishing = true;
+        player.fishingBite = false;
+        // Random wait 3–8 seconds until bite
+        player.fishingTimer = 3000 + Math.random() * 5000;
+        notify('🎣 ألقيت الخيط... انتظر...', '#5dade2');
+        gamePaused = true; // stop movement while fishing
+    }
+
+    function reelIn() {
+        if (!player.isFishing) return;
+        if (player.fishingBite) {
+            // Caught a fish!
+            const count = 1 + (Math.random() > 0.6 ? 1 : 0); // 40% chance for 2 fish
+            player.inventory.fish = (player.inventory.fish || 0) + count;
+            notify(`🐟 اصطدت ${count === 2 ? 'سمكتين' : 'سمكة'}!`, '#5dade2');
+            SFX.xp();
+            updateHUD();
+        } else {
+            notify('❌ السمكة هربت!', '#e74c3c');
+        }
+        player.isFishing = false;
+        player.fishingBite = false;
+        player.fishingTimer = 0;
+        player.fishingBiteTimer = 0;
+        gamePaused = false;
+    }
+
+    function updateFishing(dt) {
+        const statusEl = document.getElementById('fishingStatus');
+        if (!player.isFishing) {
+            statusEl.style.display = 'none';
+            return;
+        }
+        statusEl.style.display = 'block';
+        if (!player.fishingBite) {
+            const secs = Math.ceil(player.fishingTimer / 1000);
+            statusEl.className = '';
+            statusEl.textContent = `🎣 جارٍ الصيد... (${secs}ث) — اضغط R للسحب`;
+            player.fishingTimer -= dt;
+            if (player.fishingTimer <= 0) {
+                player.fishingBite = true;
+                player.fishingBiteTimer = 3000;
+                notify('🐠 سمكة! اضغط R بسرعة!', '#f0c040');
+                SFX.hit();
+            }
+        } else {
+            const secs = Math.ceil(player.fishingBiteTimer / 1000);
+            statusEl.className = 'fish-bite';
+            statusEl.textContent = `🎣 سمكة في الطعم! اضغط R (${secs}ث)`;
+            player.fishingBiteTimer -= dt;
+            if (player.fishingBiteTimer <= 0) {
+                notify('🐟 هربت السمكة!', '#e74c3c');
+                player.isFishing = false;
+                player.fishingBite = false;
+                statusEl.style.display = 'none';
+                gamePaused = false;
+            }
+        }
+    }
+
+    // ===== AIM RETICLE =====
+    function drawAimReticle(camX, camY) {
+        // Clear dead / null targets
+        if (lockedTarget && (lockedTarget.isDead || lockedTarget.hp <= 0)) lockedTarget = null;
+        if (!lockedTarget || player.weapon !== 'bow') return;
+
+        const sx = lockedTarget.x - camX;
+        const sy = lockedTarget.y - camY;
+        const r  = (lockedTarget.radius || 18) + 10;
+        const t  = Date.now() * 0.003;
+        const spin = t % (Math.PI * 2);
+
+        ctx.save();
+
+        // Pulsing outer ring
+        const pulse = 0.7 + Math.sin(t * 2) * 0.3;
+        ctx.strokeStyle = `rgba(255,60,60,${pulse})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(sx, sy, r + 4, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Four rotating corner brackets
+        const bLen = r * 0.55;
+        const gaps = [0, Math.PI / 2, Math.PI, Math.PI * 1.5];
+        ctx.strokeStyle = '#ff2020';
+        ctx.lineWidth = 2.5;
+        ctx.lineCap = 'round';
+        for (const g of gaps) {
+            const a1 = g + spin;
+            const a2 = g + Math.PI / 4 + spin;
+            const x1 = sx + Math.cos(a1) * r, y1 = sy + Math.sin(a1) * r;
+            const x2 = sx + Math.cos(a2) * r, y2 = sy + Math.sin(a2) * r;
+            ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+        }
+
+        // Center crosshair dot
+        ctx.fillStyle = '#ff2020';
+        ctx.beginPath(); ctx.arc(sx, sy, 3, 0, Math.PI * 2); ctx.fill();
+
+        // Thin line from player to target
+        const px = player.x - camX, py = player.y - camY;
+        ctx.setLineDash([4, 8]);
+        ctx.strokeStyle = `rgba(255,80,80,${0.35 * pulse})`;
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(px, py - 10); ctx.lineTo(sx, sy); ctx.stroke();
+        ctx.setLineDash([]);
+
+        // HP bar above reticle
+        const barW = Math.max(40, r * 2);
+        const hpPct = lockedTarget.hp / lockedTarget.maxHp;
+        ctx.fillStyle = 'rgba(0,0,0,0.55)';
+        ctx.fillRect(sx - barW/2, sy - r - 20, barW, 7);
+        ctx.fillStyle = hpPct > 0.5 ? '#e74c3c' : hpPct > 0.25 ? '#e67e22' : '#c0392b';
+        ctx.fillRect(sx - barW/2, sy - r - 20, barW * hpPct, 7);
+
+        // Enemy name tag
+        ctx.font = 'bold 10px Cairo';
+        ctx.fillStyle = '#ffaaaa';
+        ctx.textAlign = 'center';
+        ctx.fillText(lockedTarget.name || '👾', sx, sy - r - 25);
+
+        ctx.restore();
+    }
+
+    function drawFishingLine(camX, camY) {
+        if (!player.isFishing) return;
+        const sx = player.x - camX;
+        const sy = player.y - camY;
+
+        // Find water direction
+        const step = CFG.TILE_SIZE;
+        let wx = sx, wy = sy;
+        const dirs = [
+            [0, -step * 1.5], [0, step * 1.5],
+            [-step * 1.5, 0], [step * 1.5, 0]
+        ];
+        for (const [dx, dy] of dirs) {
+            if (isWater(player.x + dx, player.y + dy)) { wx = sx + dx; wy = sy + dy; break; }
+        }
+
+        ctx.save();
+        // Fishing rod line
+        ctx.strokeStyle = '#c8c8b0';
+        ctx.lineWidth = 0.8;
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        ctx.moveTo(sx + 8, sy - 12);
+        ctx.quadraticCurveTo(sx + (wx - sx) * 0.5, sy - 30, wx, wy);
+        ctx.stroke();
+
+        // Bobber
+        const bobY = player.fishingBite
+            ? wy + Math.sin(Date.now() * 0.02) * 4  // frantic bob when bite
+            : wy + Math.sin(Date.now() * 0.003) * 2; // slow idle bob
+        ctx.beginPath();
+        ctx.arc(wx, bobY, 4, 0, Math.PI * 2);
+        ctx.fillStyle = player.fishingBite ? '#ff4400' : '#e74c3c';
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(wx, bobY - 2, 4, Math.PI, Math.PI * 2);
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+
+        // Bite timer bar
+        if (player.fishingBite) {
+            const bw = 50;
+            const pct = player.fishingBiteTimer / 3000;
+            ctx.fillStyle = 'rgba(0,0,0,0.6)';
+            ctx.fillRect(sx - bw/2, sy - 38, bw, 7);
+            ctx.fillStyle = pct > 0.5 ? '#2ecc71' : '#e74c3c';
+            ctx.fillRect(sx - bw/2, sy - 38, bw * pct, 7);
+            ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(sx - bw/2, sy - 38, bw, 7);
+        }
+
+        // "Press R" hint
+        ctx.font = 'bold 10px Cairo';
+        ctx.fillStyle = player.fishingBite ? '#f0c040' : '#aaddff';
+        ctx.textAlign = 'center';
+        ctx.fillText(player.fishingBite ? '[R] اسحب!' : '🎣 ...', sx, sy - 42);
+
+        ctx.restore();
+    }
+
+    // ===== CITY PORTAL =====
+    function isNearCityPortal() {
+        return Math.hypot(player.x - CITY_PORTAL.x, player.y - CITY_PORTAL.y) < CITY_PORTAL.radius;
+    }
+
+    function enterCity() {
+        if (!isNearCityPortal()) return;
+        saveForestProgress();
+        GameState.save('fromCity', false);   // flag: not returning yet
+        window.location.href = '../city/index.html';
+    }
+
+    function drawCityPortal(camX, camY) {
+        const sx = CITY_PORTAL.x - camX;
+        const sy = CITY_PORTAL.y - camY;
+        const W = canvas.width / ZOOM, H = canvas.height / ZOOM;
+        if (sx < -120 || sx > W + 120 || sy < -120 || sy > H + 120) return;
+
+        ctx.save();
+        const pulse = 0.85 + Math.sin(Date.now() * 0.002) * 0.15;
+
+        // Gate road stones
+        ctx.fillStyle = '#b8a878';
+        ctx.fillRect(sx - 22, sy - 70, 44, 80);
+        // Stone border of road
+        ctx.strokeStyle = '#88784a';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(sx - 22, sy - 70, 44, 80);
+
+        // Left pillar
+        ctx.fillStyle = '#8a8070';
+        ctx.fillRect(sx - 38, sy - 72, 18, 78);
+        ctx.fillStyle = '#aaa090';
+        ctx.fillRect(sx - 36, sy - 70, 6, 74);
+
+        // Right pillar
+        ctx.fillStyle = '#8a8070';
+        ctx.fillRect(sx + 20, sy - 72, 18, 78);
+        ctx.fillStyle = '#aaa090';
+        ctx.fillRect(sx + 30, sy - 70, 6, 74);
+
+        // Arch top
+        ctx.fillStyle = '#7a7060';
+        ctx.beginPath();
+        ctx.ellipse(sx, sy - 72, 39, 22, 0, Math.PI, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#aaa090';
+        ctx.beginPath();
+        ctx.ellipse(sx, sy - 72, 30, 16, 0, Math.PI, Math.PI * 2);
+        ctx.fill();
+
+        // Portal glow inside arch
+        const grd = ctx.createRadialGradient(sx, sy - 60, 4, sx, sy - 60, 32);
+        grd.addColorStop(0, `rgba(255,220,100,${0.55 * pulse})`);
+        grd.addColorStop(1, `rgba(255,180,50,0)`);
+        ctx.fillStyle = grd;
+        ctx.beginPath();
+        ctx.ellipse(sx, sy - 60, 28, 20, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Sign above arch
+        ctx.fillStyle = '#5a3a10';
+        ctx.fillRect(sx - 30, sy - 102, 60, 22);
+        ctx.strokeStyle = '#a07030';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(sx - 30, sy - 102, 60, 22);
+        ctx.fillStyle = '#ffd060';
+        ctx.font = 'bold 11px Cairo';
+        ctx.textAlign = 'center';
+        ctx.fillText('🏙️ المدينة', sx, sy - 86);
+
+        // Floating particles
+        for (let i = 0; i < 5; i++) {
+            const t = (Date.now() * 0.001 + i * 1.2) % 3;
+            const px2 = sx + Math.sin(i * 2.5 + Date.now() * 0.001) * 18;
+            const py2 = sy - 55 - t * 18;
+            const alpha = Math.max(0, 1 - t / 3) * pulse;
+            ctx.fillStyle = `rgba(255,220,80,${alpha * 0.7})`;
+            ctx.beginPath();
+            ctx.arc(px2, py2, 2.5, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // Proximity prompt
+        if (isNearCityPortal()) {
+            ctx.fillStyle = 'rgba(0,0,0,0.65)';
+            ctx.beginPath();
+            ctx.roundRect(sx - 60, sy - 130, 120, 24, 6);
+            ctx.fill();
+            ctx.fillStyle = '#ffd060';
+            ctx.font = 'bold 12px Cairo';
+            ctx.fillText('[E] دخول المدينة 🏙️', sx, sy - 113);
+        }
+
+        ctx.restore();
+    }
+
+    // ===== CHOP TREE =====
+    function chopTree(tree) {
+        if (!player.craftedItems.axe) {
+            notify('🪓 اصنع فأساً أولاً للقطع!', '#e74c3c');
+            return;
+        }
+        if (player.chopCd > 0) return;
+        player.chopCd = 550;
+        tree.hp--;
+        tree.shakeTimer = 320;
+        SFX.hit();
+
+        if (tree.hp <= 0) {
+            tree.chopped = true;
+            // Drop a handful of sticks scattered around the stump
+            const count = 3 + Math.floor(Math.random() * 3);
+            for (let i = 0; i < count; i++) {
+                droppedItems.push(new DroppedItem('stick', 1, tree.x, tree.y));
+            }
+            notify('🪵 حصلت على خشب!', '#a07040', tree.x, tree.y - tree.r - 10);
+            SFX.xp();
+        } else {
+            notify(`🪓 ضربة! (${tree.hp} ضربات باقية)`, '#c8a040', tree.x, tree.y - tree.r - 10);
+        }
     }
 
     // ===== PLAYER DRAW =====
     function drawPlayer(camX, camY) {
         const sx = player.x - camX;
         const sy = player.y - camY;
-        ctx.save();
-        if (player.hurtTimer > 0) ctx.globalAlpha = 0.5 + 0.5*Math.sin(Date.now()*0.03);
 
-        // Shadow
-        ctx.beginPath(); ctx.ellipse(sx, sy+12, 10, 5, 0, 0, Math.PI*2);
-        ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fill();
-        // Pants
+        // Walk cycle values
+        const wt       = player.walkTimer;
+        const moving   = player.isMoving;
+        const sprinting = player.isSprinting;
+        // Legs alternate: sin for left, -sin for right
+        const legSwing  = moving ? Math.sin(wt) * 5 : 0;
+        // Vertical bob — body moves up/down with each step
+        const bodyBob   = moving ? Math.abs(Math.sin(wt)) * 1.5 : 0;
+        // Arms swing opposite to legs
+        const armSwingL = moving ? -Math.sin(wt) * 5 : 0;
+        const armSwingR = moving ?  Math.sin(wt) * 5 : 0;
+
+        ctx.save();
+        if (player.hurtTimer > 0) ctx.globalAlpha = 0.5 + 0.5 * Math.sin(Date.now() * 0.03);
+
+        // Ground shadow (stretches slightly when sprinting)
+        const shadowW = sprinting ? 13 : 10;
+        ctx.beginPath();
+        ctx.ellipse(sx, sy + 13 - bodyBob, shadowW, 4, 0, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(0,0,0,0.32)';
+        ctx.fill();
+
+        // ── LEGS (drawn first, behind body) ──
+        const legTop = sy + 8 - bodyBob;
+
+        // Left leg
+        ctx.save();
+        ctx.translate(sx - 4, legTop + 7); // pivot at hip
+        ctx.rotate(legSwing * 0.08);        // rotate leg around hip
         ctx.fillStyle = '#1a1a1a';
-        ctx.fillRect(sx-7, sy+8, 6, 14); ctx.fillRect(sx+1, sy+8, 6, 14);
+        ctx.beginPath();
+        ctx.roundRect(-3, -7, 6, 14, 2);
+        ctx.fill();
+        // Left foot
+        ctx.fillStyle = '#2a1810';
+        ctx.beginPath();
+        ctx.roundRect(-4, 5, 8, 4, 1);
+        ctx.fill();
+        ctx.restore();
+
+        // Right leg
+        ctx.save();
+        ctx.translate(sx + 4, legTop + 7);
+        ctx.rotate(-legSwing * 0.08);       // opposite phase
+        ctx.fillStyle = '#1a1a1a';
+        ctx.beginPath();
+        ctx.roundRect(-3, -7, 6, 14, 2);
+        ctx.fill();
+        // Right foot
+        ctx.fillStyle = '#2a1810';
+        ctx.beginPath();
+        ctx.roundRect(-4, 5, 8, 4, 1);
+        ctx.fill();
+        ctx.restore();
+
+        // ── BODY ──
+        const bodyY = sy - 8 - bodyBob;
+
         // Shirt
-        ctx.fillStyle = player.hurtTimer>0 ? '#ff8888' : '#e0e0e0';
-        ctx.fillRect(sx-8, sy-8, 16, 17);
-        // Jacket
+        ctx.fillStyle = player.hurtTimer > 0 ? '#ff8888' : '#dde0e8';
+        ctx.beginPath();
+        ctx.roundRect(sx - 8, bodyY, 16, 17, 3);
+        ctx.fill();
+
+        // Jacket panels
         ctx.fillStyle = '#222';
-        ctx.fillRect(sx-8, sy-6, 4, 15); ctx.fillRect(sx+4, sy-6, 4, 15);
-        // Head
-        ctx.beginPath(); ctx.arc(sx, sy-15, 10, 0, Math.PI*2);
+        ctx.beginPath(); ctx.roundRect(sx - 8, bodyY + 2, 4, 13, [2,0,0,2]); ctx.fill();
+        ctx.beginPath(); ctx.roundRect(sx + 4, bodyY + 2, 4, 13, [0,2,2,0]); ctx.fill();
+
+        // Belt
+        ctx.fillStyle = '#5a3010';
+        ctx.fillRect(sx - 8, bodyY + 13, 16, 3);
+        ctx.fillStyle = '#c8a040';
+        ctx.fillRect(sx - 2, bodyY + 13, 4, 3); // buckle
+
+        // ── ARMS ──
+        // Left arm (swings forward when right leg is forward)
+        ctx.save();
+        ctx.translate(sx - 9, bodyY + 3);
+        ctx.rotate(armSwingL * 0.07);
+        ctx.fillStyle = player.hurtTimer > 0 ? '#ff8888' : '#dde0e8';
+        ctx.beginPath(); ctx.roundRect(-3, 0, 5, 10, 2); ctx.fill();
+        // Hand
+        ctx.fillStyle = '#c8a070';
+        ctx.beginPath(); ctx.arc(0, 11, 3, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+
+        // Right arm
+        ctx.save();
+        ctx.translate(sx + 9, bodyY + 3);
+        ctx.rotate(armSwingR * 0.07);
+        ctx.fillStyle = player.hurtTimer > 0 ? '#ff8888' : '#dde0e8';
+        ctx.beginPath(); ctx.roundRect(-2, 0, 5, 10, 2); ctx.fill();
+        ctx.fillStyle = '#c8a070';
+        ctx.beginPath(); ctx.arc(1, 11, 3, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+
+        // ── HEAD ──
+        const headY = sy - 15 - bodyBob;
+        // Neck
+        ctx.fillStyle = '#b89060';
+        ctx.fillRect(sx - 3, headY + 8, 6, 5);
+        // Head circle
+        ctx.beginPath(); ctx.arc(sx, headY, 10, 0, Math.PI * 2);
         ctx.fillStyle = '#c8a070'; ctx.fill();
         // Hair
-        ctx.beginPath(); ctx.arc(sx, sy-18, 8, Math.PI, Math.PI*2);
-        ctx.fillStyle = '#4a2a0a'; ctx.fill();
+        ctx.beginPath(); ctx.arc(sx, headY - 3, 8, Math.PI, Math.PI * 2);
+        ctx.fillStyle = '#3a1e05'; ctx.fill();
+        // Sideburns
+        ctx.fillStyle = '#3a1e05';
+        ctx.fillRect(sx - 9, headY - 4, 3, 5);
+        ctx.fillRect(sx + 6, headY - 4, 3, 5);
         // Eyes
-        ctx.fillStyle = '#2a1a0a';
-        ctx.fillRect(sx-5, sy-16, 3, 3); ctx.fillRect(sx+2, sy-16, 3, 3);
+        ctx.fillStyle = '#1a0a00';
+        ctx.beginPath(); ctx.arc(sx - 3, headY - 1, 2, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(sx + 3, headY - 1, 2, 0, Math.PI * 2); ctx.fill();
+        // Eye shine
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.beginPath(); ctx.arc(sx - 2, headY - 2, 0.8, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(sx + 4, headY - 2, 0.8, 0, Math.PI * 2); ctx.fill();
 
-        // Weapon
+        // ── WEAPON ──
         if (player.weapon === 'sword') {
-            ctx.strokeStyle = '#c8c8d0'; ctx.lineWidth = 3; ctx.lineCap = 'round';
-            ctx.beginPath(); ctx.moveTo(sx+9, sy-4); ctx.lineTo(sx+21, sy-19); ctx.stroke();
-            ctx.strokeStyle = '#8a6030'; ctx.lineWidth = 4;
-            ctx.beginPath(); ctx.moveTo(sx+7, sy+3); ctx.lineTo(sx+9, sy-4); ctx.stroke();
-            ctx.strokeStyle = '#c8c8d0'; ctx.lineWidth = 2;
-            ctx.beginPath(); ctx.moveTo(sx+5, sy-2); ctx.lineTo(sx+15, sy-5); ctx.stroke();
+            // Handle
+            ctx.strokeStyle = '#8a6030'; ctx.lineWidth = 4; ctx.lineCap = 'round';
+            ctx.beginPath(); ctx.moveTo(sx + 7, bodyY + 10); ctx.lineTo(sx + 10, bodyY + 3); ctx.stroke();
+            // Guard
+            ctx.strokeStyle = '#c0a040'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(sx + 5, bodyY + 3); ctx.lineTo(sx + 15, bodyY); ctx.stroke();
+            // Blade
+            ctx.strokeStyle = '#d0d0e0'; ctx.lineWidth = 2.5;
+            ctx.beginPath(); ctx.moveTo(sx + 10, bodyY + 3); ctx.lineTo(sx + 22, bodyY - 14); ctx.stroke();
         } else {
+            // Bow arc
             ctx.strokeStyle = '#8a6030'; ctx.lineWidth = 2.5;
-            ctx.beginPath(); ctx.arc(sx-11, sy-6, 12, -Math.PI*0.45, Math.PI*0.45); ctx.stroke();
-            ctx.strokeStyle = '#c0a060'; ctx.lineWidth = 1;
-            ctx.beginPath(); ctx.moveTo(sx-11, sy-18); ctx.lineTo(sx-11, sy+6); ctx.stroke();
+            ctx.beginPath(); ctx.arc(sx - 11, bodyY + 5, 13, -Math.PI * 0.42, Math.PI * 0.42); ctx.stroke();
+            // Bow string
+            ctx.strokeStyle = '#e0d0a0'; ctx.lineWidth = 0.8;
+            ctx.beginPath(); ctx.moveTo(sx - 11, bodyY - 8); ctx.lineTo(sx - 11, bodyY + 18); ctx.stroke();
         }
 
-        // Sprint dust
-        if (player.isSprinting) {
-            ctx.globalAlpha = 0.18;
+        // ── SPRINT DUST ──
+        if (sprinting) {
+            const dustAlpha = 0.15 + 0.05 * Math.sin(wt * 3);
+            ctx.globalAlpha = dustAlpha;
             ctx.fillStyle = '#c8a878';
-            for (let i=0;i<3;i++) {
+            for (let i = 0; i < 4; i++) {
+                const ds = 4 + i * 2;
                 ctx.beginPath();
-                ctx.arc(sx - 10 + i*8, sy+14, 5+i*2, 0, Math.PI*2);
+                ctx.arc(sx - 8 + i * 5 + Math.sin(wt + i) * 2, sy + 16 + bodyBob, ds, 0, Math.PI * 2);
                 ctx.fill();
             }
         }
+
         ctx.restore();
 
-        // Sword swing arc when attacking
+        // ── SWORD SWING ARC ──
         if (player.attackCd > CFG.ATTACK_CD - 200 && player.weapon === 'sword') {
             ctx.save();
             ctx.globalAlpha = 0.4 - (CFG.ATTACK_CD - player.attackCd) * 0.002;
             ctx.strokeStyle = '#ffffff';
             ctx.lineWidth = 2;
             ctx.beginPath();
-            ctx.arc(sx, sy-6, CFG.SWORD_RANGE * 0.6, -Math.PI*0.8, -Math.PI*0.1);
+            ctx.arc(sx, sy - 6, CFG.SWORD_RANGE * 0.6, -Math.PI * 0.8, -Math.PI * 0.1);
             ctx.stroke();
             ctx.restore();
         }
@@ -1080,6 +2101,11 @@
         if (keys['d']||keys['D']||keys['ArrowRight']) dx += 1;
 
         const moving = dx!==0 || dy!==0;
+        player.isMoving = moving;
+        if (moving) {
+            const walkSpeed = player.isSprinting ? 0.014 : 0.009;
+            player.walkTimer += walkSpeed * (player.isSprinting ? 1.5 : 1.0);
+        }
         if (dx!==0 && dy!==0) { dx*=0.707; dy*=0.707; }
 
         const wantSprint = keys['Shift'] && moving;
@@ -1123,9 +2149,11 @@
 
         player.attackCd = Math.max(0, player.attackCd - dt);
         player.hurtTimer = Math.max(0, player.hurtTimer - dt);
+        player.chopCd    = Math.max(0, player.chopCd - dt);
+        for (const t of trees) t.shakeTimer = Math.max(0, (t.shakeTimer || 0) - dt);
 
-        // Auto-collect resources
-        for (const res of resources) res.tryCollect();
+        // Update resource glow timers
+        for (const res of resources) res.update(dt);
     }
 
     // ===== UPDATE ENEMIES =====
@@ -1161,11 +2189,19 @@
         }
     }
 
+    // ===== DROPPED ITEMS UPDATE =====
+    function updateDroppedItems(dt) {
+        for (const item of droppedItems) item.update(dt);
+        // Clean up old collected items
+        droppedItems = droppedItems.filter(i => !i.collected);
+    }
+
     // ===== CAMERA =====
     function updateCamera() {
-        const W = canvas.width, H = canvas.height;
-        camera.x = Math.max(0, Math.min(CFG.WORLD_W - W, player.x - W/2));
-        camera.y = Math.max(0, Math.min(CFG.WORLD_H - H, player.y - H/2));
+        const VW = canvas.width / ZOOM;
+        const VH = canvas.height / ZOOM;
+        camera.x = Math.max(0, Math.min(CFG.WORLD_W - VW, player.x - VW / 2));
+        camera.y = Math.max(0, Math.min(CFG.WORLD_H - VH, player.y - VH / 2));
     }
 
     // ===== ATTACK =====
@@ -1187,19 +2223,36 @@
     function shootArrow() {
         if (player.attackCd > 0 || gamePaused || craftMenuOpen) return;
         player.attackCd = CFG.ATTACK_CD;
-        const angle = Math.atan2(mouseWorldY - player.y, mouseWorldX - player.x);
+
+        // If a target is locked use its position, otherwise use mouse
+        let aimX = mouseWorldX, aimY = mouseWorldY;
+        if (lockedTarget && !lockedTarget.isDead) {
+            aimX = lockedTarget.x;
+            aimY = lockedTarget.y;
+        }
+
+        const angle = Math.atan2(aimY - player.y, aimX - player.x);
         arrows.push(new Arrow(player.x, player.y - 8, angle));
         SFX.arrow();
     }
 
     // ===== EAT MEAT =====
     function eatMeat() {
-        if (player.inventory.meat <= 0) { notify('لا يوجد لحم! 🥩', '#e74c3c'); return; }
-        player.inventory.meat--;
-        const heal = 12;
-        player.hp = Math.min(player.maxHp, player.hp + heal);
-        notify(`+${heal}❤️ أكلت اللحم`, '#e74c3c');
-        updateHUD();
+        if (player.inventory.meat > 0) {
+            player.inventory.meat--;
+            const heal = 12;
+            player.hp = Math.min(player.maxHp, player.hp + heal);
+            notify(`+${heal}❤️ أكلت اللحم`, '#e74c3c');
+            updateHUD();
+        } else if (player.inventory.fish > 0) {
+            player.inventory.fish--;
+            const heal = 8;
+            player.hp = Math.min(player.maxHp, player.hp + heal);
+            notify(`+${heal}❤️ أكلت سمكة`, '#5dade2');
+            updateHUD();
+        } else {
+            notify('لا يوجد طعام! 🥩🐟', '#e74c3c');
+        }
     }
 
     // ===== HUD =====
@@ -1213,8 +2266,10 @@
         document.getElementById('atkVal').textContent = Math.floor(p.attack);
 
         // Inventory
-        for (const k of ['stick','stone','meat','horn','teeth'])
+        for (const k of ['stick','stone','meat','horn','teeth','leather','fish'])
             document.getElementById('inv-'+k).textContent = p.inventory[k]||0;
+        const arrowEl = document.getElementById('inv-arrows');
+        if (arrowEl) arrowEl.textContent = (p.inventory.arrows||0) > 0 ? p.inventory.arrows : '∞';
 
         // Progress
         const kills = Math.min(p.killCount, CFG.KILLS_NEEDED);
@@ -1260,7 +2315,7 @@
         // Camera viewport
         minimapCtx.strokeStyle = 'rgba(255,255,255,0.2)';
         minimapCtx.lineWidth = 1;
-        minimapCtx.strokeRect(camera.x/sx, camera.y/sy, canvas.width/sx, canvas.height/sy);
+        minimapCtx.strokeRect(camera.x/sx, camera.y/sy, (canvas.width/ZOOM)/sx, (canvas.height/ZOOM)/sy);
 
         // Player
         minimapCtx.fillStyle = '#ffffff';
@@ -1307,7 +2362,7 @@
         // Inventory info
         const inv = player.inventory;
         document.getElementById('craftingInvInfo').textContent =
-            `🪵×${inv.stick} 🪨×${inv.stone} 🥩×${inv.meat} 🦷×${inv.horn} 🦴×${inv.teeth}`;
+            `🪵×${inv.stick} 🪨×${inv.stone} 🥩×${inv.meat} 🦷×${inv.horn} 🦴×${inv.teeth} 🧥×${inv.leather||0} 🐟×${inv.fish||0}`;
 
         // Build recipes
         const list = document.getElementById('recipesList');
@@ -1346,6 +2401,7 @@
             player.attack = CharacterRules.playerSwordDamage(player.skills, player.absorbedAttack);
             updateHUD();
             checkCompletion();
+            saveForestProgress(); // persist craft immediately
             openCraftingMenu(); // refresh
         } else {
             SFX.playerHurt();
@@ -1374,6 +2430,8 @@
         player.x = 1600; player.y = 2800;
         // Lose half inventory
         for (const k of Object.keys(player.inventory)) player.inventory[k] = Math.floor(player.inventory[k]/2);
+        // Clear ground loot near player
+        droppedItems = droppedItems.filter(i => Math.hypot(i.x - player.x, i.y - player.y) > 600);
         // Respawn some nearby enemies
         const nearDead = enemies.filter(e => e.isDead && Math.hypot(e.x-player.x, e.y-player.y) > 400);
         for (const e of nearDead.slice(0,5)) {
@@ -1385,6 +2443,7 @@
         gameRunning = true;
         lastTime = performance.now();
         requestAnimationFrame(gameLoop);
+        saveForestProgress(); // update respawn position in save file
     }
 
     function goToMenu() {
@@ -1417,12 +2476,35 @@
 
     function finishForest() {
         GameState.save('completedForest', true);
+        GameState.saveForestState(null); // clear mid-game save — stage is done
         saveProgress();
         SFX.click();
         navigateTo('../index.html');
     }
 
-    function saveProgress() {
+    // ===== SAVE / LOAD =====
+    function saveForestProgress() {
+        if (gameCompleted) return; // keep final state, not mid-game
+
+        // Forest-specific state (position + progress)
+        const collectedRes   = resources.map((r, i) => r.collected ? i : -1).filter(i => i >= 0);
+        const choppedTrees   = trees.map((t, i) => t.chopped ? i : -1).filter(i => i >= 0);
+
+        GameState.saveForestState({
+            x: Math.round(player.x),
+            y: Math.round(player.y),
+            hp: player.hp,
+            stamina: player.stamina,
+            killCount: player.killCount,
+            distanceTraveled: player.distanceTraveled,
+            xp: player.xp,
+            seenIntro: true,
+            collectedResources: collectedRes,
+            choppedTrees: choppedTrees,
+            savedAt: Date.now()
+        });
+
+        // Hero stats + inventory + crafted items
         GameState.saveHeroStats({
             hp: player.hp, maxHp: player.maxHp,
             attack: player.attack, defense: player.defense,
@@ -1434,38 +2516,84 @@
         GameState.saveCraftedItems(player.craftedItems);
     }
 
+    // Backward-compat alias used in older call sites
+    function saveProgress() { saveForestProgress(); }
+
+    // Show a brief "saved" toast without interrupting gameplay
+    function showAutoSaveToast() {
+        const el = document.createElement('div');
+        el.style.cssText = `
+            position:fixed;bottom:70px;left:50%;transform:translateX(-50%);
+            background:rgba(0,0,0,0.7);color:#2ecc71;font-family:Cairo,sans-serif;
+            font-size:0.75rem;padding:4px 14px;border-radius:20px;
+            pointer-events:none;z-index:200;transition:opacity 1.2s;
+        `;
+        el.textContent = '💾 محفوظ تلقائياً';
+        document.body.appendChild(el);
+        setTimeout(() => { el.style.opacity = '0'; }, 1800);
+        setTimeout(() => el.remove(), 3100);
+    }
+
+    // Auto-save every 30 seconds while game is running
+    setInterval(() => {
+        if (gameRunning && !gameCompleted) {
+            saveForestProgress();
+            showAutoSaveToast();
+        }
+    }, 30000);
+
+    // Save when the tab/window is closed or navigated away
+    window.addEventListener('beforeunload', () => {
+        if (gameRunning && !gameCompleted) saveForestProgress();
+    });
+
     // ===== GAME LOOP =====
     function gameLoop(ts) {
-        if (!gameRunning) return;
-        const dt = Math.min(ts - lastTime, 50);
-        lastTime = ts;
-        waveTime = ts;
+        if (!gameRunning) { requestAnimationFrame(gameLoop); return; }
+        requestAnimationFrame(gameLoop); // schedule FIRST — never dies even if render throws
 
-        if (!gamePaused && !craftMenuOpen) {
-            updatePlayer(dt);
-            updateEnemies(dt);
-            updateArrows();
-            updatePoison(dt);
+        try {
+            const dt = Math.min(ts - lastTime, 50);
+            lastTime = ts;
+            waveTime = ts;
+
+            if (!craftMenuOpen) {
+                if (!gamePaused) {
+                    updatePlayer(dt);
+                    updateEnemies(dt);
+                    updateArrows();
+                    updatePoison(dt);
+                }
+                updateFishing(dt);
+                updateDroppedItems(dt);
+            }
+            updateCamera();
+
+            // Render — apply zoom so all objects appear larger
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.save();
+            ctx.scale(ZOOM, ZOOM);
+
+            drawWorld(camera.x, camera.y);
+
+            for (const r of resources)    r.draw(camera.x, camera.y);
+            for (const d of droppedItems) d.draw(camera.x, camera.y);
+            for (const e of enemies)      e.draw(camera.x, camera.y);
+            for (const a of arrows)       a.draw(camera.x, camera.y);
+
+            drawAimReticle(camera.x, camera.y);
+            drawCityPortal(camera.x, camera.y);
+            drawPlayer(camera.x, camera.y);
+            drawFishingLine(camera.x, camera.y);
+            drawTreesFront(camera.x, camera.y);
+
+            ctx.restore();
+            drawMinimap();
+        } catch (err) {
+            // Restore canvas state so next frame starts clean
+            try { ctx.restore(); } catch(_) {}
+            console.error('[gameLoop]', err);
         }
-        updateCamera();
-
-        // Render
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        drawWorld(camera.x, camera.y);
-
-        // Resources
-        for (const r of resources) r.draw(camera.x, camera.y);
-        // Enemies
-        for (const e of enemies) e.draw(camera.x, camera.y);
-        // Arrows
-        for (const a of arrows) a.draw(camera.x, camera.y);
-        // Player
-        drawPlayer(camera.x, camera.y);
-        // Trees in front of player
-        drawTreesFront(camera.x, camera.y);
-
-        drawMinimap();
-        requestAnimationFrame(gameLoop);
     }
 
     // ===== INTRO STORY =====
@@ -1548,8 +2676,10 @@
             lastTime = performance.now();
             updateHUD();
             requestAnimationFrame(gameLoop);
-            // Tutorial hint
-            setTimeout(() => notify('💡 اضغط F للصناعة، E للهجوم، Q للأكل', '#f0c040'), 2000);
+            // Tutorial hints
+            setTimeout(() => notify('💡 اضغط F للصناعة، Q للأكل', '#f0c040'), 2000);
+            setTimeout(() => notify('🏹 اضغط 2 للقوس — انقر لإطلاق السهم', '#c8a040'), 5000);
+            setTimeout(() => notify('⬇️ اقترب من الغنائم واضغط E لالتقاطها', '#2ecc71'), 8000);
         }, 850);
     }
 
@@ -1560,7 +2690,28 @@
         if (['q','Q'].includes(e.key)) { if(gameRunning) eatMeat(); }
         if (e.key === '1') { player.weapon='sword'; notify('⚔️ السيف','#c0c0c0'); }
         if (e.key === '2') { player.weapon='bow';   notify('🏹 القوس','#c8a040'); }
-        if (['e','E',' '].includes(e.key)) { if(gameRunning && player.weapon==='sword') playerAttack(); }
+        if (['r','R'].includes(e.key)) { if(gameRunning) startFishing(); }
+        if (['e','E'].includes(e.key)) {
+            if (gameRunning) {
+                // Priority: city portal → dropped loot → ground resources → chop tree → sword attack
+                const nearDrop = droppedItems.find(i => i.isNearPlayer());
+                const nearRes  = resources.find(r => r.isNearPlayer());
+                const nearTree = trees.find(t => !t.chopped &&
+                    Math.hypot(player.x - t.x, player.y - t.y) < t.r + 32);
+                if (isNearCityPortal()) {
+                    enterCity();
+                } else if (nearDrop) {
+                    nearDrop.pickup();
+                } else if (nearRes) {
+                    nearRes.pickup();
+                } else if (nearTree) {
+                    chopTree(nearTree);
+                } else if (player.weapon === 'sword') {
+                    playerAttack();
+                }
+            }
+        }
+        if (e.key === ' ') { if(gameRunning && player.weapon==='sword') playerAttack(); }
         if (e.key==='Escape') { if(craftMenuOpen) closeCraftingMenu(); }
         if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
     });
@@ -1569,15 +2720,60 @@
     canvas = document.getElementById('gameCanvas');
     canvas.addEventListener('mousemove', e => {
         const r = canvas.getBoundingClientRect();
-        mouseWorldX = (e.clientX - r.left) + camera.x;
-        mouseWorldY = (e.clientY - r.top)  + camera.y;
+        mouseWorldX = (e.clientX - r.left) / ZOOM + camera.x;
+        mouseWorldY = (e.clientY - r.top)  / ZOOM + camera.y;
     });
+    canvas.addEventListener('contextmenu', e => {
+        e.preventDefault();
+        if (!gameRunning || gamePaused) return;
+
+        // Switch to bow automatically when right-clicking
+        if (player.weapon !== 'bow') {
+            player.weapon = 'bow';
+            updateHUD();
+        }
+
+        // Find nearest living enemy to the cursor
+        const r = canvas.getBoundingClientRect();
+        const mx = (e.clientX - r.left) / ZOOM + camera.x;
+        const my = (e.clientY - r.top)  / ZOOM + camera.y;
+
+        let best = null, bestDist = Infinity;
+        for (const en of enemies) {
+            if (en.isDead) continue;
+            const d = Math.hypot(en.x - mx, en.y - my);
+            if (d < bestDist) { bestDist = d; best = en; }
+        }
+
+        if (best && bestDist < 400) {
+            if (lockedTarget === best) {
+                // Right-click same target again → unlock
+                lockedTarget = null;
+                notify('🎯 إلغاء القفل', '#aaa');
+            } else {
+                lockedTarget = best;
+                notify(`🎯 قفل على ${best.name || 'هدف'}`, '#ff6060');
+            }
+        } else {
+            lockedTarget = null;
+            notify('🎯 لا هدف قريب', '#aaa');
+        }
+    });
+
+    canvas.addEventListener('wheel', e => {
+        if (!gameRunning) return;
+        e.preventDefault();
+        player.weapon = player.weapon === 'sword' ? 'bow' : 'sword';
+        notify(player.weapon === 'sword' ? '⚔️ السيف' : '🏹 القوس', '#ffd060');
+        updateHUD();
+    }, { passive: false });
+
     canvas.addEventListener('click', e => {
         if (!gameRunning || gamePaused || craftMenuOpen) return;
         if (player.weapon === 'bow') {
             const r = canvas.getBoundingClientRect();
-            mouseWorldX = (e.clientX - r.left) + camera.x;
-            mouseWorldY = (e.clientY - r.top)  + camera.y;
+            mouseWorldX = (e.clientX - r.left) / ZOOM + camera.x;
+            mouseWorldY = (e.clientY - r.top)  / ZOOM + camera.y;
             shootArrow();
         } else {
             playerAttack();
@@ -1591,6 +2787,51 @@
     }
     window.addEventListener('resize', resizeCanvas);
 
+    // ===== RESUME (skip intro, restore position) =====
+    function resumeGame(savedState) {
+        if (typingInterval) clearInterval(typingInterval);
+        const ov = document.getElementById('introOverlay');
+        ov.style.display = 'none';
+
+        // Restore in-world position
+        player.x = savedState.x || player.x;
+        player.y = savedState.y || player.y;
+        player.lastX = player.x;
+        player.lastY = player.y;
+        player.hp = Math.min(savedState.hp || player.hp, player.maxHp);
+        player.stamina = savedState.stamina || CFG.STAMINA_MAX;
+        player.killCount = savedState.killCount || 0;
+        player.distanceTraveled = savedState.distanceTraveled || 0;
+        player.xp = savedState.xp || 0;
+
+        // Restore collected resources
+        if (savedState.collectedResources) {
+            for (const idx of savedState.collectedResources) {
+                if (resources[idx]) resources[idx].collected = true;
+            }
+        }
+
+        // Restore chopped trees
+        if (savedState.choppedTrees) {
+            for (const idx of savedState.choppedTrees) {
+                if (trees[idx]) { trees[idx].chopped = true; trees[idx].hp = 0; }
+            }
+        }
+
+        // Format the saved time nicely
+        let timeAgo = '';
+        if (savedState.savedAt) {
+            const mins = Math.round((Date.now() - savedState.savedAt) / 60000);
+            timeAgo = mins < 2 ? ' (قبل لحظات)' : ` (منذ ${mins} دقيقة)`;
+        }
+
+        gameRunning = true;
+        lastTime = performance.now();
+        updateHUD();
+        // gameLoop schedules its own next frame at the top, so one call starts the chain
+        gameLoop(lastTime);
+    }
+
     // ===== INIT =====
     function init() {
         resizeCanvas();
@@ -1599,21 +2840,42 @@
         ctx = canvas.getContext('2d');
 
         generateWorld();
+        prerenderTerrain(); // bake terrain to offscreen canvas — smooth + fast
         spawnEnemies();
         spawnResources();
 
-        // Load saved hero stats
+        // Load saved hero stats, inventory, crafted items
         const saved = GameState.getHeroStats();
         player.hp = saved.hp; player.maxHp = saved.maxHp;
         player.attack = saved.attack; player.defense = saved.defense;
         player.skills = saved.skills;
         player.absorbedAttack = saved.absorbedAttack || 0;
         player.absorbedDefense = saved.absorbedDefense || 0;
-        player.inventory = GameState.getInventory();
-        player.craftedItems = GameState.getCraftedItems();
+
+        const savedInv = GameState.getInventory();
+        player.inventory = { stick:0, stone:0, meat:0, horn:0, teeth:0, leather:0, fish:0, arrows:15, ...savedInv };
+
+        const savedCraft = GameState.getCraftedItems();
+        player.craftedItems = { axe:false, fishingRod:false, hornSpear:false, hornSword:false, leatherArmor:false, ...savedCraft };
 
         updateHUD();
-        showIntroScene(0);
+
+        // Check for a mid-game save — if found, skip intro and restore position
+        const forestSave = GameState.loadForestState();
+        const fromCity = GameState.load('fromCity', false);
+        if (fromCity) {
+            // Returning from city — spawn near the south gate portal
+            GameState.save('fromCity', false);
+            if (forestSave) {
+                forestSave.x = CITY_PORTAL.x;
+                forestSave.y = CITY_PORTAL.y - 80;  // just north of the gate
+            }
+            resumeGame(forestSave || { seenIntro: true, x: CITY_PORTAL.x, y: CITY_PORTAL.y - 80 });
+        } else if (forestSave && forestSave.seenIntro) {
+            resumeGame(forestSave);
+        } else {
+            showIntroScene(0);
+        }
     }
 
     init();

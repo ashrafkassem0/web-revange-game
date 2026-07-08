@@ -43,8 +43,9 @@ const ENEMY_TEMPLATES = {
         xp: 10,
         skills: { endurance: 5 },
         drops: {
-            meat: { chance: 1.0, amount: 2 },
-            horn: { chance: 1.0, amount: 2 }
+            meat:    { chance: 1.0, amount: 2 },
+            horn:    { chance: 1.0, amount: 2 },
+            leather: { chance: 0.8, amount: 1 }
         }
     },
 
@@ -88,7 +89,8 @@ const ENEMY_TEMPLATES = {
         xp: 20,
         skills: { bite: 8, endurance: 4 },
         drops: {
-            teeth: { chance: 0.5, amount: 2 }
+            teeth:   { chance: 0.5, amount: 2 },
+            leather: { chance: 0.7, amount: 1 }
         }
     },
 
@@ -134,7 +136,8 @@ const ENEMY_TEMPLATES = {
         xp: 25,
         skills: { tusks: 12, endurance: 8 },
         drops: {
-            teeth: { chance: 0.6, amount: 2 }
+            teeth:   { chance: 0.6, amount: 2 },
+            leather: { chance: 0.8, amount: 1 }
         }
     },
 
@@ -156,7 +159,8 @@ const ENEMY_TEMPLATES = {
         xp: 50,
         skills: { claw: 20, physicalPower: 15 },
         drops: {
-            meat: { chance: 0.7, amount: 3 }
+            meat:    { chance: 0.7, amount: 3 },
+            leather: { chance: 1.0, amount: 2 }
         }
     },
 
@@ -225,27 +229,37 @@ const ENEMY_TEMPLATES = {
 
 // أسماء المواد بالعربية
 const ITEM_NAMES = {
-    stick:  'عصا',
-    stone:  'حجر',
-    meat:   'لحم',
-    horn:   'قرن',
-    teeth:  'أسنان',
-    axe:         'فأس',
-    fishingRod:  'سنارة',
-    hornSpear:   'رمح القرن',
-    hornSword:   'سيف القرن'
+    stick:      'عصا',
+    stone:      'حجر',
+    meat:       'لحم',
+    horn:       'قرن',
+    teeth:      'أسنان',
+    leather:    'جلد',
+    fish:       'سمكة',
+    arrows:     'سهام',
+    healthOrb:  'نقطة حياة',
+    axe:        'فأس',
+    fishingRod: 'سنارة',
+    hornSpear:  'رمح القرن',
+    hornSword:  'سيف القرن',
+    leatherArmor: 'درع جلدي'
 };
 
 const ITEM_EMOJIS = {
-    stick:  '🪵',
-    stone:  '🪨',
-    meat:   '🥩',
-    horn:   '🦷',
-    teeth:  '🦴',
-    axe:         '🪓',
-    fishingRod:  '🎣',
-    hornSpear:   '🗡️',
-    hornSword:   '⚔️'
+    stick:      '🪵',
+    stone:      '🪨',
+    meat:       '🥩',
+    horn:       '🦷',
+    teeth:      '🦴',
+    leather:    '🧥',
+    fish:       '🐟',
+    arrows:     '🏹',
+    healthOrb:  '❤️',
+    axe:        '🪓',
+    fishingRod: '🎣',
+    hornSpear:  '🗡️',
+    hornSword:  '⚔️',
+    leatherArmor: '🛡️'
 };
 
 window.ENEMY_TEMPLATES = ENEMY_TEMPLATES;

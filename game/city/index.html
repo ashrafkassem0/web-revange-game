@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>المدينة — ريفنج</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #1a1a2e; font-family: 'Cairo', sans-serif; overflow: hidden; }
+    canvas { display: block; }
+
+    #hud {
+        position: fixed; top: 10px; left: 50%; transform: translateX(-50%);
+        background: rgba(0,0,0,0.75); border: 1px solid #555; border-radius: 12px;
+        padding: 8px 18px; color: #eee; font-size: 0.85rem; display: flex;
+        align-items: center; gap: 16px; z-index: 20;
+    }
+    .bar-wrap { display: flex; align-items: center; gap: 6px; }
+    .bar-bg { width: 90px; height: 10px; background: #333; border-radius: 5px; overflow: hidden; }
+    #hpBar  { height: 100%; background: linear-gradient(90deg,#e74c3c,#c0392b); border-radius: 5px; width: 100%; transition: width 0.2s; }
+
+    #invPanel {
+        position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%);
+        background: rgba(0,0,0,0.8); border: 1px solid #555; border-radius: 12px;
+        padding: 8px 16px; display: flex; gap: 14px; align-items: center; z-index: 20;
+        color: #ddd; font-size: 0.8rem;
+    }
+    .inv-item { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+    .inv-icon { font-size: 1.1rem; }
+    .inv-count { font-size: 0.72rem; color: #aaa; }
+
+    #modal {
+        display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+        z-index: 50; align-items: center; justify-content: center;
+    }
+    #modal.open { display: flex; }
+    #modalBox {
+        background: linear-gradient(135deg,#1e2a1a,#2a3020);
+        border: 2px solid #6a8040; border-radius: 16px;
+        padding: 28px 32px; min-width: 340px; max-width: 480px;
+        color: #e8e0c0; position: relative;
+    }
+    #modalTitle { font-size: 1.3rem; font-weight: 900; margin-bottom: 16px; color: #ffd060; }
+    #modalBody { font-size: 0.9rem; line-height: 1.7; }
+    .trade-row {
+        display: flex; align-items: center; justify-content: space-between;
+        background: rgba(255,255,255,0.06); border-radius: 8px;
+        padding: 8px 14px; margin-bottom: 8px; gap: 10px;
+    }
+    .trade-btn {
+        background: linear-gradient(135deg,#5a7a20,#3a5010); color: #ffd060;
+        border: none; border-radius: 8px; padding: 6px 14px;
+        font-family: 'Cairo',sans-serif; font-size: 0.82rem; cursor: pointer;
+        transition: transform 0.1s, filter 0.1s;
+    }
+    .trade-btn:hover { filter: brightness(1.2); transform: scale(1.04); }
+    .trade-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+    .close-btn {
+        position: absolute; top: 12px; left: 14px;
+        background: none; border: none; color: #aaa;
+        font-size: 1.4rem; cursor: pointer; line-height: 1;
+    }
+    .close-btn:hover { color: #fff; }
+
+    #hint {
+        position: fixed; bottom: 58px; left: 50%; transform: translateX(-50%);
+        background: rgba(0,0,0,0.7); color: #aaa; font-size: 0.75rem;
+        padding: 5px 14px; border-radius: 10px; white-space: nowrap; z-index: 20;
+    }
+    #notify {
+        position: fixed; top: 60px; left: 50%; transform: translateX(-50%);
+        background: rgba(0,0,0,0.8); color: #ffd060; font-size: 0.9rem;
+        padding: 7px 20px; border-radius: 20px; z-index: 60;
+        display: none; pointer-events: none;
+    }
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+
+<div id="hud">
+    <span>🏙️ المدينة</span>
+    <div class="bar-wrap">
+        ❤️ <div class="bar-bg"><div id="hpBar"></div></div>
+        <span id="hpVal">100/100</span>
+    </div>
+</div>
+
+<div id="invPanel">
+    <div class="inv-item"><span class="inv-icon">🪵</span><span class="inv-count" id="inv-stick">0</span></div>
+    <div class="inv-item"><span class="inv-icon">🪨</span><span class="inv-count" id="inv-stone">0</span></div>
+    <div class="inv-item"><span class="inv-icon">🥩</span><span class="inv-count" id="inv-meat">0</span></div>
+    <div class="inv-item"><span class="inv-icon">🧥</span><span class="inv-count" id="inv-leather">0</span></div>
+    <div class="inv-item"><span class="inv-icon">🐟</span><span class="inv-count" id="inv-fish">0</span></div>
+    <div class="inv-item"><span class="inv-icon">🏹</span><span class="inv-count" id="inv-arrows">0</span></div>
+    <div class="inv-item"><span class="inv-icon">🦷</span><span class="inv-count" id="inv-teeth">0</span></div>
+    <div class="inv-item"><span class="inv-icon">🦴</span><span class="inv-count" id="inv-horn">0</span></div>
+</div>
+
+<div id="hint">WASD / ↑↓←→ للحركة &nbsp;|&nbsp; E للتفاعل &nbsp;|&nbsp; اقترب من البوابة الشمالية للعودة للغابة</div>
+<div id="notify"></div>
+
+<div id="modal">
+    <div id="modalBox">
+        <button class="close-btn" onclick="closeModal()">✕</button>
+        <div id="modalTitle"></div>
+        <div id="modalBody"></div>
+    </div>
+</div>
+
+<script src="../js/shared.js"></script>
+<script>
+// ─────────────── CONFIG ───────────────
+const CFG = {
+    TILE: 48,
+    COLS: 22,
+    ROWS: 18,
+    SPEED: 2.8,
+};
+const W = CFG.COLS * CFG.TILE;  // 1056
+const H = CFG.ROWS * CFG.TILE;  // 864
+
+// Tile types
+const T = { STONE: 0, ROAD: 1, BUILDING: 2, GRASS: 3, WATER: 4, SAND: 5 };
+
+// City map (22 cols × 18 rows)
+// B=building, S=stone, R=road, G=grass, W=water, D=sand/dirt
+const MAP_STR = [
+    'BBBBBBBBBBBBBBBBBBBBBB',
+    'BSSSSSSSSSSSSSSSSSSSBB',
+    'BSGBBBSSSSBBBSSSGSSSGB',
+    'BSGBBBSSSSBBBSSSGSSSGB',
+    'BSGBBBSSSSBBBSSSGSSSGB',
+    'BSSSSSSRRRRSSSSSSSSSBB',
+    'BSSRRRRRRRRRRRRRRSSSBB',
+    'BSSRRSSSSSSSSSRRSSSSGB',
+    'BSSRRSSGGGSSRRSSSSGGGB',
+    'BSSRRSSGGGSSRRSSSSGGGB',
+    'BSSRRSSGGGSSRRSSSSGGGG',
+    'BSSRRSSSSSSSRRSSSSSGGB',
+    'BSSRRRRRRRRRRRRRRSSSBB',
+    'BSSSSSSRRRRSSSSSSSSSBB',
+    'BSGBBBSSSSBBBSSSGSSSGB',
+    'BSGBBBSSSSBBBSSSGSSSGB',
+    'BSSSSSSSSSSSSSSSSSSSBB',
+    'BBBBBBBSSSBBBBBBBBBBBB',
+].map(row => [...row].map(c => ({'B':T.BUILDING,'S':T.STONE,'R':T.ROAD,'G':T.GRASS,'W':T.WATER,'D':T.SAND}[c]??T.STONE)));
+
+function getTile(c, r) {
+    if (c < 0 || c >= CFG.COLS || r < 0 || r >= CFG.ROWS) return T.BUILDING;
+    return MAP_STR[r][c];
+}
+function isBlocked(wx, wy) {
+    return getTile(Math.floor(wx / CFG.TILE), Math.floor(wy / CFG.TILE)) === T.BUILDING;
+}
+
+// ─────────────── STATE ───────────────
+const inv = GameState.getInventory();
+const stats = GameState.getHeroStats();
+const player = {
+    x: W / 2,
+    y: H - CFG.TILE * 2.5,
+    hp: Math.min(stats.hp || 100, stats.maxHp || 100),
+    maxHp: stats.maxHp || 100,
+    inventory: { stick:0, stone:0, meat:0, horn:0, teeth:0, leather:0, fish:0, arrows:15, ...inv },
+    walkTimer: 0, isMoving: false, facing: 'down',
+};
+
+// ─────────────── NPCs ───────────────
+const NPCS = [
+    {
+        id: 'merchant',
+        x: CFG.TILE * 5.5,  y: CFG.TILE * 8.5,
+        emoji: '🧑‍💼', label: 'التاجر',
+        color: '#8060a0',
+        onInteract() { openMerchant(); }
+    },
+    {
+        id: 'healer',
+        x: CFG.TILE * 16.5, y: CFG.TILE * 8.5,
+        emoji: '🧑‍⚕️', label: 'المعالج',
+        color: '#2080a0',
+        onInteract() { openHealer(); }
+    },
+    {
+        id: 'blacksmith',
+        x: CFG.TILE * 10.5, y: CFG.TILE * 3.5,
+        emoji: '⚒️', label: 'الحداد',
+        color: '#a06020',
+        onInteract() { openBlacksmith(); }
+    },
+];
+
+const FOREST_PORTAL = { x: W / 2, y: CFG.TILE * 1.5, radius: 52 };
+
+// ─────────────── CANVAS ───────────────
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+function resize() {
+    const scale = Math.min(window.innerWidth / W, window.innerHeight / H);
+    canvas.width  = W;
+    canvas.height = H;
+    canvas.style.width  = (W * scale) + 'px';
+    canvas.style.height = (H * scale) + 'px';
+    canvas.style.position = 'fixed';
+    canvas.style.left = ((window.innerWidth  - W * scale) / 2) + 'px';
+    canvas.style.top  = ((window.innerHeight - H * scale) / 2) + 'px';
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ─────────────── PRE-RENDER TERRAIN ───────────────
+let terrainCanvas = null;
+function prerenderTerrain() {
+    terrainCanvas = document.createElement('canvas');
+    terrainCanvas.width  = W;
+    terrainCanvas.height = H;
+    const tc = terrainCanvas.getContext('2d');
+    const ts = CFG.TILE;
+
+    function th(c, r, s) { return Math.abs(Math.sin(c*127.1*(s||1) + r*311.7)) % 1; }
+
+    for (let r = 0; r < CFG.ROWS; r++) {
+        for (let c = 0; c < CFG.COLS; c++) {
+            const t = getTile(c, r);
+            const tx = c * ts, ty = r * ts;
+            const s1 = th(c,r,1), s2 = th(c,r,2), s3 = th(c,r,3);
+
+            if (t === T.BUILDING) {
+                // Stone building wall
+                const gv = 55 + Math.floor(s1 * 15);
+                tc.fillStyle = `rgb(${gv},${gv-4},${gv-8})`;
+                tc.fillRect(tx, ty, ts+1, ts+1);
+                // Brick mortar lines
+                tc.strokeStyle = `rgba(30,28,24,0.45)`;
+                tc.lineWidth = 1;
+                const bh = ts / 3;
+                for (let i = 0; i < 3; i++) {
+                    tc.beginPath(); tc.moveTo(tx, ty + i*bh); tc.lineTo(tx+ts, ty + i*bh); tc.stroke();
+                    const off = (i % 2 === 0) ? ts/2 : 0;
+                    tc.beginPath(); tc.moveTo(tx + off, ty + i*bh); tc.lineTo(tx + off, ty + (i+1)*bh); tc.stroke();
+                }
+            } else if (t === T.STONE) {
+                tc.fillStyle = `rgb(${140+Math.floor(s1*12)},${138+Math.floor(s2*10)},${128+Math.floor(s3*10)})`;
+                tc.fillRect(tx, ty, ts+1, ts+1);
+                // Grout lines every tile
+                tc.strokeStyle = 'rgba(100,95,85,0.35)';
+                tc.lineWidth = 1;
+                tc.strokeRect(tx+0.5, ty+0.5, ts-1, ts-1);
+            } else if (t === T.ROAD) {
+                tc.fillStyle = `rgb(${100+Math.floor(s1*10)},${95+Math.floor(s2*8)},${80+Math.floor(s3*8)})`;
+                tc.fillRect(tx, ty, ts+1, ts+1);
+                // Cobble pattern
+                tc.strokeStyle = 'rgba(60,55,45,0.4)';
+                tc.lineWidth = 0.8;
+                tc.strokeRect(tx+2, ty+2, ts/2-2, ts-4);
+                tc.strokeRect(tx+ts/2, ty+2, ts/2-2, ts-4);
+            } else if (t === T.GRASS) {
+                tc.fillStyle = `rgb(${48+Math.floor(s1*12)},${115+Math.floor(s2*18)},${38+Math.floor(s3*10)})`;
+                tc.fillRect(tx, ty, ts+1, ts+1);
+                // Grass blades
+                tc.strokeStyle = 'rgba(20,70,10,0.4)';
+                tc.lineWidth = 0.8;
+                for (let i = 0; i < 7; i++) {
+                    const gx = tx + ((s1*(i*37+1))%1)*ts;
+                    const gy = ty + ((s2*(i*53+1))%1)*ts;
+                    tc.beginPath(); tc.moveTo(gx, gy+4); tc.lineTo(gx+0.5, gy); tc.stroke();
+                }
+            }
+        }
+    }
+}
+
+// ─────────────── INPUT ───────────────
+const keys = {};
+document.addEventListener('keydown', e => {
+    keys[e.key] = true;
+    if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
+    if (['e','E'].includes(e.key)) handleInteract();
+    if (e.key === 'Escape') closeModal();
+});
+document.addEventListener('keyup', e => { keys[e.key] = false; });
+
+// ─────────────── HELPERS ───────────────
+function notify(msg, color = '#ffd060', duration = 2200) {
+    const el = document.getElementById('notify');
+    el.textContent = msg;
+    el.style.color = color;
+    el.style.display = 'block';
+    clearTimeout(el._t);
+    el._t = setTimeout(() => el.style.display = 'none', duration);
+}
+
+function updateHUD() {
+    document.getElementById('hpBar').style.width = (player.hp / player.maxHp * 100) + '%';
+    document.getElementById('hpVal').textContent = `${Math.ceil(player.hp)}/${player.maxHp}`;
+    for (const k of ['stick','stone','meat','horn','teeth','leather','fish','arrows'])
+        document.getElementById('inv-' + k).textContent = player.inventory[k] || 0;
+}
+
+function saveAndExit() {
+    // Save current inventory back to GameState
+    GameState.save('inventory', player.inventory);
+    const stats = GameState.getHeroStats();
+    stats.hp = player.hp;
+    GameState.save('heroStats', stats);
+    GameState.save('fromCity', true);
+    window.location.href = '../forest/index.html';
+}
+
+// ─────────────── INTERACTION ───────────────
+function handleInteract() {
+    if (document.getElementById('modal').classList.contains('open')) return;
+    // Forest portal
+    if (Math.hypot(player.x - FOREST_PORTAL.x, player.y - FOREST_PORTAL.y) < FOREST_PORTAL.radius) {
+        saveAndExit(); return;
+    }
+    // NPC
+    const npc = NPCS.find(n => Math.hypot(player.x - n.x, player.y - n.y) < 55);
+    if (npc) npc.onInteract();
+}
+
+// ─────────────── MODALS ───────────────
+function openModal(title, bodyHtml) {
+    document.getElementById('modalTitle').textContent = title;
+    document.getElementById('modalBody').innerHTML = bodyHtml;
+    document.getElementById('modal').classList.add('open');
+}
+function closeModal() {
+    document.getElementById('modal').classList.remove('open');
+    updateHUD();
+}
+
+function tradeRow(label, cost, costIcon, give, giveIcon, action) {
+    return `<div class="trade-row">
+        <span>${costIcon} ${cost} ${label}</span>
+        <span>← ${giveIcon} +${give}</span>
+        <button class="trade-btn" onclick="${action}">تبادل</button>
+    </div>`;
+}
+
+function openMerchant() {
+    openModal('🧑‍💼 التاجر', `
+        <p style="margin-bottom:12px;color:#ccc">بادل مواردك بالسهام:</p>
+        ${tradeRow('جلد', 2, '🧥', 8, '🏹', 'trade("leather",2,"arrows",8)')}
+        ${tradeRow('لحم', 3, '🥩', 6, '🏹', 'trade("meat",3,"arrows",6)')}
+        ${tradeRow('سمكة', 2, '🐟', 5, '🏹', 'trade("fish",2,"arrows",5)')}
+        ${tradeRow('أسنان', 1, '🦷', 10, '🏹', 'trade("teeth",1,"arrows",10)')}
+        <hr style="border-color:#555;margin:14px 0">
+        <p style="color:#ccc;margin-bottom:10px">بيع موارد مقابل سهام:</p>
+        ${tradeRow('عصا', 5, '🪵', 3, '🏹', 'trade("stick",5,"arrows",3)')}
+    `);
+}
+
+function openHealer() {
+    const healCost = 2;
+    openModal('🧑‍⚕️ المعالج', `
+        <p style="margin-bottom:12px;color:#ccc">الصحة الحالية: ❤️ ${Math.ceil(player.hp)}/${player.maxHp}</p>
+        <div class="trade-row">
+            <span>🥩 ${healCost} لحم → استعادة كاملة للصحة</span>
+            <button class="trade-btn" onclick="heal()">علاج</button>
+        </div>
+        <div class="trade-row" style="margin-top:8px">
+            <span>🐟 ${healCost} سمكة → استعادة نصف الصحة</span>
+            <button class="trade-btn" onclick="healFish()">علاج جزئي</button>
+        </div>
+        <div class="trade-row" style="margin-top:8px">
+            <span>💤 راحة في المدينة (مجانية) → +20❤️</span>
+            <button class="trade-btn" onclick="rest()">استراح</button>
+        </div>
+    `);
+}
+
+function openBlacksmith() {
+    openModal('⚒️ الحداد', `
+        <p style="margin-bottom:12px;color:#ccc">المعدات المصنوعة حتى الآن:</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            ${craftItem('🪓','الفأس','axe')}
+            ${craftItem('🎣','السنارة','fishingRod')}
+            ${craftItem('🗡️','الرمح','hornSpear')}
+            ${craftItem('⚔️','السيف','hornSword')}
+            ${craftItem('🛡️','الدرع الجلدي','leatherArmor')}
+        </div>
+        <p style="margin-top:14px;color:#888;font-size:0.8rem">اضغط F في الغابة لفتح قائمة الصناعة</p>
+    `);
+}
+
+function craftItem(emoji, name, id) {
+    const crafted = GameState.getCraftedItems();
+    const has = crafted[id];
+    return `<div class="trade-row" style="opacity:${has?1:0.5}">
+        <span>${emoji} ${name}</span>
+        <span style="color:${has?'#6ddc6d':'#888'}">${has?'✔ مصنوع':'✘ لم يُصنع'}</span>
+    </div>`;
+}
+
+// Trade logic
+window.trade = function(fromItem, fromAmt, toItem, toAmt) {
+    if ((player.inventory[fromItem] || 0) < fromAmt) {
+        notify(`❌ لا يكفي ${fromItem}`, '#e74c3c'); return;
+    }
+    player.inventory[fromItem] -= fromAmt;
+    player.inventory[toItem] = (player.inventory[toItem] || 0) + toAmt;
+    notify(`✅ حصلت على ${toAmt} 🏹`, '#6ddc6d');
+    GameState.save('inventory', player.inventory);
+    updateHUD();
+    openMerchant(); // refresh
+};
+
+window.heal = function() {
+    if ((player.inventory.meat || 0) < 2) { notify('❌ تحتاج 2 لحمة', '#e74c3c'); return; }
+    player.inventory.meat -= 2;
+    player.hp = player.maxHp;
+    notify('❤️ استعدت صحتك كاملة!', '#e74c3c');
+    closeModal();
+};
+
+window.healFish = function() {
+    if ((player.inventory.fish || 0) < 2) { notify('❌ تحتاج 2 سمكة', '#e74c3c'); return; }
+    player.inventory.fish -= 2;
+    player.hp = Math.min(player.maxHp, player.hp + Math.floor(player.maxHp / 2));
+    notify('❤️ تعافيت جزئياً!', '#5dade2');
+    closeModal();
+};
+
+window.rest = function() {
+    const before = player.hp;
+    player.hp = Math.min(player.maxHp, player.hp + 20);
+    notify(`💤 استرحت! +${Math.round(player.hp - before)}❤️`, '#aaddff');
+    closeModal();
+};
+
+// ─────────────── PLAYER UPDATE ───────────────
+let lastTime = 0;
+function updatePlayer(dt) {
+    if (document.getElementById('modal').classList.contains('open')) return;
+    let dx = 0, dy = 0;
+    if (keys['w']||keys['W']||keys['ArrowUp'])    { dy -= 1; player.facing='up'; }
+    if (keys['s']||keys['S']||keys['ArrowDown'])  { dy += 1; player.facing='down'; }
+    if (keys['a']||keys['A']||keys['ArrowLeft'])  { dx -= 1; player.facing='left'; }
+    if (keys['d']||keys['D']||keys['ArrowRight']) { dx += 1; player.facing='right'; }
+
+    const spd = CFG.SPEED;
+    if (dx !== 0 && dy !== 0) { dx *= 0.707; dy *= 0.707; }
+
+    const nx = Math.max(14, Math.min(W - 14, player.x + dx * spd));
+    const ny = Math.max(14, Math.min(H - 14, player.y + dy * spd));
+
+    if (!isBlocked(nx, player.y)) player.x = nx;
+    if (!isBlocked(player.x, ny)) player.y = ny;
+
+    player.isMoving = dx !== 0 || dy !== 0;
+    if (player.isMoving) player.walkTimer += dt;
+    else player.walkTimer = 0;
+}
+
+// ─────────────── DRAW ───────────────
+function drawTerrain() {
+    if (terrainCanvas) {
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(terrainCanvas, 0, 0);
+    }
+}
+
+function drawPortal() {
+    const { x, y, radius } = FOREST_PORTAL;
+    const pulse = 0.85 + Math.sin(Date.now() * 0.002) * 0.15;
+
+    ctx.save();
+    // Road under gate
+    ctx.fillStyle = '#b8a878';
+    ctx.fillRect(x - 22, y - 20, 44, 50);
+
+    // Left pillar
+    ctx.fillStyle = '#7a7060'; ctx.fillRect(x - 40, y - 48, 18, 72);
+    ctx.fillStyle = '#9a9080'; ctx.fillRect(x - 38, y - 46, 6, 68);
+    // Right pillar
+    ctx.fillStyle = '#7a7060'; ctx.fillRect(x + 22, y - 48, 18, 72);
+    ctx.fillStyle = '#9a9080'; ctx.fillRect(x + 32, y - 46, 6, 68);
+    // Arch
+    ctx.fillStyle = '#6a6050';
+    ctx.beginPath(); ctx.ellipse(x, y - 48, 41, 22, 0, Math.PI, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#9a9080';
+    ctx.beginPath(); ctx.ellipse(x, y - 48, 31, 15, 0, Math.PI, Math.PI*2); ctx.fill();
+    // Portal glow
+    const grd = ctx.createRadialGradient(x, y - 38, 4, x, y - 38, 30);
+    grd.addColorStop(0, `rgba(80,220,120,${0.6*pulse})`);
+    grd.addColorStop(1, 'rgba(40,180,80,0)');
+    ctx.fillStyle = grd;
+    ctx.beginPath(); ctx.ellipse(x, y-38, 28, 18, 0, 0, Math.PI*2); ctx.fill();
+    // Sign
+    ctx.fillStyle = '#3a2808'; ctx.fillRect(x-32, y-76, 64, 22);
+    ctx.strokeStyle = '#806020'; ctx.lineWidth = 2; ctx.strokeRect(x-32, y-76, 64, 22);
+    ctx.fillStyle = '#a0ff80'; ctx.font = 'bold 11px Cairo'; ctx.textAlign = 'center';
+    ctx.fillText('🌲 العودة للغابة', x, y - 60);
+
+    // Particles
+    for (let i = 0; i < 5; i++) {
+        const t2 = (Date.now() * 0.0008 + i * 1.2) % 3;
+        const px = x + Math.sin(i*2.5 + Date.now()*0.001)*16;
+        const py = y - 38 - t2 * 16;
+        const a = Math.max(0, 1 - t2/3) * pulse;
+        ctx.fillStyle = `rgba(100,255,130,${a*0.8})`;
+        ctx.beginPath(); ctx.arc(px, py, 2.2, 0, Math.PI*2); ctx.fill();
+    }
+
+    // Proximity label
+    if (Math.hypot(player.x - x, player.y - y) < radius) {
+        ctx.fillStyle = 'rgba(0,0,0,0.7)';
+        ctx.beginPath(); ctx.roundRect(x-65, y-96, 130, 22, 6); ctx.fill();
+        ctx.fillStyle = '#a0ff80'; ctx.font = 'bold 11px Cairo';
+        ctx.fillText('[E] العودة للغابة 🌲', x, y - 80);
+    }
+    ctx.restore();
+}
+
+function drawBuildings() {
+    const ts = CFG.TILE;
+    // Draw building rooftops/windows for decoration
+    ctx.save();
+    // Top buildings row — row 2-4
+    const bldgs = [
+        { c:1, r:2, w:3, h:3, color:'#604828', label:'⚒️ الحداد', npcId:'blacksmith' },
+        { c:5, r:2, w:4, h:3, color:'#284860', label:'🏥 المشفى', npcId:'healer' },
+        { c:10, r:2, w:4, h:3, color:'#284828', label:'🛒 التاجر', npcId:'merchant' },
+        { c:15, r:2, w:3, h:3, color:'#482848', label:'🏨 النزل', npcId:null },
+        { c:18, r:2, w:3, h:3, color:'#483020', label:'📚 المكتبة', npcId:null },
+        { c:1, r:14, w:3, h:3, color:'#405030', label:'🌾 المزرعة', npcId:null },
+        { c:5, r:14, w:4, h:3, color:'#503040', label:'🏺 الحرفي', npcId:null },
+        { c:15, r:14, w:3, h:3, color:'#304050', label:'⚗️ العالم', npcId:null },
+        { c:18, r:14, w:3, h:3, color:'#504020', label:'🍺 الحانة', npcId:null },
+    ];
+    for (const b of bldgs) {
+        const bx = b.c * ts, by = b.r * ts, bw = b.w * ts, bh = b.h * ts;
+        // Roof
+        ctx.fillStyle = b.color;
+        ctx.fillRect(bx, by, bw, bh);
+        // Door
+        ctx.fillStyle = '#2a1808';
+        ctx.fillRect(bx + bw/2 - 6, by + bh - 14, 12, 14);
+        // Windows
+        ctx.fillStyle = 'rgba(255,220,100,0.6)';
+        ctx.fillRect(bx + 4, by + 5, 10, 8);
+        ctx.fillRect(bx + bw - 14, by + 5, 10, 8);
+        // Label
+        ctx.font = '9px Cairo';
+        ctx.fillStyle = '#ffd060';
+        ctx.textAlign = 'center';
+        ctx.fillText(b.label, bx + bw/2, by + bh/2 + 3);
+    }
+    ctx.restore();
+}
+
+function drawNPCs() {
+    for (const npc of NPCS) {
+        const near = Math.hypot(player.x - npc.x, player.y - npc.y) < 55;
+        ctx.save();
+        // Shadow
+        ctx.fillStyle = 'rgba(0,0,0,0.25)';
+        ctx.beginPath(); ctx.ellipse(npc.x, npc.y + 12, 14, 6, 0, 0, Math.PI*2); ctx.fill();
+        // Body circle
+        const pulse = near ? 1 + Math.sin(Date.now() * 0.005) * 0.08 : 1;
+        ctx.beginPath(); ctx.arc(npc.x, npc.y, 18 * pulse, 0, Math.PI*2);
+        ctx.fillStyle = npc.color; ctx.fill();
+        ctx.strokeStyle = near ? '#ffd060' : 'rgba(255,255,255,0.3)';
+        ctx.lineWidth = near ? 2 : 1; ctx.stroke();
+        // Emoji
+        ctx.font = `${18*pulse}px serif`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(npc.emoji, npc.x, npc.y);
+        ctx.textBaseline = 'alphabetic';
+        // Label
+        ctx.font = `bold ${near?11:9}px Cairo`;
+        ctx.fillStyle = near ? '#ffd060' : '#cccccc';
+        ctx.fillText(npc.label, npc.x, npc.y - 24 * pulse);
+        // Interaction hint
+        if (near) {
+            ctx.fillStyle = 'rgba(0,0,0,0.65)';
+            ctx.beginPath(); ctx.roundRect(npc.x-40, npc.y-48, 80, 18, 5); ctx.fill();
+            ctx.fillStyle = '#ffd060'; ctx.font = 'bold 10px Cairo';
+            ctx.fillText('[E] للتحدث', npc.x, npc.y - 35);
+        }
+        ctx.restore();
+    }
+}
+
+function drawPlayer() {
+    const { x, y, walkTimer, isMoving, facing } = player;
+    const t = walkTimer * 0.008;
+    const legSwing = isMoving ? Math.sin(t) * 5 : 0;
+
+    ctx.save();
+    // Shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    ctx.beginPath(); ctx.ellipse(x, y + 14, 12, 5, 0, 0, Math.PI*2); ctx.fill();
+
+    // Legs
+    ctx.fillStyle = '#2a2040';
+    ctx.fillRect(x - 6, y + 2, 5, 12 + (isMoving ? Math.sin(t)*3 : 0));
+    ctx.fillRect(x + 1, y + 2, 5, 12 - (isMoving ? Math.sin(t)*3 : 0));
+
+    // Body
+    ctx.fillStyle = '#e8c88a';
+    ctx.fillRect(x - 9, y - 12, 18, 16);
+    // Shirt
+    ctx.fillStyle = '#3060a0';
+    ctx.fillRect(x - 8, y - 8, 16, 10);
+    // Belt
+    ctx.fillStyle = '#60401a';
+    ctx.fillRect(x - 9, y + 3, 18, 3);
+
+    // Head
+    ctx.fillStyle = '#e8c28a';
+    ctx.beginPath(); ctx.ellipse(x, y - 18, 11, 10, 0, 0, Math.PI*2); ctx.fill();
+    // Hair
+    ctx.fillStyle = '#603010';
+    ctx.beginPath(); ctx.ellipse(x, y - 24, 10, 6, 0, Math.PI, Math.PI*2); ctx.fill();
+    // Eyes
+    ctx.fillStyle = '#201008';
+    ctx.beginPath(); ctx.arc(x-4, y-17, 2, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x+4, y-17, 2, 0, Math.PI*2); ctx.fill();
+
+    ctx.restore();
+}
+
+function drawWell() {
+    // Central decorative well
+    const wx = W/2, wy = H/2;
+    ctx.save();
+    ctx.fillStyle = '#7a7060';
+    ctx.beginPath(); ctx.ellipse(wx, wy+5, 22, 10, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#5a5040';
+    ctx.beginPath(); ctx.ellipse(wx, wy, 20, 9, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#1a80b0';
+    ctx.beginPath(); ctx.ellipse(wx, wy-2, 14, 6, 0, 0, Math.PI*2); ctx.fill();
+    // Posts
+    ctx.fillStyle = '#5a3010';
+    ctx.fillRect(wx-18, wy-20, 5, 22);
+    ctx.fillRect(wx+13, wy-20, 5, 22);
+    // Crossbar
+    ctx.fillStyle = '#7a4018';
+    ctx.fillRect(wx-20, wy-22, 40, 5);
+    ctx.font = '10px Cairo'; ctx.fillStyle = '#ccc'; ctx.textAlign = 'center';
+    ctx.fillText('🪣 البئر', wx, wy-28);
+    ctx.restore();
+}
+
+// ─────────────── GAME LOOP ───────────────
+function gameLoop(ts) {
+    const dt = Math.min(ts - lastTime, 50);
+    lastTime = ts;
+
+    updatePlayer(dt);
+
+    ctx.clearRect(0, 0, W, H);
+    drawTerrain();
+    drawBuildings();
+    drawWell();
+    drawPortal();
+    drawNPCs();
+    drawPlayer();
+
+    requestAnimationFrame(gameLoop);
+}
+
+// ─────────────── INIT ───────────────
+prerenderTerrain();
+updateHUD();
+requestAnimationFrame(ts => { lastTime = ts; gameLoop(ts); });
+</script>
+</body>
+</html>
