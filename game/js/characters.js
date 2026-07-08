@@ -195,10 +195,11 @@ const ENEMY_TEMPLATES = {
         attackDmg: 25,
         behavior: 'aggressive',
         fleeRange: 0,
-        aggroRange: 100,
+        aggroRange: 110,
         attackRange: 32,
         attackCooldown: 1800,
         speed: 1.8,
+        swims: true,          // يتحرك داخل الماء
         xp: 55,
         skills: { bite: 25, endurance: 15 },
         drops: {

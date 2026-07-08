@@ -1,0 +1,580 @@
+'use strict';
+// =========================================================
+//  FOREST MAIN — حلقة اللعبة والمدخلات وتدفق اللعب
+// =========================================================
+
+// ===== GAME STATE GLOBALS =====
+const keys = {};
+let mouseWorldX = 0, mouseWorldY = 0;
+let lockedTarget = null;
+let camera = { x: 1100, y: 2350 };
+let enemies = [];
+let arrows  = [];
+let resources = [];
+let trees = [];
+let droppedItems = [];
+
+let gameRunning   = false;
+let gamePaused    = false;
+let gameCompleted = false;
+let craftMenuOpen = false;
+let lastTime = 0;
+let canvas, ctx, minimapCanvas, minimapCtx;
+let waveTime = 0;
+
+// Intro typing state
+let introIdx = 0;
+let typingInterval = null;
+
+// ===== CAMERA =====
+function updateCamera() {
+    const VW = canvas.width / ZOOM;
+    const VH = canvas.height / ZOOM;
+    camera.x = Math.max(0, Math.min(CFG.WORLD_W - VW, player.x - VW / 2));
+    camera.y = Math.max(0, Math.min(CFG.WORLD_H - VH, player.y - VH / 2));
+}
+
+// ===== CITY PORTAL =====
+function isNearCityPortal() {
+    return Math.hypot(player.x - CITY_PORTAL.x, player.y - CITY_PORTAL.y) < CITY_PORTAL.radius;
+}
+
+let _portalPanelVisible = false;
+let _portalPanelDismissed = false;
+
+function updatePortalPanel() {
+    const panel = document.getElementById('cityPortalPanel');
+    if (!panel) return;
+    const near = gameRunning && isNearCityPortal();
+    if (near && !_portalPanelDismissed && !_portalPanelVisible) {
+        panel.style.display = 'block';
+        _portalPanelVisible = true;
+    } else if (!near && _portalPanelVisible) {
+        panel.style.display = 'none';
+        _portalPanelVisible = false;
+        _portalPanelDismissed = false; // reset dismiss when player walks away
+    }
+}
+
+function dismissPortalPanel() {
+    const panel = document.getElementById('cityPortalPanel');
+    if (panel) panel.style.display = 'none';
+    _portalPanelVisible = false;
+    _portalPanelDismissed = true;
+}
+
+function enterCity() {
+    if (gameCompleted) {
+        finishForest();     // يحفظ الإنجاز وينتقل للمدينة
+    } else {
+        saveForestProgress();
+        GameState.save('fromCity', false);
+        navigateTo('../city/index.html');
+    }
+}
+
+// ===== GAME FLOW =====
+function killPlayer() {
+    gameRunning = false;
+    SFX.defeat();
+    setTimeout(() => {
+        document.getElementById('deathOverlay').style.display = 'flex';
+    }, 600);
+}
+
+function respawn() {
+    document.getElementById('deathOverlay').style.display = 'none';
+    player.hp = Math.floor(player.maxHp * 0.6);
+    player.x = 1600; player.y = 2800;
+    for (const k of Object.keys(player.inventory)) player.inventory[k] = Math.floor(player.inventory[k] / 2);
+    droppedItems = droppedItems.filter(i => Math.hypot(i.x - player.x, i.y - player.y) > 600);
+    const nearDead = enemies.filter(e => e.isDead && Math.hypot(e.x - player.x, e.y - player.y) > 400);
+    for (const e of nearDead.slice(0, 5)) {
+        e.isDead = false;
+        e.hp = e.maxHp;
+        e.deathTimer = 0;
+    }
+    updateHUD();
+    gameRunning = true;
+    lastTime = performance.now();
+    requestAnimationFrame(gameLoop);
+    saveForestProgress();
+}
+
+function goToMenu() {
+    saveProgress();
+    navigateTo('../index.html');
+}
+
+function checkCompletion() {
+    if (gameCompleted) return;
+    const kills = player.killCount >= CFG.KILLS_NEEDED;
+    const dist  = player.distanceTraveled >= CFG.DIST_NEEDED;
+    const chals = (player.craftedItems.axe ? 1 : 0) + (player.craftedItems.fishingRod ? 1 : 0) >= CFG.CHALLENGES_NEEDED;
+    if (kills && dist && chals) {
+        gameCompleted = true;
+        setTimeout(showCompletion, 1500);
+    }
+}
+
+function showCompletion() {
+    // اللعبة تستمر — لا نوقفها، فقط نُظهر إشعاراً وشريطاً ثابتاً
+    SFX.victory();
+    notify('🏆 أكملت تدريب الغابة! توجّه إلى بوابة المدينة جنوباً 🏙️', '#f0c040');
+    setTimeout(() => notify('⬇️ البوابة في الجنوب — ادخلها للمضي نحو الانتقام!', '#2ecc71'), 3000);
+    const banner = document.getElementById('completionBanner');
+    if (banner) banner.style.display = 'flex';
+}
+
+function finishForest() {
+    GameState.save('completedForest', true);
+    GameState.saveForestState(null);
+    SFX.click();
+    navigateTo('../city/index.html');
+}
+
+// ===== INTRO STORY =====
+function showIntroScene(idx) {
+    const scene = INTRO_SCENES[idx];
+    const bg    = document.getElementById('introSceneBg');
+    const img   = document.getElementById('introSceneImg');
+    const step  = document.getElementById('introStep');
+    const btn   = document.getElementById('introBtn');
+    const hint  = document.getElementById('introHintBox');
+
+    step.textContent   = `${idx + 1} / ${INTRO_SCENES.length}`;
+    btn.style.display  = 'none';
+    hint.style.display = 'none';
+
+    if (scene.img) {
+        img.src = scene.img;
+        bg.classList.add('show');
+    } else {
+        bg.classList.remove('show');
+    }
+
+    typeText(scene.text, () => {
+        if (idx < INTRO_SCENES.length - 1) {
+            setTimeout(() => showIntroScene(idx + 1), 2800);
+        } else {
+            if (scene.showHints) hint.style.display = 'block';
+            btn.style.display = 'inline-block';
+        }
+    });
+}
+
+function typeText(html, onDone) {
+    const el = document.getElementById('introText');
+    el.innerHTML = '';
+    if (typingInterval) clearInterval(typingInterval);
+    let i = 0;
+    typingInterval = setInterval(() => {
+        if (i >= html.length) {
+            clearInterval(typingInterval);
+            el.innerHTML = html;
+            if (onDone) onDone();
+            return;
+        }
+        if (html[i] === '<') {
+            const end = html.indexOf('>', i);
+            if (end !== -1) { i = end + 1; }
+        }
+        i++;
+        el.innerHTML = html.substring(0, i) + '<span style="color:#e74c3c">|</span>';
+    }, 42);
+}
+
+function startGame() {
+    if (typingInterval) clearInterval(typingInterval);
+    const ov = document.getElementById('introOverlay');
+    ov.style.opacity    = '0';
+    ov.style.transition = 'opacity 0.8s';
+    setTimeout(() => {
+        ov.style.display = 'none';
+        gameRunning = true;
+        lastTime = performance.now();
+        updateHUD();
+        requestAnimationFrame(gameLoop);
+        setTimeout(() => notify('💡 اضغط F للصناعة، Q للأكل', '#f0c040'), 2000);
+        setTimeout(() => notify('🏹 اضغط 2 للقوس — انقر لإطلاق السهم', '#c8a040'), 5000);
+        setTimeout(() => notify('⬇️ اقترب من الغنائم واضغط E لالتقاطها', '#2ecc71'), 8000);
+    }, 850);
+}
+
+// ===== IDLE POEM SYSTEM =====
+let poemsData       = null; // null = loading, [] = failed, [...] = ready
+let idleTime        = 0;
+let poemActive      = false;
+let poemVerses      = [];
+let poemVerseIdx    = 0;
+const _poemTimers   = new Set(); // جميع timers النشطة
+const POEM_IDLE_MS     = 10000;
+const POEM_VERSES_SHOW = 7;
+
+// قصائد احتياطية فورية (لا تحتاج ملفاً)
+const FALLBACK_POEMS = [
+    { poem: ["أَلا لَيتَ الشَّبابَ يَعودُ يَوماً", "فَأُخبِرَهُ بِما فَعَلَ المَشيبُ"], verses: 2 },
+    { poem: ["إِذا كُنتَ في كُلِّ الأُمورِ مُعاتِباً صَديقَكَ",
+             "لَم تَلقَ الَّذي لا تُعاتِبُه",
+             "فَعِش واحِداً أَو صِل أَخاكَ فَإِنَّهُ",
+             "مُقارِفُ ذَنبٍ مَرَّةً وَمُجانِبُه"], verses: 4 },
+    { poem: ["وَإِذَا كَانَتِ النُّفُوسُ كِبَاراً تَعِبَت في مُرَادِهَا الأَجسَامُ",
+             "فَاطلُب العِزَّ في لَظَى الحَربِ وَاصبِر",
+             "إِنَّمَا يُدرَكُ العُلَا الصَبَّارُ"], verses: 3 },
+    { poem: ["أَخِي لَن تَنَالَ العِلمَ إِلَّا بِسِتَّةٍ",
+             "سَأُنبِيكَ عَن تَفصِيلِهَا بِبَيَانِ",
+             "ذَكَاءٌ وَحِرصٌ وَاجتِهَادٌ وَبُلغَةٌ",
+             "وَصُحبَةُ أُستَاذٍ وَطُولُ زَمَانِ"], verses: 4 },
+    { poem: ["لِكُلِّ شَيءٍ إِذَا مَا تَمَّ نُقصَانُ",
+             "فَلَا يُغَرَّ بِطِيبِ العَيشِ إِنسَانُ",
+             "هِيَ الأُمُورُ كَمَا شَاهَدتُهَا دُوَلٌ",
+             "مَن سَرَّهُ زَمَنٌ سَاءَتهُ أَزمَانُ"], verses: 4 },
+];
+
+// تحميل القصائد: يقرأ أول 80 قصيدة فقط لتفادي تجميد الصفحة (الملف 20MB)
+function _parseFirstNPoems(text, n) {
+    const result = [];
+    let i = (text.indexOf('[') + 1) || 0;
+    let depth = 0, objStart = -1, inStr = false, esc = false;
+    while (i < text.length && result.length < n) {
+        const c = text[i];
+        if (esc)            { esc = false; i++; continue; }
+        if (c === '\\' && inStr) { esc = true;  i++; continue; }
+        if (c === '"')      { inStr = !inStr; i++; continue; }
+        if (!inStr) {
+            if (c === '{') { if (depth === 0) objStart = i; depth++; }
+            else if (c === '}') {
+                depth--;
+                if (depth === 0 && objStart !== -1) {
+                    try { result.push(JSON.parse(text.slice(objStart, i + 1))); }
+                    catch (_) {}
+                    objStart = -1;
+                }
+            }
+        }
+        i++;
+    }
+    return result;
+}
+
+function loadPoems() {
+    poemsData = FALLBACK_POEMS; // متاح فوراً
+    // تحميل الملف الحقيقي بعد 4 ثوانٍ لعدم التأثير على بدء اللعبة
+    setTimeout(() => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('GET', '../data/arabic_poems.json', true);
+        xhr.timeout = 12000;
+        xhr.onload = function () {
+            if (xhr.status === 200 || xhr.status === 0) {
+                try {
+                    const parsed = _parseFirstNPoems(xhr.responseText, 80);
+                    if (parsed.length) poemsData = parsed;
+                } catch (_) {}
+            }
+        };
+        xhr.onerror = xhr.ontimeout = function () {}; // يبقى على الاحتياطي
+        xhr.send();
+    }, 4000);
+}
+
+// مساعدة: setTimeout مع تتبع الـ timers لإيقافها بأمان
+function _poemTimeout(fn, ms) {
+    const id = setTimeout(() => { _poemTimers.delete(id); fn(); }, ms);
+    _poemTimers.add(id);
+    return id;
+}
+
+function extractVerses(poem) {
+    const all = Array.isArray(poem.poem)
+        ? poem.poem.filter(v => v && v.trim())
+        : String(poem.poem).split(/\n|\s{3,}/).filter(Boolean);
+    const count    = Math.min(POEM_VERSES_SHOW, all.length);
+    const maxStart = Math.max(0, all.length - count);
+    const start    = Math.floor(Math.random() * (maxStart + 1));
+    return all.slice(start, start + count);
+}
+
+function startIdlePoem() {
+    if (!poemsData || !poemsData.length || poemActive || !gameRunning) return;
+    poemActive   = true;
+    idleTime     = 0;
+    const poem   = poemsData[Math.floor(Math.random() * poemsData.length)];
+    poemVerses   = extractVerses(poem);
+    poemVerseIdx = 0;
+
+    const overlay = document.getElementById('poemOverlay');
+    const linesEl = document.getElementById('poemLines');
+    if (!overlay || !linesEl) { poemActive = false; return; }
+
+    linesEl.innerHTML = '';
+    overlay.style.display = 'block';
+    requestAnimationFrame(() => overlay.classList.add('visible'));
+    typeNextVerse();
+}
+
+function typeNextVerse() {
+    if (!poemActive) return;
+    if (poemVerseIdx >= poemVerses.length) {
+        _poemTimeout(stopIdlePoem, 3000);
+        return;
+    }
+
+    const linesEl = document.getElementById('poemLines');
+    if (!linesEl) return;
+
+    const verse  = poemVerses[poemVerseIdx];
+    const lineEl = document.createElement('div');
+    lineEl.className = 'poem-verse active-verse';
+    linesEl.appendChild(lineEl);
+
+    while (linesEl.children.length > POEM_VERSES_SHOW)
+        linesEl.children[0].remove();
+
+    let charIdx = 0;
+    (function tick() {
+        if (!poemActive) return;
+        if (charIdx < verse.length) {
+            lineEl.textContent = verse.substring(0, charIdx + 1);
+            charIdx++;
+            _poemTimeout(tick, 40);
+        } else {
+            lineEl.classList.remove('active-verse');
+            poemVerseIdx++;
+            _poemTimeout(typeNextVerse, 900);
+        }
+    })();
+}
+
+function stopIdlePoem() {
+    // إيقاف جميع timers النشطة دفعة واحدة
+    _poemTimers.forEach(id => clearTimeout(id));
+    _poemTimers.clear();
+    poemActive = false;
+    idleTime   = 0;
+    const overlay = document.getElementById('poemOverlay');
+    if (!overlay) return;
+    overlay.classList.remove('visible');
+    const hideId = setTimeout(() => { if (!poemActive) overlay.style.display = 'none'; }, 700);
+    _poemTimers.add(hideId);
+}
+
+function updateIdlePoem(dt) {
+    if (!poemsData || !gameRunning || gamePaused || craftMenuOpen) return;
+    if (player.isMoving) {
+        if (poemActive) stopIdlePoem();
+        idleTime = 0;
+        return;
+    }
+    if (poemActive) return;
+    idleTime += dt;
+    if (idleTime >= POEM_IDLE_MS) startIdlePoem();
+}
+
+// ===== GAME LOOP =====
+function gameLoop(ts) {
+    if (!gameRunning) { requestAnimationFrame(gameLoop); return; }
+    requestAnimationFrame(gameLoop);
+
+    try {
+        const dt = Math.min(ts - lastTime, 50);
+        lastTime = ts;
+        waveTime = ts;
+
+        if (!craftMenuOpen) {
+            if (!gamePaused) {
+                updatePlayer(dt);
+                updateEnemies(dt);
+                updateArrows();
+                updatePoison(dt);
+            }
+            updateFishing(dt);
+            updateDroppedItems(dt);
+        }
+        updateIdlePoem(dt);
+        updateCamera();
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.save();
+        ctx.scale(ZOOM, ZOOM);
+
+        drawWorld(camera.x, camera.y);
+
+        for (const r of resources)    r.draw(camera.x, camera.y);
+        for (const d of droppedItems) d.draw(camera.x, camera.y);
+        for (const e of enemies)      e.draw(camera.x, camera.y);
+        for (const a of arrows)       a.draw(camera.x, camera.y);
+
+        drawAimReticle(camera.x, camera.y);
+        drawCityPortal(camera.x, camera.y);
+        drawPlayer(camera.x, camera.y);
+        drawFishingLine(camera.x, camera.y);
+        drawTreesFront(camera.x, camera.y);
+
+        ctx.restore();
+        drawMinimap();
+        updatePortalPanel();
+    } catch (err) {
+        try { ctx.restore(); } catch(_) {}
+        console.error('[gameLoop]', err);
+    }
+}
+
+// ===== INPUT =====
+document.addEventListener('keydown', e => {
+    keys[e.key] = true;
+    // إيقاف القصيدة فوراً عند أي مفتاح حركة
+    if (poemActive && ['w','W','a','A','s','S','d','D','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key))
+        stopIdlePoem();
+    if (['f', 'F'].includes(e.key)) { if (gameRunning || craftMenuOpen) openCraftingMenu(); }
+    if (['q', 'Q'].includes(e.key)) { if (gameRunning) eatMeat(); }
+    if (e.key === '1') { player.weapon = 'sword'; notify('⚔️ السيف', '#c0c0c0'); }
+    if (e.key === '2') { player.weapon = 'bow';   notify('🏹 القوس', '#c8a040'); }
+    if (['r', 'R'].includes(e.key)) { if (gameRunning) startFishing(); }
+    if (['e', 'E'].includes(e.key)) {
+        if (gameRunning) {
+            const nearDrop = droppedItems.find(i => i.isNearPlayer());
+            const nearRes  = resources.find(r => r.isNearPlayer());
+            const nearTree = trees.find(t => !t.chopped &&
+                Math.hypot(player.x - t.x, player.y - t.y) < t.r + 32);
+            if (nearDrop) {
+                nearDrop.pickup();
+            } else if (nearRes) {
+                nearRes.pickup();
+            } else if (nearTree) {
+                chopTree(nearTree);
+            } else if (player.weapon === 'sword') {
+                playerAttack();
+            }
+        }
+    }
+    if (e.key === ' ') { if (gameRunning && player.weapon === 'sword') playerAttack(); }
+    if (e.key === 'Escape') { if (craftMenuOpen) closeCraftingMenu(); }
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) e.preventDefault();
+});
+document.addEventListener('keyup', e => { keys[e.key] = false; });
+
+// ===== RESIZE =====
+function resizeCanvas() {
+    canvas.width  = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resizeCanvas);
+
+// ===== INIT =====
+function init() {
+    canvas = document.getElementById('gameCanvas');
+    resizeCanvas();
+    minimapCanvas = document.getElementById('minimap');
+    minimapCtx    = minimapCanvas.getContext('2d');
+    ctx = canvas.getContext('2d');
+    loadPoems(); // تحميل القصائد في الخلفية
+
+    canvas.addEventListener('mousemove', e => {
+        const r = canvas.getBoundingClientRect();
+        mouseWorldX = (e.clientX - r.left) / ZOOM + camera.x;
+        mouseWorldY = (e.clientY - r.top)  / ZOOM + camera.y;
+    });
+    canvas.addEventListener('contextmenu', e => {
+        e.preventDefault();
+        if (!gameRunning || gamePaused) return;
+        if (player.weapon !== 'bow') {
+            player.weapon = 'bow';
+            updateHUD();
+        }
+        const r = canvas.getBoundingClientRect();
+        const mx = (e.clientX - r.left) / ZOOM + camera.x;
+        const my = (e.clientY - r.top)  / ZOOM + camera.y;
+        let best = null, bestDist = Infinity;
+        for (const en of enemies) {
+            if (en.isDead) continue;
+            const d = Math.hypot(en.x - mx, en.y - my);
+            if (d < bestDist) { bestDist = d; best = en; }
+        }
+        if (best && bestDist < 400) {
+            if (lockedTarget === best) {
+                lockedTarget = null;
+                notify('🎯 إلغاء القفل', '#aaa');
+            } else {
+                lockedTarget = best;
+                notify(`🎯 قفل على ${best.name || 'هدف'}`, '#ff6060');
+            }
+        } else {
+            lockedTarget = null;
+            notify('🎯 لا هدف قريب', '#aaa');
+        }
+    });
+    canvas.addEventListener('wheel', e => {
+        if (!gameRunning) return;
+        e.preventDefault();
+        player.weapon = player.weapon === 'sword' ? 'bow' : 'sword';
+        notify(player.weapon === 'sword' ? '⚔️ السيف' : '🏹 القوس', '#ffd060');
+        updateHUD();
+    }, { passive: false });
+    canvas.addEventListener('click', e => {
+        if (!gameRunning || gamePaused || craftMenuOpen) return;
+        if (player.weapon === 'bow') {
+            const r = canvas.getBoundingClientRect();
+            mouseWorldX = (e.clientX - r.left) / ZOOM + camera.x;
+            mouseWorldY = (e.clientY - r.top)  / ZOOM + camera.y;
+            shootArrow();
+        } else {
+            playerAttack();
+        }
+    });
+
+    generateWorld();
+    spawnEnemies();
+    spawnResources();
+
+    const saved      = GameState.getHeroStats();
+    player.hp        = saved.hp;
+    player.maxHp     = saved.maxHp;
+    player.attack    = saved.attack;
+    player.defense   = saved.defense;
+    player.skills    = saved.skills;
+    player.absorbedAttack  = saved.absorbedAttack || 0;
+    player.absorbedDefense = saved.absorbedDefense || 0;
+
+    const savedInv = GameState.getInventory();
+    player.inventory = { stick: 0, stone: 0, meat: 0, horn: 0, teeth: 0, leather: 0, fish: 0, arrows: 15, ...savedInv };
+
+    const savedCraft = GameState.getCraftedItems();
+    player.craftedItems = { axe: false, fishingRod: false, hornSpear: false, hornSword: false, leatherArmor: false, ...savedCraft };
+
+    updateHUD();
+
+    const loadLabel = document.createElement('div');
+    loadLabel.style.cssText = 'position:fixed;inset:0;z-index:200;display:flex;align-items:center;' +
+        'justify-content:center;background:#060e04;color:#6fc;font-family:Cairo,sans-serif;' +
+        'font-size:1.5rem;font-weight:700;letter-spacing:3px;';
+    loadLabel.textContent = 'جاري تحميل الخريطة…';
+    document.body.appendChild(loadLabel);
+
+    loadTerrainTextures((textures) => {
+        prerenderTerrain(textures);
+        loadLabel.remove();
+
+        const forestSave       = GameState.loadForestState();
+        const fromCity         = GameState.load('fromCity', false);
+        const skipForestIntro  = GameState.load('skipForestIntro', false);
+        if (skipForestIntro) GameState.save('skipForestIntro', false); // consume the flag
+
+        if (fromCity) {
+            GameState.save('fromCity', false);
+            if (forestSave) {
+                forestSave.x = CITY_PORTAL.x;
+                forestSave.y = CITY_PORTAL.y - 80;
+            }
+            resumeGame(forestSave || { seenIntro: true, x: CITY_PORTAL.x, y: CITY_PORTAL.y - 80 });
+        } else if (forestSave && forestSave.seenIntro) {
+            resumeGame(forestSave);
+        } else if (skipForestIntro) {
+            // Came from "Continue Game" in the main menu — jump straight in
+            resumeGame(forestSave || { seenIntro: true, x: 1600, y: 2800 });
+        } else {
+            showIntroScene(0);
+        }
+    });
+}
+
+init();

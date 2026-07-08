@@ -252,13 +252,14 @@
             if (!progress.completedIntro) return;
 
             SFX.click();
+            // Flag the forest to skip its intro cutscene and resume directly
+            GameState.save('skipForestIntro', true);
             const stage = GameState.getCurrentStage();
             if (stage === 'forest') {
                 navigateTo('forest/index.html');
             } else if (stage === 'intro') {
                 navigateTo('start/index.html');
             } else {
-                // مراحل قادمة
                 navigateTo('forest/index.html');
             }
         }

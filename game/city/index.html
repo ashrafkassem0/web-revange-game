@@ -213,15 +213,72 @@ window.addEventListener('resize', resize);
 
 // ─────────────── PRE-RENDER TERRAIN ───────────────
 let terrainCanvas = null;
-function prerenderTerrain() {
+
+function th(c, r, s) { return Math.abs(Math.sin(c*127.1*(s||1) + r*311.7)) % 1; }
+function rh(a, b)    { return Math.abs(Math.sin(a*127.1 + b*311.7 + a*b*0.0013)) % 1; }
+
+function loadTerrainTextures(onReady) {
+    const names = ['grass', 'water', 'sand'];
+    const tex = {};
+    let pending = names.length;
+    names.forEach(name => {
+        const img = new Image();
+        img.onload  = () => { tex[name] = img; if (--pending === 0) onReady(tex); };
+        img.onerror = () => {                   if (--pending === 0) onReady(tex); };
+        img.src = '../textures/' + name + '.png';
+    });
+}
+
+function prerenderTerrain(textures) {
     terrainCanvas = document.createElement('canvas');
     terrainCanvas.width  = W;
     terrainCanvas.height = H;
     const tc = terrainCanvas.getContext('2d');
     const ts = CFG.TILE;
 
-    function th(c, r, s) { return Math.abs(Math.sin(c*127.1*(s||1) + r*311.7)) % 1; }
+    // Helper: stochastic bombing for one terrain type
+    function bombTexture(tileId, img, tint) {
+        if (!img || !img.complete || img.naturalWidth === 0) return;
+        const iW = img.naturalWidth, iH = img.naturalHeight;
+        const sampleSize = Math.min(180, Math.min(iW, iH) * 0.58);
+        const patchR = Math.min(120, sampleSize * 0.7 + 18);
+        const step   = Math.round(patchR * 1.12);
 
+        tc.save();
+        tc.beginPath();
+        for (let r = 0; r < CFG.ROWS; r++) {
+            for (let c = 0; c < CFG.COLS; c++) {
+                if (getTile(c, r) === tileId) tc.rect(c*ts-1, r*ts-1, ts+2, ts+2);
+            }
+        }
+        tc.clip();
+
+        let gi = 0;
+        const pad = patchR + step;
+        for (let gy = -pad; gy < H + pad; gy += step) {
+            for (let gx = -pad; gx < W + pad; gx += step) {
+                const h0=rh(gi,tileId*17+1), h1=rh(gi,tileId*17+2), h2=rh(gi,tileId*17+3);
+                const h3=rh(gi,tileId*17+4), h4=rh(gi,tileId*17+5), h5=rh(gi,tileId*17+6);
+                gi++;
+                const wx = gx + h0*step, wy = gy + h1*step;
+                const srcX = h2 * Math.max(1, iW - sampleSize);
+                const srcY = h3 * Math.max(1, iH - sampleSize);
+                const sw = Math.min(sampleSize, iW - srcX);
+                const sh = Math.min(sampleSize, iH - srcY);
+                const pr = patchR * (0.82 + h5*0.36);
+                tc.save();
+                tc.translate(wx, wy); tc.rotate(h4 * Math.PI * 2);
+                tc.beginPath(); tc.arc(0, 0, pr, 0, Math.PI * 2); tc.clip();
+                tc.globalAlpha = 0.72 + h5 * 0.24;
+                tc.drawImage(img, srcX, srcY, sw, sh, -pr, -pr, pr*2, pr*2);
+                tc.restore();
+            }
+        }
+        if (tint) { tc.fillStyle = tint; tc.fillRect(0, 0, W, H); }
+        tc.restore();
+    }
+
+    // PASS 1: procedural base for all tiles
     for (let r = 0; r < CFG.ROWS; r++) {
         for (let c = 0; c < CFG.COLS; c++) {
             const t = getTile(c, r);
@@ -229,45 +286,56 @@ function prerenderTerrain() {
             const s1 = th(c,r,1), s2 = th(c,r,2), s3 = th(c,r,3);
 
             if (t === T.BUILDING) {
-                // Stone building wall
                 const gv = 55 + Math.floor(s1 * 15);
                 tc.fillStyle = `rgb(${gv},${gv-4},${gv-8})`;
                 tc.fillRect(tx, ty, ts+1, ts+1);
-                // Brick mortar lines
-                tc.strokeStyle = `rgba(30,28,24,0.45)`;
-                tc.lineWidth = 1;
+                tc.strokeStyle = `rgba(30,28,24,0.45)`; tc.lineWidth = 1;
                 const bh = ts / 3;
                 for (let i = 0; i < 3; i++) {
-                    tc.beginPath(); tc.moveTo(tx, ty + i*bh); tc.lineTo(tx+ts, ty + i*bh); tc.stroke();
-                    const off = (i % 2 === 0) ? ts/2 : 0;
-                    tc.beginPath(); tc.moveTo(tx + off, ty + i*bh); tc.lineTo(tx + off, ty + (i+1)*bh); tc.stroke();
+                    tc.beginPath(); tc.moveTo(tx, ty+i*bh); tc.lineTo(tx+ts, ty+i*bh); tc.stroke();
+                    const off = (i%2===0) ? ts/2 : 0;
+                    tc.beginPath(); tc.moveTo(tx+off, ty+i*bh); tc.lineTo(tx+off, ty+(i+1)*bh); tc.stroke();
                 }
             } else if (t === T.STONE) {
                 tc.fillStyle = `rgb(${140+Math.floor(s1*12)},${138+Math.floor(s2*10)},${128+Math.floor(s3*10)})`;
                 tc.fillRect(tx, ty, ts+1, ts+1);
-                // Grout lines every tile
-                tc.strokeStyle = 'rgba(100,95,85,0.35)';
-                tc.lineWidth = 1;
+                tc.strokeStyle = 'rgba(100,95,85,0.35)'; tc.lineWidth = 1;
                 tc.strokeRect(tx+0.5, ty+0.5, ts-1, ts-1);
             } else if (t === T.ROAD) {
                 tc.fillStyle = `rgb(${100+Math.floor(s1*10)},${95+Math.floor(s2*8)},${80+Math.floor(s3*8)})`;
                 tc.fillRect(tx, ty, ts+1, ts+1);
-                // Cobble pattern
-                tc.strokeStyle = 'rgba(60,55,45,0.4)';
-                tc.lineWidth = 0.8;
+                tc.strokeStyle = 'rgba(60,55,45,0.4)'; tc.lineWidth = 0.8;
                 tc.strokeRect(tx+2, ty+2, ts/2-2, ts-4);
                 tc.strokeRect(tx+ts/2, ty+2, ts/2-2, ts-4);
             } else if (t === T.GRASS) {
-                tc.fillStyle = `rgb(${48+Math.floor(s1*12)},${115+Math.floor(s2*18)},${38+Math.floor(s3*10)})`;
+                tc.fillStyle = '#3a8228';
                 tc.fillRect(tx, ty, ts+1, ts+1);
-                // Grass blades
-                tc.strokeStyle = 'rgba(20,70,10,0.4)';
-                tc.lineWidth = 0.8;
-                for (let i = 0; i < 7; i++) {
-                    const gx = tx + ((s1*(i*37+1))%1)*ts;
-                    const gy = ty + ((s2*(i*53+1))%1)*ts;
-                    tc.beginPath(); tc.moveTo(gx, gy+4); tc.lineTo(gx+0.5, gy); tc.stroke();
-                }
+            } else if (t === T.WATER) {
+                tc.fillStyle = '#0e5ab5';
+                tc.fillRect(tx, ty, ts+1, ts+1);
+            } else if (t === T.SAND) {
+                tc.fillStyle = '#c4a03a';
+                tc.fillRect(tx, ty, ts+1, ts+1);
+            }
+        }
+    }
+
+    // PASS 2: stochastic texture bombing for natural terrain types
+    const tex = textures || {};
+    bombTexture(T.GRASS, tex.grass, null);
+    bombTexture(T.WATER, tex.water, 'rgba(0,15,50,0.18)');
+    bombTexture(T.SAND,  tex.sand,  null);
+
+    // PASS 3: sparse detail accents on top of photo textures
+    for (let r = 0; r < CFG.ROWS; r++) {
+        for (let c = 0; c < CFG.COLS; c++) {
+            const t = getTile(c, r);
+            if (t !== T.GRASS) continue;
+            const tx = c*ts, ty = r*ts;
+            const s1 = th(c,r,1), s2 = th(c,r,2), s3 = th(c,r,3);
+            if (s1 > 0.88) {
+                tc.fillStyle = s2 > 0.5 ? 'rgba(255,230,50,0.70)' : 'rgba(255,120,160,0.62)';
+                tc.beginPath(); tc.arc(tx+s2*ts, ty+s3*ts, 1.4, 0, Math.PI*2); tc.fill();
             }
         }
     }
@@ -666,9 +734,18 @@ function gameLoop(ts) {
 }
 
 // ─────────────── INIT ───────────────
-prerenderTerrain();
 updateHUD();
-requestAnimationFrame(ts => { lastTime = ts; gameLoop(ts); });
+const _cityLoadLabel = document.createElement('div');
+_cityLoadLabel.style.cssText = 'position:fixed;inset:0;z-index:200;display:flex;align-items:center;' +
+    'justify-content:center;background:#1a1a2e;color:#ffd060;font-family:Cairo,sans-serif;' +
+    'font-size:1.4rem;font-weight:700;letter-spacing:2px;';
+_cityLoadLabel.textContent = 'جاري تحميل الخريطة…';
+document.body.appendChild(_cityLoadLabel);
+loadTerrainTextures(tex => {
+    prerenderTerrain(tex);
+    _cityLoadLabel.remove();
+    requestAnimationFrame(ts => { lastTime = ts; gameLoop(ts); });
+});
 </script>
 </body>
 </html>
