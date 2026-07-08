@@ -315,7 +315,7 @@ function startIdlePoem() {
 function typeNextVerse() {
     if (!poemActive) return;
     if (poemVerseIdx >= poemVerses.length) {
-        _poemTimeout(stopIdlePoem, 3000);
+        _poemTimeout(stopIdlePoem, 10000);
         return;
     }
 
