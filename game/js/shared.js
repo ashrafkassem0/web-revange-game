@@ -41,7 +41,9 @@ const GameState = {
 
     getInventory() {
         return this.load('inventory', {
-            stick: 0, stone: 0, meat: 0, horn: 0, teeth: 0, leather: 0, fish: 0, arrows: 15
+            stick: 0, stone: 0, meat: 0, horn: 0, teeth: 0, leather: 0, fish: 0, arrows: 15,
+            rawMeat: 0, cookedMeat: 0, rawFish: 0, cookedFish: 0,
+            beastHide: 0, nightCrystal: 0, venomSac: 0, shadowEssence: 0
         });
     },
 
@@ -51,7 +53,8 @@ const GameState = {
 
     getCraftedItems() {
         return this.load('craftedItems', {
-            axe: false, fishingRod: false, hornSpear: false, hornSword: false, leatherArmor: false
+            axe: false, fishingRod: false, hornSpear: false, hornSword: false,
+            leatherArmor: false, shadowArmor: false
         });
     },
 

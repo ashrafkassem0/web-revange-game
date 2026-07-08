@@ -13,8 +13,13 @@ function updateHUD() {
     document.getElementById('weaponLabel2').textContent = p.weapon === 'sword' ? '⚔️ السيف' : '🏹 القوس';
     document.getElementById('atkVal').textContent       = Math.floor(p.attack);
 
-    for (const k of ['stick', 'stone', 'meat', 'horn', 'teeth', 'leather', 'fish'])
+    for (const k of ['stick', 'stone', 'horn', 'teeth', 'leather'])
         document.getElementById('inv-' + k).textContent = p.inventory[k] || 0;
+    // اللحم/السمك في الشريط العلوي = مجموع النيء + المطهو
+    const meatEl = document.getElementById('inv-meat');
+    if (meatEl) meatEl.textContent = (p.inventory.rawMeat || 0) + (p.inventory.cookedMeat || 0) + (p.inventory.meat || 0);
+    const fishEl = document.getElementById('inv-fish');
+    if (fishEl) fishEl.textContent = (p.inventory.rawFish || 0) + (p.inventory.cookedFish || 0) + (p.inventory.fish || 0);
     const arrowEl = document.getElementById('inv-arrows');
     if (arrowEl) arrowEl.textContent = (p.inventory.arrows || 0) > 0 ? p.inventory.arrows : '∞';
 
@@ -49,9 +54,17 @@ function drawMinimap() {
         minimapCtx.fillRect(res.x / sx - 1, res.y / sy - 1, 2, 2);
     }
 
+    if (typeof structures !== 'undefined') {
+        for (const s of structures) {
+            minimapCtx.fillStyle = s.type === 'campfire' ? '#ff8030' : (s.type === 'hut' ? '#e0b040' : '#8a5a2a');
+            minimapCtx.fillRect(s.x / sx - 1, s.y / sy - 1, 2, 2);
+        }
+    }
+
     minimapCtx.fillStyle = '#e74c3c';
     for (const e of enemies) {
         if (e.isDead) continue;
+        minimapCtx.fillStyle = e.nocturnal ? '#a06cff' : '#e74c3c';
         minimapCtx.fillRect(e.x / sx - 1.5, e.y / sy - 1.5, 3, 3);
     }
 
@@ -154,6 +167,76 @@ function closeCraftingMenu() {
     gamePaused = false;
     document.getElementById('craftingMenu').classList.add('hidden');
 }
+
+// ===== BACKPACK (الحقيبة) =====
+let _bpSelected = null;
+
+function openBackpack() {
+    if (backpackOpen) { closeBackpack(); return; }
+    if (craftMenuOpen) closeCraftingMenu();
+    if (typeof buildMode !== 'undefined' && buildMode && typeof exitBuildMode === 'function') exitBuildMode();
+    backpackOpen = true;
+    gamePaused = true;
+    _bpSelected = null;
+    const el = document.getElementById('backpackPanel');
+    if (el) el.classList.remove('hidden');
+    renderBackpack();
+}
+
+function closeBackpack() {
+    backpackOpen = false;
+    gamePaused = false;
+    _bpSelected = null;
+    const el = document.getElementById('backpackPanel');
+    if (el) el.classList.add('hidden');
+}
+
+function renderBackpack() {
+    const grid = document.getElementById('backpackGrid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    const inv = player.inventory;
+    const order = ['cookedMeat', 'rawMeat', 'cookedFish', 'rawFish', 'meat', 'fish',
+                   'stick', 'stone', 'horn', 'teeth', 'leather', 'arrows',
+                   'beastHide', 'nightCrystal', 'venomSac', 'shadowEssence'];
+    let any = false;
+    for (const key of order) {
+        const amt = inv[key] || 0;
+        if (amt <= 0) continue;
+        any = true;
+        const isFood = (typeof FOOD_ITEMS !== 'undefined') && FOOD_ITEMS.includes(key);
+        const slot = document.createElement('div');
+        slot.className = 'bp-slot' + (_bpSelected === key ? ' selected' : '') + (isFood ? ' food' : '');
+        slot.innerHTML =
+            `<span class="bp-emoji">${(ITEM_EMOJIS[key] || '?')}</span>` +
+            `<span class="bp-name">${(ITEM_NAMES[key] || key)}</span>` +
+            `<span class="bp-count">×${amt}</span>`;
+        slot.onclick = () => { _bpSelected = (_bpSelected === key ? null : key); renderBackpack(); };
+        grid.appendChild(slot);
+    }
+    if (!any) grid.innerHTML = '<div class="bp-empty">الحقيبة فارغة 🎒</div>';
+
+    const act = document.getElementById('backpackActions');
+    if (!act) return;
+    if (!_bpSelected) { act.innerHTML = '<div class="bp-hint">انقر عنصراً لعرض الإجراءات</div>'; return; }
+    const key = _bpSelected;
+    const isFood   = (typeof FOOD_ITEMS !== 'undefined') && FOOD_ITEMS.includes(key);
+    const isRaw    = (typeof RAW_FOODS !== 'undefined') && !!RAW_FOODS[key];
+    const nearFire = (typeof isNearLitCampfire === 'function') && isNearLitCampfire();
+    let html = `<div class="bp-sel">${(ITEM_EMOJIS[key] || '')} ${(ITEM_NAMES[key] || key)}</div><div class="bp-btns">`;
+    if (isFood) html += `<button class="bp-act eat" onclick="bpEat()">🍽️ أكل</button>`;
+    if (isRaw)  html += `<button class="bp-act cook ${nearFire ? '' : 'disabled'}" onclick="bpCook()">🔥 طهي${nearFire ? '' : ' (قرب موقد)'}</button>`;
+    html += `<button class="bp-act throw" onclick="bpThrow()">🗑️ رمي</button></div>`;
+    act.innerHTML = html;
+}
+
+function _bpAfter() {
+    if (_bpSelected && (player.inventory[_bpSelected] || 0) <= 0) _bpSelected = null;
+    renderBackpack();
+}
+function bpEat()   { if (_bpSelected) { eatFood(_bpSelected);  _bpAfter(); } }
+function bpCook()  { if (_bpSelected) { cookFood(_bpSelected); _bpAfter(); } }
+function bpThrow() { if (_bpSelected) { throwItem(_bpSelected); _bpAfter(); } }
 
 // ===== DRAW OVERLAYS (aim reticle, fishing line, city portal) =====
 function drawAimReticle(camX, camY) {

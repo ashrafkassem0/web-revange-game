@@ -4,7 +4,6 @@
 // =========================================================
 
 // ===== GAME STATE GLOBALS =====
-const keys = {};
 let mouseWorldX = 0, mouseWorldY = 0;
 let lockedTarget = null;
 let camera = { x: 1100, y: 2350 };
@@ -18,6 +17,8 @@ let gameRunning   = false;
 let gamePaused    = false;
 let gameCompleted = false;
 let craftMenuOpen = false;
+let backpackOpen  = false;
+let buildMode     = false;
 let lastTime = 0;
 let canvas, ctx, minimapCanvas, minimapCtx;
 let waveTime = 0;
@@ -32,6 +33,11 @@ function updateCamera() {
     const VH = canvas.height / ZOOM;
     camera.x = Math.max(0, Math.min(CFG.WORLD_W - VW, player.x - VW / 2));
     camera.y = Math.max(0, Math.min(CFG.WORLD_H - VH, player.y - VH / 2));
+    if (player.nauseous) {
+        const t = Date.now() * 0.008;
+        camera.x += Math.sin(t) * 3.2;
+        camera.y += Math.cos(t * 1.3) * 3.2;
+    }
 }
 
 // ===== CITY PORTAL =====
@@ -41,6 +47,7 @@ function isNearCityPortal() {
 
 let _portalPanelVisible = false;
 let _portalPanelDismissed = false;
+let _portalPanelTimer = null;
 
 function updatePortalPanel() {
     const panel = document.getElementById('cityPortalPanel');
@@ -49,10 +56,18 @@ function updatePortalPanel() {
     if (near && !_portalPanelDismissed && !_portalPanelVisible) {
         panel.style.display = 'block';
         _portalPanelVisible = true;
-    } else if (!near && _portalPanelVisible) {
-        panel.style.display = 'none';
-        _portalPanelVisible = false;
-        _portalPanelDismissed = false; // reset dismiss when player walks away
+        // يختفي التنبيه تلقائياً بعد 10 ثوانٍ
+        if (_portalPanelTimer) clearTimeout(_portalPanelTimer);
+        _portalPanelTimer = setTimeout(() => {
+            if (_portalPanelVisible) dismissPortalPanel();
+        }, 10000);
+    } else if (!near) {
+        if (_portalPanelVisible) {
+            panel.style.display = 'none';
+            _portalPanelVisible = false;
+        }
+        _portalPanelDismissed = false; // إعادة الضبط عند الابتعاد ليظهر مجدداً عند العودة
+        if (_portalPanelTimer) { clearTimeout(_portalPanelTimer); _portalPanelTimer = null; }
     }
 }
 
@@ -76,6 +91,7 @@ function enterCity() {
 // ===== GAME FLOW =====
 function killPlayer() {
     gameRunning = false;
+    resetInputState();
     SFX.defeat();
     setTimeout(() => {
         document.getElementById('deathOverlay').style.display = 'flex';
@@ -84,6 +100,7 @@ function killPlayer() {
 
 function respawn() {
     document.getElementById('deathOverlay').style.display = 'none';
+    resetInputState();
     player.hp = Math.floor(player.maxHp * 0.6);
     player.x = 1600; player.y = 2800;
     for (const k of Object.keys(player.inventory)) player.inventory[k] = Math.floor(player.inventory[k] / 2);
@@ -97,6 +114,7 @@ function respawn() {
     updateHUD();
     gameRunning = true;
     lastTime = performance.now();
+    if (typeof focusGameCanvas === 'function') focusGameCanvas();
     requestAnimationFrame(gameLoop);
     saveForestProgress();
 }
@@ -194,6 +212,8 @@ function startGame() {
         gameRunning = true;
         lastTime = performance.now();
         updateHUD();
+        focusGameCanvas();
+        if (typeof initWildlife === 'function') initWildlife();
         requestAnimationFrame(gameLoop);
         setTimeout(() => notify('💡 اضغط F للصناعة، Q للأكل', '#f0c040'), 2000);
         setTimeout(() => notify('🏹 اضغط 2 للقوس — انقر لإطلاق السهم', '#c8a040'), 5000);
@@ -380,12 +400,16 @@ function gameLoop(ts) {
         lastTime = ts;
         waveTime = ts;
 
-        if (!craftMenuOpen) {
+        if (!craftMenuOpen && !backpackOpen) {
             if (!gamePaused) {
                 updatePlayer(dt);
                 updateEnemies(dt);
                 updateArrows();
                 updatePoison(dt);
+                updateNausea(dt);
+                updateDayNight(dt);
+                if (typeof updateWildlife === 'function') updateWildlife(dt);
+                if (typeof updateStructures === 'function') updateStructures(dt);
             }
             updateFishing(dt);
             updateDroppedItems(dt);
@@ -401,6 +425,7 @@ function gameLoop(ts) {
 
         for (const r of resources)    r.draw(camera.x, camera.y);
         for (const d of droppedItems) d.draw(camera.x, camera.y);
+        if (typeof drawStructuresBehind === 'function') drawStructuresBehind(camera.x, camera.y);
         for (const e of enemies)      e.draw(camera.x, camera.y);
         for (const a of arrows)       a.draw(camera.x, camera.y);
 
@@ -409,8 +434,11 @@ function gameLoop(ts) {
         drawPlayer(camera.x, camera.y);
         drawFishingLine(camera.x, camera.y);
         drawTreesFront(camera.x, camera.y);
+        if (typeof drawStructuresFront === 'function') drawStructuresFront(camera.x, camera.y);
+        if (typeof drawBuildGhost === 'function') drawBuildGhost(camera.x, camera.y);
 
         ctx.restore();
+        drawNightOverlay();
         drawMinimap();
         updatePortalPanel();
     } catch (err) {
@@ -419,39 +447,116 @@ function gameLoop(ts) {
     }
 }
 
-// ===== INPUT =====
-document.addEventListener('keydown', e => {
-    keys[e.key] = true;
-    // إيقاف القصيدة فوراً عند أي مفتاح حركة
-    if (poemActive && ['w','W','a','A','s','S','d','D','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key))
+// ===== INPUT — e.code (مستقل عن لغة لوحة المفاتيح العربية/الإنجليزية) =====
+const keys = { up: false, down: false, left: false, right: false, sprint: false };
+
+const CODE_TO_MOVE = {
+    KeyW: 'up', ArrowUp: 'up',
+    KeyS: 'down', ArrowDown: 'down',
+    KeyA: 'left', ArrowLeft: 'left',
+    KeyD: 'right', ArrowRight: 'right',
+    ShiftLeft: 'sprint', ShiftRight: 'sprint',
+};
+
+function setMoveKey(code, pressed) {
+    const dir = CODE_TO_MOVE[code];
+    if (dir) keys[dir] = pressed;
+}
+
+function resetInputState() {
+    clearKeys();
+    gamePaused = false;
+    craftMenuOpen = false;
+    backpackOpen = false;
+    buildMode = false;
+    player.isFishing = false;
+    player.fishingBite = false;
+    player.fishingTimer = 0;
+    player.fishingBiteTimer = 0;
+    const craft = document.getElementById('craftingMenu');
+    const pack  = document.getElementById('backpackPanel');
+    const build = document.getElementById('buildBar');
+    const fish  = document.getElementById('fishingStatus');
+    if (craft) craft.classList.add('hidden');
+    if (pack)  pack.classList.add('hidden');
+    if (build) build.style.display = 'none';
+    if (fish)  fish.style.display = 'none';
+}
+
+function clearKeys() {
+    keys.up = keys.down = keys.left = keys.right = keys.sprint = false;
+}
+
+function focusGameCanvas() {
+    if (canvas && typeof canvas.focus === 'function') canvas.focus({ preventScroll: true });
+}
+
+function handleKeyDown(e) {
+    if (e.repeat) return;
+    const tag = e.target && e.target.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+
+    setMoveKey(e.code, true);
+
+    if (poemActive && ['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))
         stopIdlePoem();
-    if (['f', 'F'].includes(e.key)) { if (gameRunning || craftMenuOpen) openCraftingMenu(); }
-    if (['q', 'Q'].includes(e.key)) { if (gameRunning) eatMeat(); }
-    if (e.key === '1') { player.weapon = 'sword'; notify('⚔️ السيف', '#c0c0c0'); }
-    if (e.key === '2') { player.weapon = 'bow';   notify('🏹 القوس', '#c8a040'); }
-    if (['r', 'R'].includes(e.key)) { if (gameRunning) startFishing(); }
-    if (['e', 'E'].includes(e.key)) {
-        if (gameRunning) {
-            const nearDrop = droppedItems.find(i => i.isNearPlayer());
-            const nearRes  = resources.find(r => r.isNearPlayer());
-            const nearTree = trees.find(t => !t.chopped &&
-                Math.hypot(player.x - t.x, player.y - t.y) < t.r + 32);
-            if (nearDrop) {
-                nearDrop.pickup();
-            } else if (nearRes) {
-                nearRes.pickup();
-            } else if (nearTree) {
-                chopTree(nearTree);
-            } else if (player.weapon === 'sword') {
-                playerAttack();
+
+    switch (e.code) {
+        case 'KeyF':
+            if (gameRunning || craftMenuOpen) openCraftingMenu();
+            break;
+        case 'KeyQ':
+            if (gameRunning && !craftMenuOpen && !backpackOpen) eatMeat();
+            break;
+        case 'KeyI':
+            if (gameRunning || backpackOpen) openBackpack();
+            break;
+        case 'KeyB':
+            if (typeof toggleBuildMode === 'function' && (gameRunning || buildMode)) toggleBuildMode();
+            break;
+        case 'Digit1':
+            player.weapon = 'sword'; notify('⚔️ السيف', '#c0c0c0');
+            break;
+        case 'Digit2':
+            player.weapon = 'bow'; notify('🏹 القوس', '#c8a040');
+            break;
+        case 'KeyR':
+            if (gameRunning && !craftMenuOpen && !backpackOpen) startFishing();
+            break;
+        case 'KeyE':
+            if (gameRunning && !craftMenuOpen && !backpackOpen) {
+                const nearDrop = droppedItems.find(i => i.isNearPlayer());
+                const nearRes  = resources.find(r => r.isNearPlayer());
+                const nearTree = trees.find(t => !t.chopped &&
+                    Math.hypot(player.x - t.x, player.y - t.y) < t.r + 32);
+                if (nearDrop) nearDrop.pickup();
+                else if (nearRes) nearRes.pickup();
+                else if (nearTree) chopTree(nearTree);
+                else if (player.weapon === 'sword') playerAttack();
             }
-        }
+            break;
+        case 'Space':
+            if (gameRunning && !craftMenuOpen && !backpackOpen && player.weapon === 'sword') playerAttack();
+            break;
+        case 'Escape':
+            if (craftMenuOpen) closeCraftingMenu();
+            else if (backpackOpen) closeBackpack();
+            else if (buildMode && typeof exitBuildMode === 'function') exitBuildMode();
+            else if (player.isFishing) reelIn();
+            break;
     }
-    if (e.key === ' ') { if (gameRunning && player.weapon === 'sword') playerAttack(); }
-    if (e.key === 'Escape') { if (craftMenuOpen) closeCraftingMenu(); }
-    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) e.preventDefault();
-});
-document.addEventListener('keyup', e => { keys[e.key] = false; });
+
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
+}
+
+function handleKeyUp(e) {
+    setMoveKey(e.code, false);
+}
+
+window.addEventListener('keydown', handleKeyDown, true);
+window.addEventListener('keyup', handleKeyUp, true);
+window.addEventListener('blur', clearKeys);
+document.addEventListener('visibilitychange', () => { if (document.hidden) clearKeys(); });
 
 // ===== RESIZE =====
 function resizeCanvas() {
@@ -463,6 +568,8 @@ window.addEventListener('resize', resizeCanvas);
 // ===== INIT =====
 function init() {
     canvas = document.getElementById('gameCanvas');
+    canvas.setAttribute('tabindex', '0');
+    canvas.style.outline = 'none';
     resizeCanvas();
     minimapCanvas = document.getElementById('minimap');
     minimapCtx    = minimapCanvas.getContext('2d');
@@ -474,9 +581,17 @@ function init() {
         mouseWorldX = (e.clientX - r.left) / ZOOM + camera.x;
         mouseWorldY = (e.clientY - r.top)  / ZOOM + camera.y;
     });
+    canvas.addEventListener('mousedown', () => focusGameCanvas());
     canvas.addEventListener('contextmenu', e => {
         e.preventDefault();
         if (!gameRunning || gamePaused) return;
+        if (buildMode) {
+            const r = canvas.getBoundingClientRect();
+            const wx = (e.clientX - r.left) / ZOOM + camera.x;
+            const wy = (e.clientY - r.top)  / ZOOM + camera.y;
+            if (typeof tryRemoveBuild === 'function') tryRemoveBuild(wx, wy);
+            return;
+        }
         if (player.weapon !== 'bow') {
             player.weapon = 'bow';
             updateHUD();
@@ -506,16 +621,27 @@ function init() {
     canvas.addEventListener('wheel', e => {
         if (!gameRunning) return;
         e.preventDefault();
+        if (buildMode) {
+            if (typeof cycleBuildable === 'function') cycleBuildable(e.deltaY > 0 ? 1 : -1);
+            return;
+        }
         player.weapon = player.weapon === 'sword' ? 'bow' : 'sword';
         notify(player.weapon === 'sword' ? '⚔️ السيف' : '🏹 القوس', '#ffd060');
         updateHUD();
     }, { passive: false });
     canvas.addEventListener('click', e => {
-        if (!gameRunning || gamePaused || craftMenuOpen) return;
+        if (!gameRunning || craftMenuOpen || backpackOpen) return;
+        const r = canvas.getBoundingClientRect();
+        const wx = (e.clientX - r.left) / ZOOM + camera.x;
+        const wy = (e.clientY - r.top)  / ZOOM + camera.y;
+        if (buildMode) {
+            if (typeof tryPlaceBuild === 'function') tryPlaceBuild(wx, wy);
+            return;
+        }
+        if (gamePaused) return;
         if (player.weapon === 'bow') {
-            const r = canvas.getBoundingClientRect();
-            mouseWorldX = (e.clientX - r.left) / ZOOM + camera.x;
-            mouseWorldY = (e.clientY - r.top)  / ZOOM + camera.y;
+            mouseWorldX = wx;
+            mouseWorldY = wy;
             shootArrow();
         } else {
             playerAttack();
@@ -536,10 +662,15 @@ function init() {
     player.absorbedDefense = saved.absorbedDefense || 0;
 
     const savedInv = GameState.getInventory();
-    player.inventory = { stick: 0, stone: 0, meat: 0, horn: 0, teeth: 0, leather: 0, fish: 0, arrows: 15, ...savedInv };
+    player.inventory = {
+        stick: 0, stone: 0, meat: 0, horn: 0, teeth: 0, leather: 0, fish: 0, arrows: 15,
+        rawMeat: 0, cookedMeat: 0, rawFish: 0, cookedFish: 0,
+        beastHide: 0, nightCrystal: 0, venomSac: 0, shadowEssence: 0,
+        ...savedInv
+    };
 
     const savedCraft = GameState.getCraftedItems();
-    player.craftedItems = { axe: false, fishingRod: false, hornSpear: false, hornSword: false, leatherArmor: false, ...savedCraft };
+    player.craftedItems = { axe: false, fishingRod: false, hornSpear: false, hornSword: false, leatherArmor: false, shadowArmor: false, ...savedCraft };
 
     updateHUD();
 

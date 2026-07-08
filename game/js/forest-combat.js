@@ -34,22 +34,103 @@ function shootArrow() {
     SFX.arrow();
 }
 
-// ===== EAT MEAT =====
-function eatMeat() {
-    if (player.inventory.meat > 0) {
-        player.inventory.meat--;
-        const heal = 12;
-        player.hp = Math.min(player.maxHp, player.hp + heal);
-        notify(`+${heal}❤️ أكلت اللحم`, '#e74c3c');
-        updateHUD();
-    } else if (player.inventory.fish > 0) {
-        player.inventory.fish--;
-        const heal = 8;
-        player.hp = Math.min(player.maxHp, player.hp + heal);
-        notify(`+${heal}❤️ أكلت سمكة`, '#5dade2');
-        updateHUD();
+// ===== FOOD: EAT / COOK / NAUSEA =====
+// قيم الشفاء لكل صنف طعام
+const FOOD_HEAL = {
+    cookedMeat: 26, cookedFish: 20,
+    rawMeat: 5, rawFish: 4, meat: 5, fish: 4
+};
+const RAW_SET = { rawMeat: 1, rawFish: 1, meat: 1, fish: 1 };
+
+// أكل صنف طعام محدّد (من الحقيبة أو مفتاح Q)
+function eatFood(type) {
+    if (!type || (player.inventory[type] || 0) <= 0) {
+        notify('لا يوجد هذا الطعام!', '#e74c3c');
+        return false;
+    }
+    player.inventory[type]--;
+    const heal = FOOD_HEAL[type] != null ? FOOD_HEAL[type] : 6;
+    player.hp = Math.min(player.maxHp, player.hp + heal);
+    const emoji = (typeof ITEM_EMOJIS !== 'undefined' && ITEM_EMOJIS[type]) || '🍽️';
+    const name  = (typeof ITEM_NAMES !== 'undefined' && ITEM_NAMES[type])  || type;
+
+    if (RAW_SET[type]) {
+        // طعام نيء → غثيان
+        triggerNausea();
+        notify(`🤢 أكلت ${name} نيئاً! (+${heal}❤️ لكنك أُصبت بالغثيان)`, '#8bc34a');
+        if (typeof SFX !== 'undefined' && SFX.playerHurt) SFX.playerHurt();
     } else {
-        notify('لا يوجد طعام! 🥩🐟', '#e74c3c');
+        notify(`+${heal}❤️ أكلت ${emoji} ${name}`, '#e74c3c');
+        if (typeof SFX !== 'undefined' && SFX.xp) SFX.xp();
+    }
+    updateHUD();
+    return true;
+}
+
+// مفتاح Q: يأكل أفضل طعام متاح (يفضّل المطهو)
+function eatMeat() {
+    const order = ['cookedMeat', 'cookedFish', 'rawMeat', 'rawFish', 'meat', 'fish'];
+    for (const t of order) {
+        if ((player.inventory[t] || 0) > 0) { eatFood(t); return; }
+    }
+    notify('لا يوجد طعام! 🍖🐟', '#e74c3c');
+}
+
+// طهي طعام نيء على موقد مشتعل قريب
+function cookFood(type) {
+    const cooked = (typeof RAW_FOODS !== 'undefined') ? RAW_FOODS[type] : null;
+    if (!cooked) { notify('لا يمكن طهي هذا الصنف', '#e74c3c'); return false; }
+    if ((player.inventory[type] || 0) <= 0) { notify('لا يوجد طعام نيء', '#e74c3c'); return false; }
+    if (!(typeof isNearLitCampfire === 'function' && isNearLitCampfire())) {
+        notify('🔥 اقترب من موقد مشتعل للطهي!', '#ff8040');
+        return false;
+    }
+    player.inventory[type]--;
+    player.inventory[cooked] = (player.inventory[cooked] || 0) + 1;
+    const name = (typeof ITEM_NAMES !== 'undefined' && ITEM_NAMES[cooked]) || cooked;
+    notify(`🔥 طهوت ${name}!`, '#ff8040');
+    if (typeof SFX !== 'undefined' && SFX.xp) SFX.xp();
+    updateHUD();
+    return true;
+}
+
+// رمي عنصر أرضاً أمام اللاعب
+function throwItem(type) {
+    if ((player.inventory[type] || 0) <= 0) return false;
+    player.inventory[type]--;
+    const a = player.facing != null ? player.facing : 0;
+    const tx = player.x + Math.cos(a) * 40;
+    const ty = player.y + Math.sin(a) * 40;
+    droppedItems.push(new DroppedItem(type, 1, tx, ty));
+    const name = (typeof ITEM_NAMES !== 'undefined' && ITEM_NAMES[type]) || type;
+    notify(`🗑️ رميت ${name}`, '#aaa');
+    updateHUD();
+    return true;
+}
+
+// ===== NAUSEA (غثيان من الطعام النيء) =====
+function triggerNausea() {
+    player.nauseous = true;
+    player.nauseaTimer = CFG.NAUSEA_DURATION;
+    player.nauseaTick = 0;
+}
+
+function updateNausea(dt) {
+    const ind = document.getElementById('nauseaIndicator');
+    if (!player.nauseous) { if (ind) ind.style.display = 'none'; return; }
+    if (ind) ind.style.display = 'block';
+    player.nauseaTimer -= dt;
+    if (player.nauseaTimer <= 0) {
+        player.nauseous = false;
+        if (ind) ind.style.display = 'none';
+        return;
+    }
+    player.nauseaTick = (player.nauseaTick || 0) + dt;
+    if (player.nauseaTick >= 1500) {
+        player.nauseaTick -= 1500;
+        player.hp = Math.max(1, player.hp - CFG.NAUSEA_TICK_DMG);
+        notify(`🤢 -${CFG.NAUSEA_TICK_DMG} غثيان`, '#8bc34a');
+        updateHUD();
     }
 }
 
@@ -109,8 +190,8 @@ function reelIn() {
     if (!player.isFishing) return;
     if (player.fishingBite) {
         const count = 1 + (Math.random() > 0.6 ? 1 : 0);
-        player.inventory.fish = (player.inventory.fish || 0) + count;
-        notify(`🐟 اصطدت ${count === 2 ? 'سمكتين' : 'سمكة'}!`, '#5dade2');
+        player.inventory.rawFish = (player.inventory.rawFish || 0) + count;
+        notify(`🐟 اصطدت ${count === 2 ? 'سمكتين' : 'سمكة'} نيئة!`, '#5dade2');
         SFX.xp();
         updateHUD();
     } else {

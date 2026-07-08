@@ -20,8 +20,8 @@ const ENEMY_TEMPLATES = {
         xp: 5,
         skills: { endurance: 2 },
         drops: {
-            meat:  { chance: 1.0, amount: 1 },
-            horn:  { chance: 0.5, amount: 1 }
+            rawMeat: { chance: 1.0, amount: 1 },
+            horn:    { chance: 0.5, amount: 1 }
         }
     },
 
@@ -43,7 +43,7 @@ const ENEMY_TEMPLATES = {
         xp: 10,
         skills: { endurance: 5 },
         drops: {
-            meat:    { chance: 1.0, amount: 2 },
+            rawMeat: { chance: 1.0, amount: 2 },
             horn:    { chance: 1.0, amount: 2 },
             leather: { chance: 0.8, amount: 1 }
         }
@@ -159,7 +159,7 @@ const ENEMY_TEMPLATES = {
         xp: 50,
         skills: { claw: 20, physicalPower: 15 },
         drops: {
-            meat:    { chance: 0.7, amount: 3 },
+            rawMeat: { chance: 0.7, amount: 3 },
             leather: { chance: 1.0, amount: 2 }
         }
     },
@@ -225,6 +225,110 @@ const ENEMY_TEMPLATES = {
         xp: 15,
         skills: { claw: 10, endurance: 5 },
         drops: {}
+    },
+
+    // ============================================================
+    //  مفترسات ليلية قوية — تظهر ليلاً فقط وتُسقط عناصر نادرة
+    // ============================================================
+    direWolf: {
+        id: 'direWolf',
+        name: 'ذئب مرعب',
+        emoji: '🐺',
+        color: '#3a3a44',
+        radius: 20,
+        hp: 220,
+        defense: 22,
+        attackDmg: 22,
+        behavior: 'aggressive',
+        fleeRange: 0,
+        aggroRange: 230,
+        attackRange: 34,
+        attackCooldown: 900,
+        speed: 3.4,
+        xp: 90,
+        nocturnal: true,
+        skills: { bite: 22, endurance: 14 },
+        drops: {
+            rawMeat:   { chance: 1.0, amount: 2 },
+            beastHide: { chance: 0.8, amount: 1 },
+            teeth:     { chance: 0.6, amount: 2 }
+        }
+    },
+
+    nightPanther: {
+        id: 'nightPanther',
+        name: 'فهد الظلام',
+        emoji: '🐆',
+        color: '#1a1a22',
+        radius: 18,
+        hp: 180,
+        defense: 18,
+        attackDmg: 26,
+        behavior: 'aggressive',
+        fleeRange: 0,
+        aggroRange: 260,
+        attackRange: 32,
+        attackCooldown: 800,
+        speed: 4.2,
+        xp: 100,
+        nocturnal: true,
+        skills: { claw: 26, stealth: 12 },
+        drops: {
+            rawMeat:     { chance: 1.0, amount: 1 },
+            nightCrystal:{ chance: 0.5, amount: 1 },
+            leather:     { chance: 0.7, amount: 1 }
+        }
+    },
+
+    giantSpider: {
+        id: 'giantSpider',
+        name: 'عنكبوت عملاق',
+        emoji: '🕷️',
+        color: '#2a1a2a',
+        radius: 19,
+        hp: 160,
+        defense: 14,
+        attackDmg: 15,
+        behavior: 'aggressive',
+        fleeRange: 0,
+        aggroRange: 210,
+        attackRange: 30,
+        attackCooldown: 1100,
+        speed: 3.0,
+        poisonDamage: 6,
+        poisonDuration: 7000,
+        xp: 85,
+        nocturnal: true,
+        skills: { fangs: 15, stealth: 8 },
+        drops: {
+            venomSac: { chance: 0.7, amount: 1 },
+            teeth:    { chance: 0.5, amount: 2 }
+        }
+    },
+
+    shadowBeast: {
+        id: 'shadowBeast',
+        name: 'وحش الظلال',
+        emoji: '👹',
+        color: '#0a0a12',
+        radius: 28,
+        hp: 400,
+        defense: 30,
+        attackDmg: 35,
+        behavior: 'aggressive',
+        fleeRange: 0,
+        aggroRange: 240,
+        attackRange: 42,
+        attackCooldown: 1300,
+        speed: 2.4,
+        xp: 200,
+        nocturnal: true,
+        skills: { physicalPower: 30, claw: 35 },
+        drops: {
+            shadowEssence: { chance: 0.9, amount: 1 },
+            beastHide:     { chance: 0.6, amount: 2 },
+            rawMeat:       { chance: 1.0, amount: 3 }
+        }
     }
 };
 
@@ -233,36 +337,66 @@ const ITEM_NAMES = {
     stick:      'عصا',
     stone:      'حجر',
     meat:       'لحم',
+    rawMeat:    'لحم نيء',
+    cookedMeat: 'لحم مطهو',
     horn:       'قرن',
     teeth:      'أسنان',
     leather:    'جلد',
     fish:       'سمكة',
+    rawFish:    'سمك نيء',
+    cookedFish: 'سمك مشوي',
     arrows:     'سهام',
     healthOrb:  'نقطة حياة',
+    // عناصر نادرة (ليلية)
+    beastHide:     'جلد وحشي',
+    nightCrystal:  'بلورة ليلية',
+    venomSac:      'كيس سم',
+    shadowEssence: 'جوهر الظلال',
+    // مصنوعات
     axe:        'فأس',
     fishingRod: 'سنارة',
     hornSpear:  'رمح القرن',
     hornSword:  'سيف القرن',
-    leatherArmor: 'درع جلدي'
+    leatherArmor: 'درع جلدي',
+    nightBlade:  'نصل الليل',
+    shadowArmor: 'درع الظلال'
 };
 
 const ITEM_EMOJIS = {
     stick:      '🪵',
     stone:      '🪨',
     meat:       '🥩',
+    rawMeat:    '🥩',
+    cookedMeat: '🍖',
     horn:       '🦷',
     teeth:      '🦴',
     leather:    '🧥',
     fish:       '🐟',
+    rawFish:    '🐟',
+    cookedFish: '🍤',
     arrows:     '🏹',
     healthOrb:  '❤️',
+    beastHide:     '🐺',
+    nightCrystal:  '🔮',
+    venomSac:      '🧪',
+    shadowEssence: '🌑',
     axe:        '🪓',
     fishingRod: '🎣',
     hornSpear:  '🗡️',
     hornSword:  '⚔️',
-    leatherArmor: '🛡️'
+    leatherArmor: '🛡️',
+    nightBlade:  '🗡️',
+    shadowArmor: '🛡️'
 };
+
+// أصناف تُعدّ طعاماً (للحقيبة/الطهي/الأكل)
+const FOOD_ITEMS = ['rawMeat', 'cookedMeat', 'rawFish', 'cookedFish', 'meat', 'fish'];
+const RAW_FOODS  = { rawMeat: 'cookedMeat', rawFish: 'cookedFish', meat: 'cookedMeat', fish: 'cookedFish' };
+const COOKED_FOODS = ['cookedMeat', 'cookedFish'];
 
 window.ENEMY_TEMPLATES = ENEMY_TEMPLATES;
 window.ITEM_NAMES = ITEM_NAMES;
 window.ITEM_EMOJIS = ITEM_EMOJIS;
+window.FOOD_ITEMS = FOOD_ITEMS;
+window.RAW_FOODS = RAW_FOODS;
+window.COOKED_FOODS = COOKED_FOODS;

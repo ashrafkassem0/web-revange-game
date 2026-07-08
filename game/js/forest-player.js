@@ -18,6 +18,7 @@ const player = {
     walkTimer: 0, isMoving: false,
     isFishing: false, fishingTimer: 0, fishingBite: false, fishingBiteTimer: 0,
     poisoned: false, poisonTimer: 0, poisonDmg: 0,
+    nauseous: false, nauseaTimer: 0, nauseaTick: 0,
     distanceTraveled: 0, lastX: 1600, lastY: 2800,
     killCount: 0, xp: 0,
     isSprinting: false, facing: Math.PI / 2,
@@ -26,27 +27,30 @@ const player = {
 // ===== UPDATE PLAYER =====
 function updatePlayer(dt) {
     let dx = 0, dy = 0;
-    if (keys['w'] || keys['W'] || keys['ArrowUp'])    dy -= 1;
-    if (keys['s'] || keys['S'] || keys['ArrowDown'])  dy += 1;
-    if (keys['a'] || keys['A'] || keys['ArrowLeft'])  dx -= 1;
-    if (keys['d'] || keys['D'] || keys['ArrowRight']) dx += 1;
+    if (keys.up)    dy -= 1;
+    if (keys.down)  dy += 1;
+    if (keys.left)  dx -= 1;
+    if (keys.right) dx += 1;
 
     const moving = dx !== 0 || dy !== 0;
     player.isMoving = moving;
+    if (moving) player.facing = Math.atan2(dy, dx);
     if (moving) {
         const walkSpeed = player.isSprinting ? 0.014 : 0.009;
         player.walkTimer += walkSpeed * (player.isSprinting ? 1.5 : 1.0);
     }
     if (dx !== 0 && dy !== 0) { dx *= 0.707; dy *= 0.707; }
 
-    const wantSprint = keys['Shift'] && moving;
+    const wantSprint = keys.sprint && moving;
     if (wantSprint && player.stamina > 0) {
         player.stamina = Math.max(0, player.stamina - CFG.STAMINA_DRAIN);
         player.isSprinting = player.stamina > 0;
     } else {
         player.isSprinting = false;
-        if (!moving || !wantSprint)
-            player.stamina = Math.min(CFG.STAMINA_MAX, player.stamina + CFG.STAMINA_REGEN);
+        if (!moving || !wantSprint) {
+            const regen = player.nauseous ? CFG.STAMINA_REGEN * 0.35 : CFG.STAMINA_REGEN;
+            player.stamina = Math.min(CFG.STAMINA_MAX, player.stamina + regen);
+        }
     }
 
     const spd = player.isSprinting ? CFG.SPRINT_SPEED : CFG.PLAYER_SPEED;
@@ -65,6 +69,11 @@ function updatePlayer(dt) {
             nx = tree.x + Math.cos(a) * minD;
             ny = tree.y + Math.sin(a) * minD;
         }
+    }
+
+    if (typeof resolveStructureCollision === 'function') {
+        const rp = resolveStructureCollision(nx, ny, 12, false);
+        nx = rp.x; ny = rp.y;
     }
 
     player.x = nx; player.y = ny;

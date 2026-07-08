@@ -26,32 +26,104 @@ function isWater(wx, wy) {
     return getTile(Math.floor(wx / CFG.TILE_SIZE), Math.floor(wy / CFG.TILE_SIZE)) === T.WATER;
 }
 
-// ===== WORLD GENERATION =====
+// ===== VALUE NOISE (deterministic) — لحدود مناطق منحنية طبيعية =====
+function _vhash(ix, iy) {
+    const s = Math.sin(ix * 127.1 + iy * 311.7) * 43758.5453;
+    return s - Math.floor(s);
+}
+function valNoise(x, y) {
+    const x0 = Math.floor(x), y0 = Math.floor(y);
+    const fx = x - x0, fy = y - y0;
+    const v00 = _vhash(x0, y0),     v10 = _vhash(x0 + 1, y0);
+    const v01 = _vhash(x0, y0 + 1), v11 = _vhash(x0 + 1, y0 + 1);
+    const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+    const a = v00 + (v10 - v00) * sx;
+    const b = v01 + (v11 - v01) * sx;
+    return a + (b - a) * sy;
+}
+// Fractal Brownian Motion — يعيد ~0..1
+function fbm(x, y) {
+    let sum = 0, amp = 0.5, freq = 1;
+    for (let o = 0; o < 4; o++) {
+        sum += valNoise(x * freq, y * freq) * amp;
+        freq *= 2; amp *= 0.5;
+    }
+    return sum;
+}
+
+// رقعة منحنية: نصف القطر يُزاح بضجيج لإعطاء حواف عضوية بدل الدائرة الصمّاء
+function setBlob(cx, cy, rad, t, wobble) {
+    wobble = wobble || 0;
+    const ext = rad * (1 + wobble) + 2;
+    for (let r = Math.floor(cy - ext); r <= Math.ceil(cy + ext); r++) {
+        for (let c = Math.floor(cx - ext); c <= Math.ceil(cx + ext); c++) {
+            const dist = Math.hypot(c - cx, r - cy);
+            const wob  = wobble ? (fbm(c * 0.28 + cx, r * 0.28 + cy) - 0.5) * 2 * rad * wobble : 0;
+            if (dist + wob <= rad) setTile(c, r, t);
+        }
+    }
+}
+
+// ===== WORLD GENERATION — حدود مناطق منحنية عبر الضجيج =====
 function generateWorld() {
     tileMap.fill(T.GRASS);
-    setRect(0, 0, 22, 25, T.DARK);
-    setRect(57, 0, 80, 25, T.DARK);
-    setRect(0, 0, 8, 80, T.DARK);
-    setRect(64, 20, 80, 62, T.ROCK);
-    setRect(20, 55, 60, 80, T.GRASS);
-    for (let i = 0; i < 60; i++) {
-        const c = 10 + Math.floor(seededRand(i * 7) * 60);
-        const r = 15 + Math.floor(seededRand(i * 13) * 50);
-        if (getTile(c, r) === T.GRASS) setCircleT(c, r, 2 + seededRand(i) * 3, T.DEEP);
+    const COLS = CFG.WORLD_COLS, ROWS = CFG.WORLD_ROWS;
+
+    // ——— غابة مظلمة (DARK) بحواف متعرّجة على اليسار والأعلى ———
+    for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+            const nL = fbm(c * 0.14, r * 0.14);
+            const nT = fbm(c * 0.12 + 20, r * 0.12 + 5);
+            const leftEdge = 7 + nL * 8;                 // حافة يسرى تتموّج ~7..15
+            const topEdge  = 5 + nT * 8;                 // حافة عليا تتموّج ~5..13
+            let dark = c < leftEdge;
+            // زوايا علوية أعمق (يسار وأعلى-يمين)
+            if (r < topEdge + 6 && (c < 22 + nT * 7 || c > 56 - nT * 7)) dark = true;
+            if (dark) setTile(c, r, T.DARK);
+        }
     }
-    setCircleT(12, 12, 8, T.WATER);
-    setCircleT(68, 12, 7, T.WATER);
-    setCircleT(40, 38, 4, T.WATER);
-    setCircleT(12, 12, 10, T.SAND); setCircleT(12, 12, 8, T.WATER);
-    setCircleT(68, 12, 9, T.SAND);  setCircleT(68, 12, 7, T.WATER);
-    setCircleT(40, 38, 6, T.SAND);  setCircleT(40, 38, 4, T.WATER);
-    setRect(37, 58, 43, 80, T.SAND);
+
+    // ——— كتلة جبلية (ROCK) يمين بساحل مموّج ———
+    for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+            const n = fbm(c * 0.11 + 50, r * 0.11 + 50);
+            const rockEdge = 60 + n * 9;                 // حدّ يتموّج ~60..69
+            if (c > rockEdge && r > 15 + n * 9 && r < 66 - n * 7) setTile(c, r, T.ROCK);
+        }
+    }
+
+    // ——— بقع غابة كثيفة (DEEP) عضوية داخل العشب ———
+    for (let i = 0; i < 70; i++) {
+        const c = 10 + Math.floor(seededRand(i * 7) * 58);
+        const r = 14 + Math.floor(seededRand(i * 13) * 52);
+        if (getTile(c, r) === T.GRASS) setBlob(c, r, 2 + seededRand(i) * 3.2, T.DEEP, 0.55);
+    }
+
+    // ——— بحيرات بحواف مموّجة (شاطئ رملي ثم ماء) ———
+    setBlob(12, 12, 10, T.SAND, 0.4); setBlob(12, 12, 8, T.WATER, 0.4);
+    setBlob(68, 12, 9,  T.SAND, 0.4); setBlob(68, 12, 7, T.WATER, 0.4);
+    setBlob(40, 38, 6,  T.SAND, 0.35); setBlob(40, 38, 4, T.WATER, 0.35);
+
+    // ——— شريط رملي جنوبي متموّج نحو بوابة المدينة ———
+    for (let r = 57; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+            const n = fbm(c * 0.22, r * 0.22 + 30);
+            if (c > 35 + n * 5 && c < 45 - n * 5) setTile(c, r, T.SAND);
+        }
+    }
+
     generateTrees();
 }
 
 function seededRand(seed) {
     const x = Math.sin(seed + 1) * 10000;
     return x - Math.floor(x);
+}
+
+// rgba من لون hex بألفا مخصص (لتنعيم حواف المناطق)
+function _hexA(hex, a) {
+    const n = parseInt(hex.slice(1), 16);
+    return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
 }
 
 function generateTrees() {
@@ -305,6 +377,28 @@ function prerenderTerrain(textures) {
             tc.fillRect(0, 0, CFG.WORLD_W, CFG.WORLD_H);
         }
         tc.restore();
+    }
+
+    // PASS 2.5 — تنعيم حواف المناطق: كل خلية حدودية تنشر لونها قليلاً على الجيران
+    // فيتحوّل الحدّ المتدرّج (السلالم) إلى انتقال ناعم ويختفي مظهر المربعات
+    for (let r = 0; r < CFG.WORLD_ROWS; r++) {
+        for (let c = 0; c < CFG.WORLD_COLS; c++) {
+            const t = getTile(c, r);
+            if (t !== getTile(c - 1, r) || t !== getTile(c + 1, r) ||
+                t !== getTile(c, r - 1) || t !== getTile(c, r + 1) ||
+                t !== getTile(c - 1, r - 1) || t !== getTile(c + 1, r + 1) ||
+                t !== getTile(c - 1, r + 1) || t !== getTile(c + 1, r - 1)) {
+                const cfg = TYPES.find(x => x.id === t);
+                const base = cfg ? cfg.base : '#3a8228';
+                const cx2 = c * cs + cs / 2, cy2 = r * cs + cs / 2;
+                const grd = tc.createRadialGradient(cx2, cy2, cs * 0.15, cx2, cy2, cs * 1.05);
+                grd.addColorStop(0, _hexA(base, 0.0));
+                grd.addColorStop(0.55, _hexA(base, 0.28));
+                grd.addColorStop(1, _hexA(base, 0.62));
+                tc.fillStyle = grd;
+                tc.beginPath(); tc.arc(cx2, cy2, cs * 1.05, 0, Math.PI * 2); tc.fill();
+            }
+        }
     }
 
     // PASS 3 — sparse detail accents

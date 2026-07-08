@@ -20,6 +20,9 @@ function saveForestProgress() {
         seenIntro: true,
         collectedResources: collectedRes,
         choppedTrees: choppedTrees,
+        clockMinutes: (typeof gameClock !== 'undefined') ? gameClock.minutes : undefined,
+        dayCount: (typeof dayCount !== 'undefined') ? dayCount : undefined,
+        structures: (typeof serializeStructures === 'function') ? serializeStructures() : undefined,
         savedAt: Date.now()
     });
 
@@ -75,9 +78,22 @@ function resumeGame(savedState) {
         }
     }
 
+    if (typeof gameClock !== 'undefined' && typeof savedState.clockMinutes === 'number') {
+        gameClock.minutes = savedState.clockMinutes;
+        if (typeof savedState.dayCount === 'number') dayCount = savedState.dayCount;
+        dayNightPhase = getPhaseFor(gameClock.minutes);
+        isNight = (dayNightPhase === 'night' || dayNightPhase === 'dusk');
+        updateClockHUD();
+    }
+    if (typeof restoreStructures === 'function' && savedState.structures) {
+        restoreStructures(savedState.structures);
+    }
+    if (typeof initWildlife === 'function') initWildlife();
+
     gameRunning = true;
     lastTime = performance.now();
     updateHUD();
+    if (typeof focusGameCanvas === 'function') focusGameCanvas();
     gameLoop(lastTime);
 }
 

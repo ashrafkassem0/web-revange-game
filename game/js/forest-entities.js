@@ -78,6 +78,12 @@ class Enemy {
             if (!inWaterX) this.x = nx; else { this.vx = 0; this.wanderAngle = Math.random() * Math.PI * 2; }
             if (!inWaterY) this.y = ny; else { this.vy = 0; this.wanderAngle = Math.random() * Math.PI * 2; }
         }
+
+        // تصادم مع المباني (السياج/الكوخ يمنع الوحوش)
+        if (typeof resolveStructureCollision === 'function') {
+            const rp = resolveStructureCollision(this.x, this.y, this.radius, true);
+            this.x = rp.x; this.y = rp.y;
+        }
     }
 
     _wander(dt) {

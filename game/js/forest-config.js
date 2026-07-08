@@ -22,7 +22,26 @@ const CFG = {
     DIST_NEEDED: 3000,
     CHALLENGES_NEEDED: 2,
     MEAT_HEAL: { default: 10, deer: 15 },
-    ITEM_PICKUP_RANGE: 52
+    ITEM_PICKUP_RANGE: 52,
+
+    // ===== دورة اليوم/الليل =====
+    // المطلوب: "الدقيقة = ثانية" → 1 ثانية حقيقية = 1 دقيقة لعبة (يوم كامل = 24 دقيقة حقيقية)
+    GAME_MIN_PER_REAL_SEC: 1,
+    CLOCK_START_MIN: 15 * 60,   // يبدأ عند 15:00 ليرى اللاعب النهار ثم الغسق
+    // حدود الأطوار (بالدقائق ضمن يوم 1440):
+    DAWN_START: 5 * 60,     // 05:00 بداية الفجر
+    DAY_START:  7 * 60,     // 07:00 نهار كامل
+    DUSK_START: 18 * 60,    // 18:00 بداية الغسق
+    NIGHT_START: 20 * 60,   // 20:00 ليل كامل
+    NIGHT_END:   5 * 60,    // 05:00 ينتهي الليل
+    NIGHT_MAX_DARKNESS: 0.72,
+
+    // ===== الغثيان (طعام نيء) =====
+    NAUSEA_DURATION: 8000,
+    NAUSEA_TICK_DMG: 2,
+
+    // ===== البناء =====
+    BUILD_REACH: 260        // أقصى مسافة لوضع مبنى من اللاعب
 };
 
 // Tile type IDs

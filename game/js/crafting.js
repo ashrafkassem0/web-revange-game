@@ -55,6 +55,24 @@ const CRAFTING_RECIPES = [
         requires: { stick: 2 },
         isUnique: false,
         givesItem: { arrows: 10 }
+    },
+    {
+        id: 'nightBlade',
+        name: 'نصل الليل',
+        emoji: '🗡️',
+        description: '+40 هجوم — من عناصر ليلية نادرة',
+        requires: { nightCrystal: 1, beastHide: 2, stick: 2 },
+        isUnique: false,
+        attackBonus: 40
+    },
+    {
+        id: 'shadowArmor',
+        name: 'درع الظلال',
+        emoji: '🛡️',
+        description: '+35 دفاع دائم — من جوهر الظلال',
+        requires: { shadowEssence: 1, beastHide: 3, leather: 2 },
+        isUnique: true,
+        defenseBonus: 35
     }
 ];
 
