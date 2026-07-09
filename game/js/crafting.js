@@ -12,6 +12,15 @@ const CRAFTING_RECIPES = [
         unlocks: 'woodcutting'
     },
     {
+        id: 'pickaxe',
+        name: 'معول',
+        emoji: '⛏️',
+        description: 'لتكسير الصخور الكبيرة وجمع الحجارة',
+        requires: { stick: 3, teeth: 1 },
+        isUnique: true,
+        unlocks: 'mining'
+    },
+    {
         id: 'fishingRod',
         name: 'سنارة صيد',
         emoji: '🎣',

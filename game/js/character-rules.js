@@ -5,20 +5,57 @@ const CharacterRules = {
     OFFENSIVE_SKILLS: ['sword', 'bow', 'bite', 'tusks', 'fangs', 'claw', 'whip', 'physicalPower', 'punch', 'poison'],
     DEFENSIVE_SKILLS: ['physicalPower', 'pushPower', 'endurance', 'climbing', 'stealth'],
 
-    // حساب ضرر سيف اللاعب
-    playerSwordDamage(skills, absorbedAttack) {
-        const swordSkill = skills.sword || 1;
+    /** مكافأة المستوى: المستوى 1 = 0، كل مستوى بعده يزيد الهجوم/الدفاع */
+    levelStatBonus(level) {
+        const lv = Math.max(1, level | 0);
+        const atkPer = (typeof CFG !== 'undefined' && CFG.HERO_ATK_PER_LEVEL != null) ? CFG.HERO_ATK_PER_LEVEL : 3;
+        const defPer = (typeof CFG !== 'undefined' && CFG.HERO_DEF_PER_LEVEL != null) ? CFG.HERO_DEF_PER_LEVEL : 2;
+        const steps = lv - 1;
+        return { attack: steps * atkPer, defense: steps * defPer };
+    },
+
+    /**
+     * مزامنة attack/defense من المستوى + الاكتساب.
+     * يُستدعى عند الارتقاء والتحميل وبعد امتصاص مهارات القتل.
+     */
+    syncHeroCombatStats(player) {
+        if (!player) return;
+        const baseAtk = (typeof CFG !== 'undefined' && CFG.HERO_BASE_ATTACK != null) ? CFG.HERO_BASE_ATTACK : 25;
+        const baseDef = (typeof CFG !== 'undefined' && CFG.HERO_BASE_DEFENSE != null) ? CFG.HERO_BASE_DEFENSE : 5;
+        const bonus = this.levelStatBonus(player.level || 1);
+        const absAtk = Math.floor((player.absorbedAttack || 0) * 0.4);
+        const absDef = Math.floor((player.absorbedDefense || 0) * 0.35);
+        player.attack = baseAtk + bonus.attack + absAtk;
+        player.defense = baseDef + bonus.defense + absDef;
+        return { attack: player.attack, defense: player.defense, levelBonus: bonus };
+    },
+
+    // حساب ضرر سيف اللاعب (يشمل مكافأة المستوى عبر player.attack)
+    playerSwordDamage(skills, absorbedAttack, heroLevel) {
+        const swordSkill = (skills && skills.sword) || 1;
         const base = swordSkill * 18 + 12;
-        const bonus = Math.floor((absorbedAttack || 0) * 0.4);
-        return base + bonus + Math.floor(Math.random() * 8);
+        const absorb = Math.floor((absorbedAttack || 0) * 0.4);
+        const levelBonus = this.levelStatBonus(heroLevel || 1).attack;
+        return base + absorb + levelBonus + Math.floor(Math.random() * 8);
     },
 
     // حساب ضرر قوس اللاعب
-    playerBowDamage(skills, absorbedAttack) {
-        const bowSkill = skills.bow || 1;
+    playerBowDamage(skills, absorbedAttack, heroLevel) {
+        const bowSkill = (skills && skills.bow) || 1;
         const base = bowSkill * 15 + 8;
-        const bonus = Math.floor((absorbedAttack || 0) * 0.3);
-        return base + bonus + Math.floor(Math.random() * 6);
+        const absorb = Math.floor((absorbedAttack || 0) * 0.3);
+        const levelBonus = Math.floor(this.levelStatBonus(heroLevel || 1).attack * 0.85);
+        return base + absorb + levelBonus + Math.floor(Math.random() * 6);
+    },
+
+    /** ضرر العدو بعد خصم دفاع اللاعب (حد أدنى 1 إن كان الهجوم > 0) */
+    applyDefense(rawDamage, player) {
+        const raw = Math.max(0, Math.round(Number(rawDamage) || 0));
+        if (raw <= 0) return 0;
+        const def = Math.max(0, (player && player.defense) || 0);
+        // كل نقطة دفاع تُخفّض ~0.45 ضرر، مع سقف تخفيض 70%
+        const mitigated = Math.min(Math.floor(def * 0.45), Math.floor(raw * 0.7));
+        return Math.max(1, raw - mitigated);
     },
 
     // الاكتساب عند قتل عدو

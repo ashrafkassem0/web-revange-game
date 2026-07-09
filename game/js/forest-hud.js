@@ -11,11 +11,13 @@ function syncAudioPanelUI() {
     const master = document.getElementById('audioMaster');
     const sfx = document.getElementById('audioSfx');
     const ambient = document.getElementById('audioAmbient');
+    const quran = document.getElementById('audioQuran');
     const mute = document.getElementById('audioMute');
     const btn = document.getElementById('audioBtn');
     if (master) master.value = Math.round((SFX.getMasterVolume ? SFX.getMasterVolume() : 1) * 100);
     if (sfx) sfx.value = Math.round((SFX.getSfxVolume ? SFX.getSfxVolume() : 1) * 100);
     if (ambient) ambient.value = Math.round((SFX.getAmbientVolume ? SFX.getAmbientVolume() : 1) * 100);
+    if (quran) quran.value = Math.round((SFX.getQuranVolume ? SFX.getQuranVolume() : 0.9) * 100);
     if (mute) mute.checked = !!(SFX.isMuted && SFX.isMuted());
     if (btn) btn.textContent = (SFX.isMuted && SFX.isMuted()) ? '🔇 الصوت' : '🔊 الصوت';
 }
@@ -45,6 +47,10 @@ function onAudioSlider(kind, value) {
     if (kind === 'master' && SFX.setMasterVolume) SFX.setMasterVolume(v);
     else if (kind === 'sfx' && SFX.setSfxVolume) SFX.setSfxVolume(v);
     else if (kind === 'ambient' && SFX.setAmbientVolume) SFX.setAmbientVolume(v);
+    else if (kind === 'quran' && SFX.setQuranVolume) SFX.setQuranVolume(v);
+    if (kind === 'master' && typeof QuranAyahs !== 'undefined' && QuranAyahs.applyVolume) {
+        QuranAyahs.applyVolume();
+    }
     syncAudioPanelUI();
 }
 
@@ -63,6 +69,34 @@ function toggleMuteKey() {
     }
 }
 
+// ===== XP HUD (TASK_040) =====
+function updateXpHud(p) {
+    p = p || (typeof player !== 'undefined' ? player : null);
+    if (!p) return;
+    const levelEl = document.getElementById('xp-level');
+    const fillEl  = document.getElementById('xp-fill');
+    const textEl  = document.getElementById('xp-text');
+    if (!levelEl || !fillEl || !textEl) return;
+
+    const max = (CFG && CFG.MAX_HERO_LEVEL) || 100;
+    const info = (typeof levelFromTotalXp === 'function')
+        ? levelFromTotalXp(p.xp || 0)
+        : { level: p.level || 1, xpIntoLevel: 0, xpNeeded: 40 };
+    p.level = info.level;
+
+    levelEl.textContent = `المستوى ${info.level}`;
+    if (info.level >= max) {
+        fillEl.style.width = '100%';
+        textEl.textContent = 'الحد الأقصى';
+        fillEl.classList.add('xp-max');
+    } else {
+        const pct = Math.max(0, Math.min(100, (info.xpIntoLevel / info.xpNeeded) * 100));
+        fillEl.style.width = pct + '%';
+        textEl.textContent = `${info.xpIntoLevel} / ${info.xpNeeded}`;
+        fillEl.classList.remove('xp-max');
+    }
+}
+
 // ===== HUD UPDATE =====
 function updateHUD() {
     const p = player;
@@ -72,6 +106,9 @@ function updateHUD() {
     document.getElementById('staminaVal').textContent   = Math.floor(p.stamina / CFG.STAMINA_MAX * 100) + '%';
     document.getElementById('weaponLabel2').textContent = p.weapon === 'sword' ? '⚔️ السيف' : '🏹 القوس';
     document.getElementById('atkVal').textContent       = Math.floor(p.attack);
+    const defEl = document.getElementById('defVal');
+    if (defEl) defEl.textContent = Math.floor(p.defense || 0);
+    updateXpHud(p);
 
     for (const k of ['stick', 'stone', 'horn', 'teeth', 'leather', 'herb', 'honey']) {
         const el = document.getElementById('inv-' + k);
@@ -84,17 +121,9 @@ function updateHUD() {
     if (fishEl) fishEl.textContent = (p.inventory.rawFish || 0) + (p.inventory.cookedFish || 0) + (p.inventory.fish || 0);
     const arrowEl = document.getElementById('inv-arrows');
     if (arrowEl) arrowEl.textContent = (p.inventory.arrows || 0) > 0 ? p.inventory.arrows : '∞';
-
-    const kills = Math.min(p.killCount, CFG.KILLS_NEEDED);
-    const dist  = Math.min(p.distanceTraveled, CFG.DIST_NEEDED);
-    const chals = (p.craftedItems.axe ? 1 : 0) + (p.craftedItems.fishingRod ? 1 : 0);
-    document.getElementById('killProg').textContent    = `${kills} / ${CFG.KILLS_NEEDED} قتلى`;
-    document.getElementById('killBar').style.width     = (kills / CFG.KILLS_NEEDED * 100) + '%';
-    // مسافة العالم نحو CFG.DIST_NEEDED (ليست كيلومترات حقيقية)
-    document.getElementById('distProg').textContent    = `${Math.floor(dist)} / ${CFG.DIST_NEEDED} مسافة`;
-    document.getElementById('distBar').style.width     = (dist / CFG.DIST_NEEDED * 100) + '%';
-    document.getElementById('chalProg').textContent    = `${chals} / ${CFG.CHALLENGES_NEEDED} تحديات`;
-    document.getElementById('chalBar').style.width     = (chals / CFG.CHALLENGES_NEEDED * 100) + '%';
+    if (typeof ForestQuests !== 'undefined' && ForestQuests.refreshHud) {
+        ForestQuests.refreshHud();
+    }
 }
 
 // ===== MINIMAP =====
@@ -476,6 +505,34 @@ function drawCityPortal(camX, camY) {
         ctx.beginPath();
         ctx.arc(sx, sy - 50, CITY_PORTAL.radius * 0.85, 0, Math.PI * 2);
         ctx.stroke();
+        ctx.restore();
+    }
+
+    // حلقة المنطقة الآمنة (لا وحوش) — خفيفة عند الاقتراب
+    const safeR = CITY_PORTAL.safeRadius || 220;
+    const distToPortal = (typeof player !== 'undefined')
+        ? Math.hypot(player.x - CITY_PORTAL.x, player.y - CITY_PORTAL.y)
+        : 9999;
+    if (distToPortal < safeR + 160) {
+        const a = Math.max(0.06, 0.18 - (distToPortal / (safeR + 160)) * 0.12);
+        ctx.save();
+        ctx.strokeStyle = `rgba(120, 200, 160, ${a})`;
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([8, 10]);
+        ctx.beginPath();
+        ctx.arc(sx, sy, safeR, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        if (distToPortal < safeR) {
+            ctx.fillStyle = `rgba(80, 180, 120, ${0.04 + Math.sin(Date.now() * 0.002) * 0.015})`;
+            ctx.beginPath();
+            ctx.arc(sx, sy, safeR, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.font = 'bold 10px Cairo';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = `rgba(180, 230, 200, ${0.35 + a})`;
+            ctx.fillText('منطقة آمنة', sx, sy + safeR * 0.15);
+        }
         ctx.restore();
     }
     ctx.restore();

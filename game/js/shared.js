@@ -30,9 +30,37 @@ const DEFAULT_INVENTORY = {
 };
 
 const DEFAULT_CRAFTED = {
-    axe: false, fishingRod: false, hornSpear: false, hornSword: false,
+    axe: false, pickaxe: false, fishingRod: false, hornSpear: false, hornSword: false,
     leatherArmor: false, shadowArmor: false
 };
+
+/** يضمن حقول مهام الغابة على كائن maps.forest (هجرة آمنة للحفظات القديمة) */
+function ensureForestQuestFields(forest) {
+    if (!forest || typeof forest !== 'object') return forest;
+    if (!Array.isArray(forest.activeQuests)) forest.activeQuests = [];
+    if (!Array.isArray(forest.completedQuests)) forest.completedQuests = [];
+    if (!Array.isArray(forest.spokenToNpcs)) forest.spokenToNpcs = [];
+    if (!forest.huntBoard || typeof forest.huntBoard !== 'object') {
+        forest.huntBoard = { activeId: null, completedIds: [] };
+    } else {
+        if (!Array.isArray(forest.huntBoard.completedIds)) forest.huntBoard.completedIds = [];
+        if (forest.huntBoard.activeId === undefined) forest.huntBoard.activeId = null;
+    }
+    if (!forest.radiant || typeof forest.radiant !== 'object') {
+        forest.radiant = {
+            lastId: null, lastDayIndex: null, activeId: null,
+            lastPeriod: null, totalCompleted: 0, offerDef: null
+        };
+    } else {
+        if (forest.radiant.lastId === undefined) forest.radiant.lastId = null;
+        if (forest.radiant.lastDayIndex === undefined) forest.radiant.lastDayIndex = null;
+        if (forest.radiant.activeId === undefined) forest.radiant.activeId = null;
+        if (forest.radiant.lastPeriod === undefined) forest.radiant.lastPeriod = null;
+        if (typeof forest.radiant.totalCompleted !== 'number') forest.radiant.totalCompleted = 0;
+        if (forest.radiant.offerDef === undefined) forest.radiant.offerDef = null;
+    }
+    return forest;
+}
 
 const DEFAULT_MAPS = {
     forest: {
@@ -42,7 +70,23 @@ const DEFAULT_MAPS = {
         collectedResources: [],
         campStructures: [],
         // Full forest snapshot (compat with forest-save.js)
-        snapshot: null
+        snapshot: null,
+        // مهام الغابة (TASK_041) — منفصلة عن maps.city.completedQuests
+        activeQuests: [],
+        completedQuests: [],
+        spokenToNpcs: [],
+        huntBoard: {
+            activeId: null,
+            completedIds: []
+        },
+        radiant: {
+            lastId: null,
+            lastDayIndex: null,
+            activeId: null,
+            lastPeriod: null,
+            totalCompleted: 0,
+            offerDef: null
+        }
     },
     city: {
         completedQuests: [],
@@ -256,6 +300,10 @@ class SaveManager {
         if (!data.inventory) data.inventory = deepClone(DEFAULT_INVENTORY);
         if (!data.craftedItems) data.craftedItems = deepClone(DEFAULT_CRAFTED);
         if (!data.flags) data.flags = {};
+        // مهام الغابة: حقول فارغة للحفظات القديمة (بدون رفع إصدار إجباري)
+        if (data.maps && data.maps.forest) {
+            ensureForestQuestFields(data.maps.forest);
+        }
         return data;
     }
 
@@ -652,8 +700,17 @@ const GameState = {
     _writeForestMap(state) {
         const doc = this._ensure();
         if (!doc.maps.forest) doc.maps.forest = deepClone(DEFAULT_MAPS.forest);
+        ensureForestQuestFields(doc.maps.forest);
         if (state == null) {
-            doc.maps.forest = deepClone(DEFAULT_MAPS.forest);
+            // إعادة ضبط اللقطة فقط — الإبقاء على تقدم المهام
+            const questKeep = {
+                activeQuests: doc.maps.forest.activeQuests,
+                completedQuests: doc.maps.forest.completedQuests,
+                spokenToNpcs: doc.maps.forest.spokenToNpcs,
+                huntBoard: doc.maps.forest.huntBoard,
+                radiant: doc.maps.forest.radiant
+            };
+            doc.maps.forest = Object.assign(deepClone(DEFAULT_MAPS.forest), questKeep);
             return;
         }
         doc.maps.forest.snapshot = state;
@@ -661,6 +718,7 @@ const GameState = {
         doc.maps.forest.choppedTrees = state.choppedTrees || [];
         doc.maps.forest.collectedResources = state.collectedResources || [];
         doc.maps.forest.campStructures = state.structures || [];
+        ensureForestQuestFields(doc.maps.forest);
 
         // Profile aggregates
         if (state.killCount != null) doc.profile.totalKills = Math.max(doc.profile.totalKills || 0, state.killCount);
@@ -1144,3 +1202,5 @@ window.randomLoadingTip = randomLoadingTip;
 window.getSceneHistory = getSceneHistory;
 window.formatPlayTime = formatPlayTime;
 window.mapLabelAr = mapLabelAr;
+window.ensureForestQuestFields = ensureForestQuestFields;
+window.DEFAULT_MAPS = DEFAULT_MAPS;

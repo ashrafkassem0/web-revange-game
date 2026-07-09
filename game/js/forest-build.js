@@ -264,6 +264,8 @@ let _campfireExtinguishAcc = 0;
 
 function openCampfireMenu(fire) {
     if (campfireMenuOpen) return;
+    // فتح قفل تشغيل الصوت داخل تفاعل المستخدم (E / نقرة)
+    if (typeof QuranAyahs !== 'undefined' && QuranAyahs.unlock) QuranAyahs.unlock();
     const target = fire || findNearbyCampfire(false);
     if (!target) return;
     if (typeof craftMenuOpen !== 'undefined' && craftMenuOpen) return;
@@ -423,6 +425,18 @@ function campfireRest() {
 
     if (typeof SFX !== 'undefined' && SFX.xp) SFX.xp();
     notify(`😌 استرحت عند الموقد — +${Math.floor(hpGain)}❤️ +${Math.floor(stamGain)}⚡`, '#4caf70');
+
+    // تلاوة آية عشوائية أثناء الراحة — يجب أن تبقى داخل مسار نقرة المستخدم
+    if (typeof QuranAyahs !== 'undefined' && QuranAyahs.playRandom) {
+        const ayah = QuranAyahs.playRandom();
+        if (ayah) {
+            const label = ayah.surah_name
+                ? `📖 سورة ${ayah.surah_name}` + (ayah.title ? ` — ${ayah.title}` : '')
+                : (ayah.title || 'آية');
+            notify(label, '#c9a227');
+        }
+    }
+
     updateHUD();
     closeCampfireMenu();
     if (typeof saveForestProgress === 'function') saveForestProgress({ debounce: true });

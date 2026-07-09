@@ -214,6 +214,7 @@ function _spawnAtValidTile(type, minDistFromPlayer) {
         const y = 220 + Math.random() * (CFG.WORLD_H - 440);
         if (isWater(x, y)) continue;
         if (Math.hypot(x - player.x, y - player.y) < minDistFromPlayer) continue;
+        if (typeof isInCityPortalSafeZone === 'function' && isInCityPortalSafeZone(x, y, (tmpl.radius || 16) + 20)) continue;
         if (typeof _isBlockedByStructure === 'function' && _isBlockedByStructure(x, y, tmpl.radius || 16)) continue;
         const e = new Enemy(tmpl, x, y);
         e.homeX = x; e.homeY = y; e.leashRadius = 400;
@@ -287,6 +288,11 @@ function onDayNightPhaseChange(prev, next) {
     } else if (!nowNight && wasNight) {
         despawnNightPredators();
         cullDiurnalAnimals(0.4);
+    }
+    // مهمة يومية: تدوير عند الفجر أو الغسق (انتقال نهار↔ليل)
+    if (wasNight !== nowNight && typeof ForestQuests !== 'undefined' && ForestQuests.ensureRadiantOffer) {
+        ForestQuests.ensureRadiantOffer();
+        if (ForestQuests.refreshHud) ForestQuests.refreshHud();
     }
 }
 

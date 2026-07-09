@@ -117,7 +117,7 @@
             padding-top: 2px;
         }
 
-        /* أقصى اليمين: صف (خريطة + حفظ/صوت) ثم التحديات */
+        /* أقصى اليمين: خريطة + حفظ/صوت */
         #hudRight {
             display: flex;
             flex-direction: column;
@@ -133,21 +133,6 @@
             align-items: flex-start;
             gap: 8px;
             direction: ltr; /* خريطة يمين الشاشة، أزرار بجانبها للداخل */
-        }
-
-        #hudProgress {
-            width: 100%;
-            max-width: 220px;
-            box-sizing: border-box;
-            padding: 8px 10px;
-        }
-        #hudProgress .prog-item {
-            flex-wrap: wrap;
-            gap: 4px;
-        }
-        #hudProgress .prog-bar-bg {
-            width: 100%;
-            display: block;
         }
 
         .hud-panel {
@@ -167,6 +152,53 @@
         .bar-hp    { background: linear-gradient(90deg, #e74c3c, #ff7070); }
         .bar-stamina { background: linear-gradient(90deg, #2980b9, #5dade2); }
         .stat-val { font-size: 0.68rem; color: #ccc; min-width: 38px; }
+
+        /* شريط خبرة البطل (TASK_040) */
+        .hud-xp {
+            margin-top: 8px;
+            padding-top: 7px;
+            border-top: 1px solid rgba(255,208,96,0.14);
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .hud-xp-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+        #xp-level {
+            font-size: 0.72rem;
+            color: #ffd060;
+            font-weight: 700;
+            letter-spacing: 0.2px;
+        }
+        #xp-text {
+            font-size: 0.62rem;
+            color: #b8a878;
+            font-variant-numeric: tabular-nums;
+        }
+        .xp-track {
+            width: 100%;
+            height: 8px;
+            background: #1a1a1a;
+            border-radius: 5px;
+            overflow: hidden;
+            border: 1px solid rgba(255,208,96,0.18);
+            box-shadow: inset 0 1px 2px rgba(0,0,0,0.45);
+        }
+        .xp-fill {
+            height: 100%;
+            width: 0%;
+            border-radius: 4px;
+            background: linear-gradient(90deg, #c48a18, #ffd060 55%, #ffe9a0);
+            transition: width 0.28s ease;
+            box-shadow: 0 0 8px rgba(255,208,96,0.25);
+        }
+        .xp-fill.xp-max {
+            background: linear-gradient(90deg, #8a6a20, #ffd060);
+        }
 
         /* Weapon indicator */
         #weaponIndicator {
@@ -200,10 +232,6 @@
         .inv-count { font-size: 0.62rem; color: #eee; font-weight: 700; line-height: 1; }
 
         /* Progress panel */
-        .prog-item { font-size: 0.72rem; color: #ccc; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
-        .prog-item:last-child { margin-bottom: 0; }
-        .prog-bar-bg { width: 80px; height: 6px; background: #333; border-radius: 3px; overflow: hidden; display: inline-block; }
-        .prog-bar-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, #27ae60, #2ecc71); }
         .prog-done { color: #2ecc71; }
 
         /* ===== MINIMAP (أعلى اليمين داخل #hudRight) ===== */
@@ -214,6 +242,64 @@
             background: rgba(0,0,0,0.7);
             width: 140px;
             height: 140px;
+        }
+
+        /* لوحة المهام الشخصية — تحت الخريطة الصغيرة */
+        #questLogPanel {
+            width: 140px;
+            box-sizing: border-box;
+            padding: 8px 10px;
+            pointer-events: none;
+        }
+        #questLogPanel .quest-log-title {
+            font-size: 0.72rem;
+            font-weight: 800;
+            color: #ffd060;
+            margin-bottom: 6px;
+            text-align: center;
+            border-bottom: 1px solid rgba(255, 208, 96, 0.2);
+            padding-bottom: 4px;
+        }
+        #questLogList {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            max-height: 160px;
+            overflow: hidden;
+        }
+        .quest-log-empty {
+            font-size: 0.65rem;
+            color: #777;
+            text-align: center;
+            line-height: 1.4;
+            padding: 4px 0;
+        }
+        .quest-log-item {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            padding: 4px 0 0;
+        }
+        .quest-log-item + .quest-log-item {
+            border-top: 1px solid rgba(255,255,255,0.06);
+            padding-top: 6px;
+        }
+        .quest-log-name {
+            font-size: 0.68rem;
+            font-weight: 700;
+            color: #e8e0c0;
+            line-height: 1.3;
+        }
+        .quest-log-item.ready .quest-log-name { color: #7dcea0; }
+        .quest-log-prog {
+            font-size: 0.62rem;
+            color: #a8a080;
+            line-height: 1.35;
+        }
+        .quest-log-item.ready .quest-log-prog { color: #9fd88a; }
+        .quest-log-src {
+            font-size: 0.58rem;
+            color: #6a6858;
         }
 
         /* ===== NOTIFICATIONS ===== */
@@ -509,45 +595,56 @@
             to   { transform: translateX(3px); }
         }
 
-        /* ===== IDLE POEM OVERLAY ===== */
+        /* ===== IDLE POEM OVERLAY — بجانب اللاعب (الموضع عبر JS) ===== */
         #poemOverlay {
             position: fixed;
-            top: 50%;
-            right: 22px;
-            transform: translateY(-50%);
+            left: 0;
+            top: 0;
             z-index: 58;
-            width: 380px;
-            max-width: 44vw;
-            background: rgba(4, 9, 4, 0.91);
-            border: 1px solid rgba(255, 210, 80, 0.22);
-            border-right: 3px solid rgba(255, 210, 80, 0.55);
-            border-radius: 14px 5px 5px 14px;
-            padding: 14px 18px 16px;
+            width: 320px;
+            max-width: min(320px, 78vw);
+            background: rgba(4, 9, 4, 0.88);
+            border: 1px solid rgba(255, 210, 80, 0.28);
+            border-radius: 12px;
+            padding: 12px 14px 14px;
             font-family: 'Cairo', sans-serif;
             direction: rtl;
-            backdrop-filter: blur(10px);
-            box-shadow: -4px 0 30px rgba(255,200,60,0.12), 0 8px 32px rgba(0,0,0,0.5);
+            backdrop-filter: blur(8px);
+            box-shadow: 0 6px 22px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,208,96,0.08);
             opacity: 0;
-            transition: opacity 0.7s ease;
+            transition: opacity 0.45s ease;
             display: none;
             pointer-events: none;
+            will-change: left, top, opacity;
         }
         #poemOverlay.visible { opacity: 1; }
+        #poemOverlay::after {
+            content: '';
+            position: absolute;
+            bottom: -7px;
+            right: 28px;
+            width: 12px;
+            height: 12px;
+            background: rgba(4, 9, 4, 0.88);
+            border-right: 1px solid rgba(255, 210, 80, 0.28);
+            border-bottom: 1px solid rgba(255, 210, 80, 0.28);
+            transform: rotate(45deg);
+        }
 
         .poem-header {
             display: flex;
             align-items: center;
-            gap: 8px;
-            margin-bottom: 10px;
-            padding-bottom: 8px;
-            border-bottom: 1px solid rgba(255,210,80,0.18);
+            gap: 6px;
+            margin-bottom: 6px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid rgba(255,210,80,0.16);
         }
-        .poem-speaker-icon { font-size: 1rem; }
+        .poem-speaker-icon { font-size: 0.85rem; }
         .poem-speaker-text {
-            font-size: 0.72rem;
-            color: rgba(255,210,80,0.65);
+            font-size: 0.65rem;
+            color: rgba(255,210,80,0.7);
             font-style: italic;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.4px;
         }
         .poem-cursor {
             display: inline-block;
@@ -556,17 +653,17 @@
         }
         @keyframes poemBlink { 0%,100%{opacity:1} 50%{opacity:0} }
 
-        #poemLines { display: flex; flex-direction: column; gap: 2px; }
+        #poemLines { display: flex; flex-direction: column; gap: 1px; }
 
         .poem-verse {
-            font-size: 0.9rem;
+            font-size: 1.05rem;
             color: #cdc5a0;
             line-height: 1.85;
             text-align: right;
-            padding-right: 10px;
+            padding-right: 8px;
             border-right: 2px solid rgba(255,210,80,0.12);
-            min-height: 1.6em;
-            transition: color 0.4s, border-color 0.4s;
+            min-height: 1.5em;
+            transition: color 0.35s, border-color 0.35s;
         }
         .poem-verse.active-verse {
             color: #ffe9a0;
@@ -1030,6 +1127,177 @@
             font-size: 0.72rem;
             color: #888;
         }
+
+        /* تلميح مهمة الغابة (TASK_041) */
+        #questHudHint {
+            position: fixed;
+            bottom: 72px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 45;
+            background: rgba(8, 10, 6, 0.82);
+            border: 1px solid rgba(255, 208, 96, 0.28);
+            border-radius: 12px;
+            padding: 6px 16px;
+            font-size: 0.78rem;
+            color: #ffd060;
+            font-family: 'Cairo', sans-serif;
+            direction: rtl;
+            white-space: nowrap;
+            max-width: min(92vw, 420px);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            pointer-events: none;
+            box-shadow: 0 4px 18px rgba(0,0,0,0.35);
+        }
+        #questHudHint.hidden { display: none; }
+
+        /* نافذة مهام الغابة */
+        #forest-quest-modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.72);
+            z-index: 80;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Cairo', sans-serif;
+            direction: rtl;
+        }
+        #forest-quest-modal.open { display: flex; }
+        #fqModalBox {
+            background: linear-gradient(145deg, #1a2214 0%, #2a3020 55%, #1e2418 100%);
+            border: 2px solid rgba(106, 128, 64, 0.85);
+            border-radius: 16px;
+            padding: 26px 30px 20px;
+            min-width: 320px;
+            max-width: min(460px, 92vw);
+            color: #e8e0c0;
+            position: relative;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,208,96,0.08);
+        }
+        #fqModalTitle {
+            font-size: 1.25rem;
+            font-weight: 900;
+            margin: 0 0 12px;
+            color: #ffd060;
+            padding-left: 28px;
+        }
+        #fqModalBody {
+            font-size: 0.9rem;
+            line-height: 1.75;
+            margin-bottom: 16px;
+        }
+        #fqModalBody .fq-desc { margin: 0 0 10px; color: #d8d0b0; }
+        #fqModalBody .fq-reward {
+            margin: 10px 0 0;
+            font-size: 0.82rem;
+            color: #a8d070;
+        }
+        #fqModalBody .fq-obj-list {
+            margin: 8px 0 0;
+            padding: 0 18px 0 0;
+            list-style: disc;
+        }
+        #fqModalBody .fq-obj-list li { margin-bottom: 4px; color: #c8c0a0; }
+        #fqModalBody .fq-obj-list li.done { color: #7dcea0; }
+        #fqModalActions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: flex-start;
+        }
+        .fq-btn {
+            background: rgba(255,255,255,0.08);
+            color: #ddd;
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 10px;
+            padding: 8px 16px;
+            font-family: 'Cairo', sans-serif;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: filter 0.12s, transform 0.1s;
+        }
+        .fq-btn:hover { filter: brightness(1.15); }
+        .fq-btn-primary {
+            background: linear-gradient(135deg, #5a7a20, #3a5010);
+            color: #ffd060;
+            border-color: rgba(255,208,96,0.35);
+            font-weight: 700;
+        }
+        .fq-close {
+            position: absolute;
+            top: 10px;
+            left: 12px;
+            background: none;
+            border: none;
+            color: #aaa;
+            font-size: 1.35rem;
+            cursor: pointer;
+            line-height: 1;
+        }
+        .fq-close:hover { color: #fff; }
+
+        /* قائمة لوحة الصيد */
+        .fq-hunt-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: min(52vh, 380px);
+            overflow-y: auto;
+            margin-top: 8px;
+            padding-left: 2px;
+        }
+        .fq-hunt-row {
+            background: rgba(0,0,0,0.22);
+            border: 1px solid rgba(106, 128, 64, 0.45);
+            border-radius: 12px;
+            padding: 12px 14px 10px;
+        }
+        .fq-hunt-title {
+            font-weight: 800;
+            color: #ffd060;
+            font-size: 0.98rem;
+            margin-bottom: 4px;
+        }
+        .fq-hunt-obj {
+            color: #d0c8a8;
+            font-size: 0.82rem;
+            line-height: 1.55;
+            margin-bottom: 4px;
+        }
+        .fq-hunt-region {
+            color: #9ab070;
+            font-size: 0.78rem;
+            margin: 4px 0;
+        }
+        .fq-hunt-row .fq-reward {
+            margin: 4px 0 6px;
+            font-size: 0.78rem;
+            color: #a8d070;
+        }
+        .fq-hunt-warn {
+            color: #e8a060;
+            font-size: 0.75rem;
+            margin: 2px 0 8px;
+        }
+        .fq-hunt-accept {
+            margin-top: 2px;
+        }
+        .fq-hunt-radiant {
+            border-color: rgba(255, 208, 96, 0.45);
+            background: linear-gradient(135deg, rgba(80, 60, 20, 0.35), rgba(0,0,0,0.22));
+        }
+        .fq-hunt-badge {
+            display: inline-block;
+            font-size: 0.72rem;
+            font-weight: 800;
+            color: #1a1810;
+            background: #ffd060;
+            border-radius: 6px;
+            padding: 2px 8px;
+            margin-bottom: 6px;
+        }
     </style>
 </head>
 <body>
@@ -1090,7 +1358,17 @@
                 <div class="stat-row" style="margin-top:5px;">
                     <span class="stat-label" style="font-size:0.65rem;">⚔️</span>
                     <span style="font-size:0.7rem;color:#f0c040;" id="weaponLabel2">السيف</span>
-                    <span style="font-size:0.65rem;color:#666;margin-right:auto;">🗡️<span id="atkVal">30</span></span>
+                    <span style="font-size:0.65rem;color:#888;margin-right:auto;">
+                        🗡️<span id="atkVal">25</span>
+                        &nbsp;🛡️<span id="defVal">5</span>
+                    </span>
+                </div>
+                <div id="xp-bar" class="hud-xp">
+                    <div class="hud-xp-top">
+                        <span id="xp-level">المستوى 1</span>
+                        <span id="xp-text">0 / 40</span>
+                    </div>
+                    <div class="xp-track"><div id="xp-fill" class="xp-fill" style="width:0%"></div></div>
                 </div>
             </div>
         </div>
@@ -1105,7 +1383,7 @@
             </div>
         </div>
 
-        <!-- أقصى اليمين: (خريطة + حفظ/صوت بجانبها) ثم التحديات -->
+        <!-- أقصى اليمين: خريطة + حفظ/صوت -->
         <div id="hudRight">
             <div id="hudRightTop">
                 <div id="hudTools">
@@ -1129,6 +1407,11 @@
                                    oninput="onAudioSlider('ambient', this.value)">
                         </div>
                         <div class="audio-row">
+                            <label for="audioQuran">القرآن</label>
+                            <input type="range" id="audioQuran" min="0" max="100" value="90"
+                                   oninput="onAudioSlider('quran', this.value)">
+                        </div>
+                        <div class="audio-row">
                             <label for="audioMute">كتم الصوت</label>
                             <input type="checkbox" id="audioMute" onchange="onAudioMuteToggle(this.checked)">
                         </div>
@@ -1137,18 +1420,10 @@
                 </div>
                 <canvas id="minimap" width="140" height="140"></canvas>
             </div>
-            <div class="hud-panel" id="hudProgress">
-                <div class="prog-item">
-                    🎯 <span id="killProg">0 / 10 قتلى</span>
-                    <div class="prog-bar-bg"><div class="prog-bar-fill" id="killBar" style="width:0%"></div></div>
-                </div>
-                <div class="prog-item">
-                    🏃 <span id="distProg">0 / 3 كم</span>
-                    <div class="prog-bar-bg"><div class="prog-bar-fill" id="distBar" style="width:0%"></div></div>
-                </div>
-                <div class="prog-item">
-                    🔨 <span id="chalProg">0 / 2 تحديات</span>
-                    <div class="prog-bar-bg"><div class="prog-bar-fill" id="chalBar" style="width:0%"></div></div>
+            <div id="questLogPanel" class="hud-panel">
+                <div class="quest-log-title">📜 مهامي</div>
+                <div id="questLogList">
+                    <div class="quest-log-empty">لا توجد مهام مقبولة</div>
                 </div>
             </div>
         </div>
@@ -1247,7 +1522,7 @@
                 <div><span class="key">Shift</span></div>
                 <div>الجري</div>
                 <div><span class="key">E</span></div>
-                <div>ضربة السيف / التقاط غنيمة</div>
+                <div>تفاعل / قطع / تعدين / التقاط</div>
                 <div><span class="key">انقر</span> (مع القوس)</div>
                 <div>إطلاق سهم — يصيد الحيوانات</div>
                 <div><span class="key">1 / 2</span></div>
@@ -1259,6 +1534,19 @@
             </div>
         </div>
         <button class="intro-btn" id="introBtn" onclick="startGame()">ابدأ التدريب! 🌲</button>
+    </div>
+
+    <!-- تلميح مهمة نشطة -->
+    <div id="questHudHint" class="hidden"></div>
+
+    <!-- نافذة مهام الغابة (TASK_041) -->
+    <div id="forest-quest-modal">
+        <div id="fqModalBox">
+            <button type="button" class="fq-close" onclick="ForestQuests.closeModal()" aria-label="إغلاق">✕</button>
+            <div id="fqModalTitle">مهمة</div>
+            <div id="fqModalBody"></div>
+            <div id="fqModalActions"></div>
+        </div>
     </div>
 
     <!-- Idle Poem Overlay -->
@@ -1311,23 +1599,27 @@
 
     <!-- Shared modules -->
     <script src="../js/shared.js"></script>
-    <script src="../js/sounds.js"></script>
+    <script src="../js/sounds.js?v=2"></script>
+    <script src="../js/quran-ayahs-data.js?v=2"></script>
+    <script src="../js/quran-ayahs.js?v=4"></script>
     <script src="../js/characters.js"></script>
     <script src="../js/character-rules.js"></script>
     <script src="../js/crafting.js"></script>
 
     <!-- Forest-specific modules (load order matters) -->
-    <script src="../js/forest-config.js"></script>
-    <script src="../js/forest-world.js?v=layers5"></script>
-    <script src="../js/forest-entities.js"></script>
-    <script src="../js/forest-time.js"></script>
+    <script src="../js/forest-config.js?v=2"></script>
+    <script src="../js/forest-quests.js?v=7"></script>
+    <script src="../js/forest-npcs.js?v=3"></script>
+    <script src="../js/forest-world.js?v=biome3"></script>
+    <script src="../js/forest-entities.js?v=2"></script>
+    <script src="../js/forest-time.js?v=2"></script>
     <script src="../js/forest-weather.js"></script>
     <script src="../js/forest-player.js"></script>
     <script src="../js/forest-combat.js"></script>
-    <script src="../js/forest-hud.js"></script>
-    <script src="../js/forest-build.js"></script>
-    <script src="../js/forest-save.js"></script>
-    <script src="../js/forest-main.js"></script>
+    <script src="../js/forest-hud.js?v=2"></script>
+    <script src="../js/forest-build.js?v=2"></script>
+    <script src="../js/forest-save.js?v=3"></script>
+    <script src="../js/forest-main.js?v=5"></script>
 
 </body>
 </html>

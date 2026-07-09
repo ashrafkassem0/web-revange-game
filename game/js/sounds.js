@@ -13,6 +13,7 @@ const SFX = (() => {
         master: 1,
         sfx: 1,
         ambient: 1,
+        quran: 0.9,
         muted: false
     };
 
@@ -81,6 +82,7 @@ const SFX = (() => {
                     master: state.master,
                     sfx: state.sfx,
                     ambient: state.ambient,
+                    quran: state.quran,
                     muted: state.muted
                 });
             }
@@ -95,8 +97,12 @@ const SFX = (() => {
             if (saved.master != null) state.master = clamp01(saved.master);
             if (saved.sfx != null) state.sfx = clamp01(saved.sfx);
             if (saved.ambient != null) state.ambient = clamp01(saved.ambient);
+            if (saved.quran != null) state.quran = clamp01(saved.quran);
             if (saved.muted != null) state.muted = !!saved.muted;
             applyGains();
+            if (typeof QuranAyahs !== 'undefined' && QuranAyahs.applyVolume) {
+                QuranAyahs.applyVolume();
+            }
         } catch (_) { /* ignore */ }
     }
 
@@ -250,6 +256,9 @@ const SFX = (() => {
             state.master = clamp01(v);
             applyGains();
             persistAudio();
+            if (typeof QuranAyahs !== 'undefined' && QuranAyahs.applyVolume) {
+                QuranAyahs.applyVolume();
+            }
         },
         setSfxVolume(v) {
             state.sfx = clamp01(v);
@@ -261,19 +270,33 @@ const SFX = (() => {
             applyGains();
             persistAudio();
         },
+        setQuranVolume(v) {
+            state.quran = clamp01(v);
+            persistAudio();
+            if (typeof QuranAyahs !== 'undefined' && QuranAyahs.applyVolume) {
+                QuranAyahs.applyVolume();
+            }
+        },
         getMasterVolume() { return state.master; },
         getSfxVolume() { return state.sfx; },
         getAmbientVolume() { return state.ambient; },
+        getQuranVolume() { return state.quran; },
 
         mute(on) {
             state.muted = !!on;
             applyGains();
             persistAudio();
+            if (typeof QuranAyahs !== 'undefined' && QuranAyahs.applyVolume) {
+                QuranAyahs.applyVolume();
+            }
         },
         toggleMute() {
             state.muted = !state.muted;
             applyGains();
             persistAudio();
+            if (typeof QuranAyahs !== 'undefined' && QuranAyahs.applyVolume) {
+                QuranAyahs.applyVolume();
+            }
             return state.muted;
         },
         isMuted() { return state.muted; },

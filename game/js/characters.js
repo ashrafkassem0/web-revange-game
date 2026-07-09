@@ -18,6 +18,8 @@ const ENEMY_TEMPLATES = {
         attackCooldown: 0,
         speed: 3.2,
         xp: 5,
+        levelMin: 1,
+        levelMax: 1,
         skills: { endurance: 2 },
         drops: {
             rawMeat: { chance: 1.0, amount: 1 },
@@ -41,6 +43,8 @@ const ENEMY_TEMPLATES = {
         attackCooldown: 0,
         speed: 4.0,
         xp: 10,
+        levelMin: 2,
+        levelMax: 3,
         skills: { endurance: 5 },
         drops: {
             rawMeat: { chance: 1.0, amount: 2 },
@@ -65,6 +69,8 @@ const ENEMY_TEMPLATES = {
         attackCooldown: 0,
         speed: 3.8,
         xp: 8,
+        levelMin: 2,
+        levelMax: 2,
         skills: { stealth: 3 },
         drops: {
             teeth: { chance: 0.4, amount: 1 }
@@ -87,6 +93,8 @@ const ENEMY_TEMPLATES = {
         attackCooldown: 2000,
         speed: 2.9,
         xp: 20,
+        levelMin: 5,
+        levelMax: 10,
         skills: { bite: 8, endurance: 4 },
         drops: {
             teeth:   { chance: 0.5, amount: 2 },
@@ -112,6 +120,8 @@ const ENEMY_TEMPLATES = {
         poisonDamage: 3,
         poisonDuration: 5000,
         xp: 12,
+        levelMin: 3,
+        levelMax: 5,
         skills: { fangs: 5, stealth: 3 },
         drops: {
             teeth: { chance: 0.7, amount: 1 }
@@ -134,6 +144,8 @@ const ENEMY_TEMPLATES = {
         attackCooldown: 2000,
         speed: 2.8,
         xp: 25,
+        levelMin: 4,
+        levelMax: 6,
         skills: { tusks: 12, endurance: 8 },
         drops: {
             teeth:   { chance: 0.6, amount: 2 },
@@ -157,6 +169,8 @@ const ENEMY_TEMPLATES = {
         attackCooldown: 2000,
         speed: 2.2,
         xp: 50,
+        levelMin: 8,
+        levelMax: 12,
         skills: { claw: 20, physicalPower: 15 },
         drops: {
             rawMeat: { chance: 0.7, amount: 3 },
@@ -180,6 +194,8 @@ const ENEMY_TEMPLATES = {
         attackCooldown: 2000,
         speed: 2.4,
         xp: 40,
+        levelMin: 7,
+        levelMax: 11,
         skills: { punch: 18, physicalPower: 15 },
         drops: {}
     },
@@ -201,6 +217,8 @@ const ENEMY_TEMPLATES = {
         speed: 1.8,
         swims: true,          // يتحرك داخل الماء
         xp: 55,
+        levelMin: 9,
+        levelMax: 13,
         skills: { bite: 25, endurance: 15 },
         drops: {
             teeth: { chance: 0.6, amount: 3 }
@@ -223,6 +241,8 @@ const ENEMY_TEMPLATES = {
         attackCooldown: 0,
         speed: 4.5,
         xp: 15,
+        levelMin: 3,
+        levelMax: 4,
         skills: { claw: 10, endurance: 5 },
         drops: {}
     },
@@ -246,6 +266,8 @@ const ENEMY_TEMPLATES = {
         attackCooldown: 2000,
         speed: 3.4,
         xp: 90,
+        levelMin: 10,
+        levelMax: 14,
         nocturnal: true,
         skills: { bite: 22, endurance: 14 },
         drops: {
@@ -271,6 +293,8 @@ const ENEMY_TEMPLATES = {
         attackCooldown: 2000,
         speed: 4.2,
         xp: 100,
+        levelMin: 11,
+        levelMax: 15,
         nocturnal: true,
         skills: { claw: 26, stealth: 12 },
         drops: {
@@ -298,6 +322,8 @@ const ENEMY_TEMPLATES = {
         poisonDamage: 6,
         poisonDuration: 7000,
         xp: 85,
+        levelMin: 10,
+        levelMax: 14,
         nocturnal: true,
         skills: { fangs: 15, stealth: 8 },
         drops: {
@@ -322,6 +348,8 @@ const ENEMY_TEMPLATES = {
         attackCooldown: 2000,
         speed: 2.4,
         xp: 200,
+        levelMin: 14,
+        levelMax: 18,
         nocturnal: true,
         skills: { physicalPower: 30, claw: 35 },
         drops: {
@@ -359,6 +387,7 @@ const ITEM_NAMES = {
     revitalTonic:  'منشط منعش',
     // مصنوعات
     axe:        'فأس',
+    pickaxe:    'معول',
     fishingRod: 'سنارة',
     hornSpear:  'رمح القرن',
     hornSword:  'سيف القرن',
@@ -390,6 +419,7 @@ const ITEM_EMOJIS = {
     herbSalve:     '💊',
     revitalTonic:  '🧴',
     axe:        '🪓',
+    pickaxe:    '⛏️',
     fishingRod: '🎣',
     hornSpear:  '🗡️',
     hornSword:  '⚔️',

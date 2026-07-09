@@ -12,7 +12,7 @@ function playerAttack() {
     for (const e of enemies) {
         if (e.isDead) continue;
         if (Math.hypot(e.x - player.x, e.y - player.y) < CFG.SWORD_RANGE + e.radius) {
-            e.takeDamage(CharacterRules.playerSwordDamage(player.skills, player.absorbedAttack));
+            e.takeDamage(CharacterRules.playerSwordDamage(player.skills, player.absorbedAttack, player.level));
             hit++;
         }
     }
@@ -161,6 +161,38 @@ function chopTree(tree) {
         SFX.xp();
     } else {
         notify(`🪓 ضربة! (${tree.hp} ضربات باقية)`, '#c8a040', tree.x, tree.y - tree.r - 10);
+    }
+}
+
+// ===== MINE ROCK =====
+function mineRock(rock) {
+    if (!player.craftedItems.pickaxe) {
+        notify('⛏️ اصنع معولاً أولاً للتعدين! (3 عصي + سن)', '#e74c3c');
+        return;
+    }
+    if (!rock || rock.mined) return;
+    if (player.chopCd > 0) return;
+    player.chopCd = 580;
+    rock.hp--;
+    rock.shakeTimer = 340;
+    SFX.hit();
+
+    if (rock.hp <= 0) {
+        rock.mined = true;
+        rock.hp = 0;
+        const lo = rock.yieldMin != null ? rock.yieldMin : 2;
+        const hi = rock.yieldMax != null ? rock.yieldMax : 5;
+        const count = lo + Math.floor(Math.random() * (hi - lo + 1));
+        for (let i = 0; i < count; i++) {
+            const ox = (Math.random() - 0.5) * rock.r * 0.8;
+            const oy = (Math.random() - 0.5) * rock.r * 0.5;
+            droppedItems.push(new DroppedItem('stone', 1, rock.x + ox, rock.y + oy));
+        }
+        notify(`🪨 حصلت على ${count} حجارة!`, '#a8b0b8', rock.x, rock.y - rock.r - 10);
+        SFX.xp();
+        if (typeof saveForestProgress === 'function') saveForestProgress({ debounce: true });
+    } else {
+        notify(`⛏️ ضربة! (${rock.hp} ضربات باقية)`, '#9aa8b5', rock.x, rock.y - rock.r - 10);
     }
 }
 

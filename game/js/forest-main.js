@@ -11,6 +11,7 @@ let enemies = [];
 let arrows  = [];
 let resources = [];
 let trees = [];
+let rocks = [];
 let droppedItems = [];
 
 let gameRunning   = false;
@@ -73,6 +74,14 @@ function refreshPortalPanelCopy() {
 function updatePortalPanel() {
     const panel = document.getElementById('cityPortalPanel');
     if (!panel) return;
+    // لا تُظهر لوحة البوابة فوق نافذة المهام
+    if (typeof ForestQuests !== 'undefined' && ForestQuests.isModalOpen && ForestQuests.isModalOpen()) {
+        if (_portalPanelVisible) {
+            panel.style.display = 'none';
+            _portalPanelVisible = false;
+        }
+        return;
+    }
     const near = gameRunning && isNearCityPortal();
     if (near && !_portalPanelDismissed && !_portalPanelVisible) {
         refreshPortalPanelCopy();
@@ -346,74 +355,167 @@ let idleTime        = 0;
 let poemActive      = false;
 let poemVerses      = [];
 let poemVerseIdx    = 0;
+let _recentPoemKeys = []; // لتجنب تكرار نفس القصيدة مباشرة
 const _poemTimers   = new Set(); // جميع timers النشطة
 const POEM_IDLE_MS     = 10000;
-const POEM_VERSES_SHOW = 7;
+const POEM_VERSES_SHOW = 4;
+const POEM_POOL_SIZE   = 220; // عيّنة عشوائية من الملف الكبير
+const POEM_RECENT_MAX  = 40;
 
 // قصائد احتياطية فورية (لا تحتاج ملفاً)
 const FALLBACK_POEMS = [
-    { poem: ["أَلا لَيتَ الشَّبابَ يَعودُ يَوماً", "فَأُخبِرَهُ بِما فَعَلَ المَشيبُ"], verses: 2 },
-    { poem: ["إِذا كُنتَ في كُلِّ الأُمورِ مُعاتِباً صَديقَكَ",
+    { poem_id: 'fb1', poem: ["أَلا لَيتَ الشَّبابَ يَعودُ يَوماً", "فَأُخبِرَهُ بِما فَعَلَ المَشيبُ"], verses: 2 },
+    { poem_id: 'fb2', poem: ["إِذا كُنتَ في كُلِّ الأُمورِ مُعاتِباً صَديقَكَ",
              "لَم تَلقَ الَّذي لا تُعاتِبُه",
              "فَعِش واحِداً أَو صِل أَخاكَ فَإِنَّهُ",
              "مُقارِفُ ذَنبٍ مَرَّةً وَمُجانِبُه"], verses: 4 },
-    { poem: ["وَإِذَا كَانَتِ النُّفُوسُ كِبَاراً تَعِبَت في مُرَادِهَا الأَجسَامُ",
+    { poem_id: 'fb3', poem: ["وَإِذَا كَانَتِ النُّفُوسُ كِبَاراً تَعِبَت في مُرَادِهَا الأَجسَامُ",
              "فَاطلُب العِزَّ في لَظَى الحَربِ وَاصبِر",
              "إِنَّمَا يُدرَكُ العُلَا الصَبَّارُ"], verses: 3 },
-    { poem: ["أَخِي لَن تَنَالَ العِلمَ إِلَّا بِسِتَّةٍ",
+    { poem_id: 'fb4', poem: ["أَخِي لَن تَنَالَ العِلمَ إِلَّا بِسِتَّةٍ",
              "سَأُنبِيكَ عَن تَفصِيلِهَا بِبَيَانِ",
              "ذَكَاءٌ وَحِرصٌ وَاجتِهَادٌ وَبُلغَةٌ",
              "وَصُحبَةُ أُستَاذٍ وَطُولُ زَمَانِ"], verses: 4 },
-    { poem: ["لِكُلِّ شَيءٍ إِذَا مَا تَمَّ نُقصَانُ",
+    { poem_id: 'fb5', poem: ["لِكُلِّ شَيءٍ إِذَا مَا تَمَّ نُقصَانُ",
              "فَلَا يُغَرَّ بِطِيبِ العَيشِ إِنسَانُ",
              "هِيَ الأُمُورُ كَمَا شَاهَدتُهَا دُوَلٌ",
              "مَن سَرَّهُ زَمَنٌ سَاءَتهُ أَزمَانُ"], verses: 4 },
+    { poem_id: 'fb6', poem: ["وَمَن يَتَهَيَّب صُعودَ الجِبالِ", "يَعِش أَبَدَ الدَّهرِ بَينَ الحُفَر"], verses: 2 },
+    { poem_id: 'fb7', poem: ["إِذا غامَرتَ في شَرَفٍ مَرُومٍ", "فَلا تَقنَع بِما دونَ النُّجومِ"], verses: 2 },
+    { poem_id: 'fb8', poem: ["عَلى قَدرِ أَهلِ العَزمِ تَأتي العَزائِمُ", "وَتَأتي عَلى قَدرِ الكِرامِ المَكارِمُ"], verses: 2 },
+    { poem_id: 'fb9', poem: ["وَما نَيلُ المَطالِبِ بِالتَّمَنّي", "وَلَكِن تُؤخَذُ الدُّنيا غِلابا"], verses: 2 },
+    { poem_id: 'fb10', poem: ["إِذا المَرءُ لَم يَدنَس مِنَ اللُّؤمِ عِرضُهُ", "فَكُلُّ رِداءٍ يَرتَديهِ جَميلُ"], verses: 2 },
+    { poem_id: 'fb11', poem: ["وَكُن رَجُلاً رِجلُهُ في الثَّرى", "وَهامَةُ هِمَّتِهِ في الثُّرَيّا"], verses: 2 },
+    { poem_id: 'fb12', poem: ["لا تَحسَبِ المَجدَ تَمراً أَنتَ آكِلُهُ", "لَن تَبلُغَ المَجدَ حَتّى تَلعَقَ الصَّبرا"], verses: 2 },
+    { poem_id: 'fb13', poem: ["وَإِنّي لَأَستَغشي وَما بيَ نَعسَةٌ", "لَعَلَّ خَيالاً مِنكِ يَلقى خَياليَا"], verses: 2 },
+    { poem_id: 'fb14', poem: ["سَأَصبِرُ حَتّى يَعلَمَ الصَّبرُ أَنَّني", "صَبَرتُ عَلى شَيءٍ أَمَرَّ مِنَ الصَّبرِ"], verses: 2 },
+    { poem_id: 'fb15', poem: ["وَمَن طَلَبَ العُلا مِن غَيرِ جِدٍّ", "أَضاعَ العُمرَ في طَلَبِ المُحالِ"], verses: 2 },
+    { poem_id: 'fb16', poem: ["إِذا لَم تَكُن نَفساً عَصاميَّةً تَسمو", "فَلَستَ بِناجحٍ وَلَو مَلَكتَ الدُّنيا"], verses: 2 },
+    { poem_id: 'fb17', poem: ["وَلَلصَّمتُ خَيرٌ مِن كَلامٍ بِمَنطِقٍ", "كَسَادٍ فَلا فيهِ هُدًى لِمُتَكَلِّمِ"], verses: 2 },
+    { poem_id: 'fb18', poem: ["رُبَّ يَومٍ بَكَيتُ مِنهُ فَلَمّا", "صِرتُ في غَيرِهِ بَكَيتُ عَلَيهِ"], verses: 2 },
+    { poem_id: 'fb19', poem: ["وَما الحُبُّ إِلّا عارِفٌ بِمَواضِعِ", "الجَمالِ وَإِلّا جاهِلٌ مُتَجاهِلُ"], verses: 2 },
+    { poem_id: 'fb20', poem: ["إِذا ضاقَت بِكَ الدُّنيا فَفَكِّر في «أَلَم نَشرَح»", "فَعُسرٌ بَينَ يُسرَينِ لا يَغلِبُ"], verses: 2 },
 ];
 
-// تحميل القصائد: يقرأ أول 80 قصيدة فقط لتفادي تجميد الصفحة (الملف 20MB)
-function _parseFirstNPoems(text, n) {
-    const result = [];
-    let i = (text.indexOf('[') + 1) || 0;
-    let depth = 0, objStart = -1, inStr = false, esc = false;
-    while (i < text.length && result.length < n) {
+/** استخراج كائن JSON واحد يبدأ عند start (مطابقة أقواس مع احترام النصوص) */
+function _parseJsonObjectAt(text, start) {
+    let depth = 0, inStr = false, esc = false;
+    for (let i = start; i < text.length; i++) {
         const c = text[i];
-        if (esc)            { esc = false; i++; continue; }
-        if (c === '\\' && inStr) { esc = true;  i++; continue; }
-        if (c === '"')      { inStr = !inStr; i++; continue; }
-        if (!inStr) {
-            if (c === '{') { if (depth === 0) objStart = i; depth++; }
-            else if (c === '}') {
-                depth--;
-                if (depth === 0 && objStart !== -1) {
-                    try { result.push(JSON.parse(text.slice(objStart, i + 1))); }
-                    catch (_) {}
-                    objStart = -1;
-                }
+        if (esc) { esc = false; continue; }
+        if (c === '\\' && inStr) { esc = true; continue; }
+        if (c === '"') { inStr = !inStr; continue; }
+        if (inStr) continue;
+        if (c === '{') depth++;
+        else if (c === '}') {
+            depth--;
+            if (depth === 0) {
+                try { return JSON.parse(text.slice(start, i + 1)); }
+                catch (_) { return null; }
             }
         }
-        i++;
+    }
+    return null;
+}
+
+/** فهرسة مواضع بداية القصائد ثم سحب عيّنة عشوائية (بدل أول N فقط) */
+function _parseRandomPoems(text, n) {
+    const starts = [];
+    const re = /\{\s*"poem_id"\s*:/g;
+    let m;
+    while ((m = re.exec(text)) !== null) {
+        starts.push(m.index);
+        if (starts.length >= 12000) break;
+    }
+    if (!starts.length) return [];
+
+    const pick = Math.min(n, starts.length);
+    const chosen = new Set();
+    const result = [];
+    let guard = 0;
+    while (result.length < pick && guard < pick * 25) {
+        guard++;
+        const idx = Math.floor(Math.random() * starts.length);
+        if (chosen.has(idx)) continue;
+        chosen.add(idx);
+        const obj = _parseJsonObjectAt(text, starts[idx]);
+        if (obj && (Array.isArray(obj.poem) ? obj.poem.length : obj.poem)) result.push(obj);
     }
     return result;
 }
 
 function loadPoems() {
-    poemsData = FALLBACK_POEMS; // متاح فوراً
-    // تحميل الملف الحقيقي بعد 4 ثوانٍ لعدم التأثير على بدء اللعبة
+    poemsData = FALLBACK_POEMS.slice(); // متاح فوراً
+
+    // فتح الملف مباشرة (file://) يمنع XHR/fetch بسبب CORS — نكتفي بالاحتياطي
+    const isFileProtocol = typeof location !== 'undefined' && location.protocol === 'file:';
+    if (isFileProtocol) return;
+
+    // تحميل الملف بعد ثوانٍ قليلة؛ عيّنة عشوائية من آلاف القصائد (يتطلب http/https)
     setTimeout(() => {
         const xhr = new XMLHttpRequest();
         xhr.open('GET', '../data/arabic_poems.json', true);
-        xhr.timeout = 12000;
+        xhr.timeout = 60000;
         xhr.onload = function () {
             if (xhr.status === 200 || xhr.status === 0) {
                 try {
-                    const parsed = _parseFirstNPoems(xhr.responseText, 80);
-                    if (parsed.length) poemsData = parsed;
+                    const parsed = _parseRandomPoems(xhr.responseText, POEM_POOL_SIZE);
+                    if (parsed.length >= 20) poemsData = parsed;
+                    else if (parsed.length) poemsData = FALLBACK_POEMS.concat(parsed);
                 } catch (_) {}
             }
         };
         xhr.onerror = xhr.ontimeout = function () {}; // يبقى على الاحتياطي
         xhr.send();
-    }, 4000);
+    }, 2500);
+}
+
+function _poemKey(poem) {
+    if (poem && poem.poem_id != null) return String(poem.poem_id);
+    const first = Array.isArray(poem && poem.poem) ? poem.poem[0] : '';
+    return first ? String(first).slice(0, 48) : Math.random().toString(36);
+}
+
+function _pickRandomPoem() {
+    if (!poemsData || !poemsData.length) return null;
+    const recent = new Set(_recentPoemKeys);
+    let pick = null;
+    for (let i = 0; i < 18; i++) {
+        const cand = poemsData[Math.floor(Math.random() * poemsData.length)];
+        const key = _poemKey(cand);
+        if (!recent.has(key) || poemsData.length <= recent.size) {
+            pick = cand;
+            _recentPoemKeys.push(key);
+            if (_recentPoemKeys.length > POEM_RECENT_MAX) _recentPoemKeys.shift();
+            break;
+        }
+    }
+    if (!pick) pick = poemsData[Math.floor(Math.random() * poemsData.length)];
+    return pick;
+}
+
+/** فقاعة التمتمة تتبع اللاعب على الشاشة */
+function updatePoemOverlayPosition() {
+    if (!poemActive) return;
+    const overlay = document.getElementById('poemOverlay');
+    if (!overlay || overlay.style.display === 'none') return;
+
+    const z = (typeof ZOOM !== 'undefined') ? ZOOM : 1.5;
+    const sx = (player.x - camera.x) * z;
+    const sy = (player.y - camera.y) * z;
+    const ow = overlay.offsetWidth || 260;
+    const oh = overlay.offsetHeight || 100;
+
+    // بجانب اللاعب (يسار الشاشة نسبياً إن وُجد متسع، وإلا يمين)
+    let left = sx - ow - 18;
+    let top  = sy - oh - 10;
+    if (left < 8) left = sx + 36;
+    if (top < 8) top = sy + 28;
+
+    left = Math.max(8, Math.min(window.innerWidth - ow - 8, left));
+    top  = Math.max(8, Math.min(window.innerHeight - oh - 8, top));
+    overlay.style.left = Math.round(left) + 'px';
+    overlay.style.top  = Math.round(top) + 'px';
 }
 
 // مساعدة: setTimeout مع تتبع الـ timers لإيقافها بأمان
@@ -423,6 +525,13 @@ function _poemTimeout(fn, ms) {
     return id;
 }
 
+/** إزالة التشكيل والحركات من النص العربي لسهولة القراءة */
+function stripTashkeel(text) {
+    return String(text || '')
+        .replace(/[\u064B-\u065F\u0670\u06D6-\u06ED]/g, '')
+        .replace(/\u0640/g, ''); // تطويل ـ
+}
+
 function extractVerses(poem) {
     const all = Array.isArray(poem.poem)
         ? poem.poem.filter(v => v && v.trim())
@@ -430,16 +539,19 @@ function extractVerses(poem) {
     const count    = Math.min(POEM_VERSES_SHOW, all.length);
     const maxStart = Math.max(0, all.length - count);
     const start    = Math.floor(Math.random() * (maxStart + 1));
-    return all.slice(start, start + count);
+    return all.slice(start, start + count).map(stripTashkeel);
 }
 
 function startIdlePoem() {
     if (!poemsData || !poemsData.length || poemActive || !gameRunning) return;
+    const poem = _pickRandomPoem();
+    if (!poem) return;
+
     poemActive   = true;
     idleTime     = 0;
-    const poem   = poemsData[Math.floor(Math.random() * poemsData.length)];
     poemVerses   = extractVerses(poem);
     poemVerseIdx = 0;
+    if (!poemVerses.length) { poemActive = false; return; }
 
     const overlay = document.getElementById('poemOverlay');
     const linesEl = document.getElementById('poemLines');
@@ -447,7 +559,11 @@ function startIdlePoem() {
 
     linesEl.innerHTML = '';
     overlay.style.display = 'block';
-    requestAnimationFrame(() => overlay.classList.add('visible'));
+    updatePoemOverlayPosition();
+    requestAnimationFrame(() => {
+        updatePoemOverlayPosition();
+        overlay.classList.add('visible');
+    });
     typeNextVerse();
 }
 
@@ -526,7 +642,8 @@ function gameLoop(ts) {
 
         if (!craftMenuOpen && !backpackOpen
             && !(typeof sleepMenuOpen !== 'undefined' && sleepMenuOpen)
-            && !(typeof campfireMenuOpen !== 'undefined' && campfireMenuOpen)) {
+            && !(typeof campfireMenuOpen !== 'undefined' && campfireMenuOpen)
+            && !(typeof ForestQuests !== 'undefined' && ForestQuests.isModalOpen && ForestQuests.isModalOpen())) {
             if (!gamePaused && !buildMode) {
                 updatePlayer(dt);
                 updateEnemies(dt);
@@ -537,6 +654,8 @@ function gameLoop(ts) {
                 if (typeof updateWildlife === 'function') updateWildlife(dt);
                 if (typeof updateStructures === 'function') updateStructures(dt);
                 if (typeof updateWeather === 'function') updateWeather(dt);
+                // حدّث شريط الطاقة/الصحة كل إطار (الجري ينقص stamina)
+                if (typeof updateHUD === 'function') updateHUD();
             } else {
                 if (typeof updateDayNight === 'function') updateDayNight(0);
                 // الطقس: لا يتقدّم المؤقت أثناء الإيقاف (حارس داخلي) لكن يحدّث التلاشي/الرسم
@@ -553,6 +672,7 @@ function gameLoop(ts) {
         if (typeof updateCampfireHint === 'function') updateCampfireHint();
         updateIdlePoem(dt);
         updateCamera();
+        updatePoemOverlayPosition();
 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.save();
@@ -568,9 +688,12 @@ function gameLoop(ts) {
 
         drawAimReticle(camera.x, camera.y);
         drawCityPortal(camera.x, camera.y);
+        if (typeof drawGateGuard === 'function') drawGateGuard(camera.x, camera.y);
+        if (typeof drawHuntBoard === 'function') drawHuntBoard(camera.x, camera.y);
         drawPlayer(camera.x, camera.y);
         drawFishingLine(camera.x, camera.y);
         drawTreesFront(camera.x, camera.y);
+        if (typeof drawRocksFront === 'function') drawRocksFront(camera.x, camera.y);
         if (typeof drawStructuresFront === 'function') drawStructuresFront(camera.x, camera.y);
         if (typeof drawBuildGhost === 'function') drawBuildGhost(camera.x, camera.y);
 
@@ -671,6 +794,7 @@ function handleKeyDown(e) {
             if (gameRunning && !craftMenuOpen && !backpackOpen) startFishing();
             break;
         case 'KeyE':
+            if (typeof ForestQuests !== 'undefined' && ForestQuests.isModalOpen && ForestQuests.isModalOpen()) break;
             if (gameRunning && !craftMenuOpen && !backpackOpen && !buildMode
                 && !(typeof sleepMenuOpen !== 'undefined' && sleepMenuOpen)
                 && !(typeof campfireMenuOpen !== 'undefined' && campfireMenuOpen)) {
@@ -680,8 +804,13 @@ function handleKeyDown(e) {
                 const nearFire = (typeof findNearbyCampfire === 'function') ? findNearbyCampfire(false) : null;
                 const nearDrop = droppedItems.find(i => i.isNearPlayer());
                 const nearRes  = resources.find(r => r.isNearPlayer());
+                const nearGuard = (typeof isNearGateGuard === 'function') && isNearGateGuard();
+                const nearBoard = (typeof isNearHuntBoard === 'function') && isNearHuntBoard();
                 const nearTree = trees.find(t => !t.chopped &&
                     Math.hypot(player.x - t.x, player.y - t.y) < t.r + 32);
+                const nearRock = (typeof rocks !== 'undefined')
+                    ? rocks.find(rk => !rk.mined && Math.hypot(player.x - rk.x, player.y - rk.y) < rk.r + 34)
+                    : null;
 
                 // إصلاح المباني المتضررة أولاً
                 if (nearDamaged && typeof tryRepairStructure === 'function') {
@@ -702,13 +831,38 @@ function handleKeyDown(e) {
                 });
                 candidates.sort((a, b) => a.d - b.d);
 
-                if (candidates.length) {
+                // تفاعلات المهام (حارس / لوحة) بأولوية المسافة
+                const guardRef = (typeof FOREST_GATE_GUARD !== 'undefined')
+                    ? FOREST_GATE_GUARD
+                    : (typeof window !== 'undefined' ? window.FOREST_GATE_GUARD : null);
+                const boardRef = (typeof HUNT_BOARD !== 'undefined')
+                    ? HUNT_BOARD
+                    : (typeof window !== 'undefined' ? window.HUNT_BOARD : null);
+                const guardDist = (nearGuard && guardRef)
+                    ? Math.hypot(player.x - guardRef.x, player.y - guardRef.y)
+                    : Infinity;
+                const boardDist = (nearBoard && boardRef)
+                    ? Math.hypot(player.x - boardRef.x, player.y - boardRef.y)
+                    : Infinity;
+                const nearestOther = candidates.length ? candidates[0].d : Infinity;
+                const questDist = Math.min(guardDist, boardDist);
+
+                if (questDist <= nearestOther && (nearGuard || nearBoard)) {
+                    if (boardDist <= guardDist && nearBoard && typeof interactHuntBoard === 'function') {
+                        interactHuntBoard();
+                    } else if (nearGuard && typeof interactGateGuard === 'function') {
+                        interactGateGuard();
+                    } else if (nearBoard && typeof interactHuntBoard === 'function') {
+                        interactHuntBoard();
+                    }
+                } else if (candidates.length) {
                     const top = candidates[0];
                     if (top.kind === 'gate' && typeof toggleNearbyGate === 'function') toggleNearbyGate(top.ref);
                     else if (top.kind === 'hut') openSleepMenu();
                     else if (top.kind === 'fire' && typeof openCampfireMenu === 'function') openCampfireMenu(top.ref);
                 } else if (nearDrop) nearDrop.pickup();
                 else if (nearRes) nearRes.pickup();
+                else if (nearRock && typeof mineRock === 'function') mineRock(nearRock);
                 else if (nearTree) chopTree(nearTree);
                 else if (player.weapon === 'sword') playerAttack();
             }
@@ -720,7 +874,10 @@ function handleKeyDown(e) {
                 && player.weapon === 'sword') playerAttack();
             break;
         case 'Escape':
-            if (typeof audioPanelOpen !== 'undefined' && audioPanelOpen && typeof closeAudioPanel === 'function') closeAudioPanel();
+            if (typeof ForestQuests !== 'undefined' && ForestQuests.isModalOpen && ForestQuests.isModalOpen()) {
+                ForestQuests.closeModal();
+            }
+            else if (typeof audioPanelOpen !== 'undefined' && audioPanelOpen && typeof closeAudioPanel === 'function') closeAudioPanel();
             else if (typeof campfireMenuOpen !== 'undefined' && campfireMenuOpen) closeCampfireMenu();
             else if (typeof sleepMenuOpen !== 'undefined' && sleepMenuOpen) closeSleepMenu();
             else if (craftMenuOpen) closeCraftingMenu();
@@ -787,6 +944,7 @@ function init() {
     minimapCtx    = minimapCanvas.getContext('2d');
     ctx = canvas.getContext('2d');
     loadPoems(); // تحميل القصائد في الخلفية
+    if (typeof QuranAyahs !== 'undefined' && QuranAyahs.load) QuranAyahs.load();
 
     canvas.addEventListener('mousemove', e => {
         const r = canvas.getBoundingClientRect();
@@ -872,8 +1030,12 @@ function init() {
     player.skills    = saved.skills;
     player.absorbedAttack  = saved.absorbedAttack || 0;
     player.absorbedDefense = saved.absorbedDefense || 0;
-    player.xp        = saved.xp || 0;
-    player.level     = saved.level || (1 + Math.floor((player.xp || 0) / 100));
+    if (typeof syncHeroProgressFromSave === 'function') {
+        syncHeroProgressFromSave(player, saved.xp || 0, saved.level || 1);
+    } else {
+        player.xp = saved.xp || 0;
+        player.level = saved.level || 1;
+    }
 
     const savedInv = GameState.getInventory();
     player.inventory = (typeof GameState.normalizeInventory === 'function')
@@ -887,7 +1049,7 @@ function init() {
 
     const savedCraft = GameState.getCraftedItems();
     player.craftedItems = Object.assign(
-        { axe: false, fishingRod: false, hornSpear: false, hornSword: false, leatherArmor: false, shadowArmor: false },
+        { axe: false, pickaxe: false, fishingRod: false, hornSpear: false, hornSword: false, leatherArmor: false, shadowArmor: false },
         savedCraft
     );
 

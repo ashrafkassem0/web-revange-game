@@ -12,7 +12,8 @@ On level-up, show a **simple HTML upgrade panel** with **3 choices** that buff e
 ## Detailed Mechanics & User Stories
 
 ### Level-up trigger
-- When `player.level` increases (current formula ~`1 + floor(xp/100)` or whatever forest uses), pause and open the panel
+- When `player.level` increases (forest curve from TASK_040: rising thresholds, **max level 100**), pause and open the panel
+- Do **not** offer upgrades when already at level 100 / no further level-ups
 - Toast: «لقد رفعت مستواك! — اختر تحسينًا»
 - Player **must pick one** of three options (reroll not required)
 

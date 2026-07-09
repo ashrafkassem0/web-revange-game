@@ -5,9 +5,8 @@
 
 // ===== ENEMY CLASS =====
 class Enemy {
-    constructor(tmpl, x, y) {
+    constructor(tmpl, x, y, savedLevel) {
         Object.assign(this, JSON.parse(JSON.stringify(tmpl)));
-        this.maxHp = this.hp;
         this.x = x; this.y = y;
         // نقطة المنزل: يبقى معظم الوقت قرب منطقة توليده
         this.homeX = x;
@@ -32,6 +31,39 @@ class Enemy {
         this.alertY = 0;
         this.smokePuffs = [];
         this._packCalled = false;
+
+        // مستوى الوحش + تحجيم الإحصائيات
+        const lo = tmpl.levelMin != null ? tmpl.levelMin : 1;
+        const hi = tmpl.levelMax != null ? tmpl.levelMax : lo;
+        if (typeof savedLevel === 'number' && savedLevel >= lo && savedLevel <= hi) {
+            this.level = savedLevel;
+        } else {
+            this.level = lo + Math.floor(Math.random() * (hi - lo + 1));
+        }
+        this._baseHp = tmpl.hp;
+        this._baseAtk = tmpl.attackDmg || 0;
+        this._baseXp = tmpl.xp || 10;
+        this._levelMin = lo;
+        this._applyLevelStats();
+    }
+
+    _applyLevelStats() {
+        const t = Math.max(0, (this.level || 1) - (this._levelMin || 1));
+        this.maxHp = Math.round(this._baseHp * (1 + 0.08 * t));
+        this.hp = this.maxHp;
+        if (this._baseAtk > 0) {
+            this.attackDmg = Math.round(this._baseAtk * (1 + 0.06 * t));
+        }
+        this.xp = Math.round(this._baseXp * (1 + 0.12 * ((this.level || 1) - 1)));
+    }
+
+    /** لون الخطر نسبةً لمستوى اللاعب: أخضر أضعف · أزرق متكافئ · أحمر أخطر */
+    getThreatColor() {
+        const pLv = (typeof player !== 'undefined' && player.level) ? player.level : 1;
+        const eLv = this.level || 1;
+        if (eLv > pLv) return '#e74c3c';
+        if (eLv === pLv) return '#3498db';
+        return '#2ecc71';
     }
 
     _effectiveAggro() {
@@ -41,7 +73,8 @@ class Enemy {
     }
 
     _isChasing(dist) {
-        if (this.provoked && this.behavior === 'flee') return true;
+        // بعد الإصابة (سيف/قوس) يطارد من أي مسافة
+        if (this.provoked) return true;
         if (this.behavior === 'aggressive' && dist < this._effectiveAggro()) return true;
         return false;
     }
@@ -61,6 +94,12 @@ class Enemy {
             }
         }
         return { x: firePushX, y: firePushY };
+    }
+
+    /** دفع بعيداً عن بوابة المدينة (منطقة آمنة) */
+    _portalPush() {
+        if (typeof cityPortalRepelForce !== 'function') return { x: 0, y: 0 };
+        return cityPortalRepelForce(this.x, this.y, this.speed);
     }
 
     _spawnSmoke(n) {
@@ -195,37 +234,52 @@ class Enemy {
         const dy = player.y - this.y;
         const dist = Math.hypot(dx, dy);
         const fire = this._campfirePush();
+        const portal = this._portalPush();
+        const pushX = fire.x + portal.x;
+        const pushY = fire.y + portal.y;
+
+        // داخل المنطقة الآمنة: أولوية الخروج فوراً (لا مطاردة داخل البوابة)
+        if (typeof isInCityPortalSafeZone === 'function' && isInCityPortalSafeZone(this.x, this.y)) {
+            this.vx = pushX || ((this.x - CITY_PORTAL.x) || 1) * 0.02;
+            this.vy = pushY || ((this.y - CITY_PORTAL.y) || 1) * 0.02;
+            const nx = Math.max(this.radius, Math.min(CFG.WORLD_W - this.radius, this.x + this.vx));
+            const ny = Math.max(this.radius, Math.min(CFG.WORLD_H - this.radius, this.y + this.vy));
+            this.x = nx; this.y = ny;
+            return;
+        }
 
         // تنبيه: يمشي نحو نقطة الإنذار لفترة قصيرة
         if (this.alertTimer > 0 && !this._isChasing(dist) && !(this.provoked && this.behavior === 'flee')) {
             const ax = this.alertX - this.x, ay = this.alertY - this.y;
             const ad = Math.hypot(ax, ay);
             if (ad > 8) {
-                this.vx = (ax / ad) * this.speed * 0.85 + fire.x;
-                this.vy = (ay / ad) * this.speed * 0.85 + fire.y;
+                this.vx = (ax / ad) * this.speed * 0.85 + pushX;
+                this.vy = (ay / ad) * this.speed * 0.85 + pushY;
             }
         // بعد الهجوم: تراجع بطيء ثم اندفاع سريع للهجوم مجدداً
         } else if (this.retreatTimer > 0 && this.behavior === 'aggressive') {
             const a = Math.atan2(-dy, -dx);
             const retreatSpd = this.speed * 0.28;
-            this.vx = Math.cos(a) * retreatSpd + fire.x;
-            this.vy = Math.sin(a) * retreatSpd + fire.y;
+            this.vx = Math.cos(a) * retreatSpd + pushX;
+            this.vy = Math.sin(a) * retreatSpd + pushY;
         } else if (this.provoked && this.behavior === 'flee') {
             this.provokedAttackTimer = Math.max(0, (this.provokedAttackTimer || 0) - dt);
             if (this.retreatTimer > 0) {
                 const a = Math.atan2(-dy, -dx);
                 const retreatSpd = this.speed * 0.28;
-                this.vx = Math.cos(a) * retreatSpd;
-                this.vy = Math.sin(a) * retreatSpd;
+                this.vx = Math.cos(a) * retreatSpd + pushX;
+                this.vy = Math.sin(a) * retreatSpd + pushY;
             } else {
                 const a = Math.atan2(dy, dx);
                 const chargeSpd = this.speed * 1.7;
-                this.vx = Math.cos(a) * chargeSpd;
-                this.vy = Math.sin(a) * chargeSpd;
+                this.vx = Math.cos(a) * chargeSpd + pushX;
+                this.vy = Math.sin(a) * chargeSpd + pushY;
                 if (dist < this.provokedAttackRange + this.radius && this.provokedAttackTimer <= 0) {
                     this.provokedAttackTimer = this.provokedAttackCd;
                     this.retreatTimer = 1000;
-                    const dmg = this.provokedAttackDmg;
+                    const dmg = (typeof CharacterRules !== 'undefined' && CharacterRules.applyDefense)
+                        ? CharacterRules.applyDefense(this.provokedAttackDmg, player)
+                        : this.provokedAttackDmg;
                     player.hp = Math.max(0, player.hp - dmg);
                     player.hurtTimer = 400;
                     SFX.playerHurt();
@@ -241,38 +295,56 @@ class Enemy {
                 : this.speed;
             if (dist < this.fleeRange) {
                 const a = Math.atan2(-dy, -dx);
-                this.vx = Math.cos(a) * fleeSpd;
-                this.vy = Math.sin(a) * fleeSpd;
-            } else { this._wander(dt); }
+                this.vx = Math.cos(a) * fleeSpd + pushX;
+                this.vy = Math.sin(a) * fleeSpd + pushY;
+            } else {
+                this._wander(dt);
+                this.vx += pushX;
+                this.vy += pushY;
+            }
         } else if (this.behavior === 'aggressive') {
             const aggro = this._effectiveAggro();
-            if (dist < aggro) {
+            // مستثار (مثلاً بسهم بعيد) أو داخل مدى العداء → مطاردة بلا حد مسافة
+            if (this.provoked || dist < aggro) {
                 const a = Math.atan2(dy, dx);
                 const chargeSpd = this.attackTimer > 0 ? this.speed * 1.7 : this.speed;
-                this.vx = Math.cos(a) * chargeSpd + fire.x;
-                this.vy = Math.sin(a) * chargeSpd + fire.y;
+                this.vx = Math.cos(a) * chargeSpd + pushX;
+                this.vy = Math.sin(a) * chargeSpd + pushY;
                 if (dist < this.attackRange + this.radius + 14 && this.attackTimer <= 0) {
                     this._attackPlayer();
                 }
                 this._packCue();
             } else {
-                // خارج المدى: عودة نحو المنزل إن ابتعد كثيراً
+                // خارج المدى وغير مستثار: عودة نحو المنزل إن ابتعد كثيراً
                 const homeDist = (this.homeX != null)
                     ? Math.hypot(this.x - this.homeX, this.y - this.homeY) : 0;
                 if (homeDist > (this.leashRadius || 400) * 0.85) {
                     const a = Math.atan2(this.homeY - this.y, this.homeX - this.x);
-                    this.vx = Math.cos(a) * this.speed * 0.55 + fire.x;
-                    this.vy = Math.sin(a) * this.speed * 0.55 + fire.y;
+                    this.vx = Math.cos(a) * this.speed * 0.55 + pushX;
+                    this.vy = Math.sin(a) * this.speed * 0.55 + pushY;
                 } else {
                     this._wander(dt);
-                    this.vx += fire.x;
-                    this.vy += fire.y;
+                    this.vx += pushX;
+                    this.vy += pushY;
                 }
             }
         }
 
-        const nx = Math.max(this.radius, Math.min(CFG.WORLD_W - this.radius, this.x + this.vx));
-        const ny = Math.max(this.radius, Math.min(CFG.WORLD_H - this.radius, this.y + this.vy));
+        let nx = Math.max(this.radius, Math.min(CFG.WORLD_W - this.radius, this.x + this.vx));
+        let ny = Math.max(this.radius, Math.min(CFG.WORLD_H - this.radius, this.y + this.vy));
+
+        // امنع الدخول إلى منطقة بوابة المدينة الآمنة
+        if (typeof isInCityPortalSafeZone === 'function' && isInCityPortalSafeZone(nx, ny)) {
+            const rep = (typeof cityPortalRepelForce === 'function')
+                ? cityPortalRepelForce(this.x, this.y, this.speed)
+                : { x: 0, y: 0 };
+            nx = Math.max(this.radius, Math.min(CFG.WORLD_W - this.radius, this.x + rep.x));
+            ny = Math.max(this.radius, Math.min(CFG.WORLD_H - this.radius, this.y + rep.y));
+            if (isInCityPortalSafeZone(nx, ny)) {
+                nx = this.x;
+                ny = this.y;
+            }
+        }
 
         if (this.swims) {
             this.x = nx;
@@ -337,7 +409,10 @@ class Enemy {
         // هجوم كل ثانيتين: يضرب ثم يتراجع للخلف ثانية ويعود
         this.attackTimer = this.attackCooldown || 2000;
         this.retreatTimer = 1000;
-        const dmg = this.attackDmg;
+        const raw = this.attackDmg;
+        const dmg = (typeof CharacterRules !== 'undefined' && CharacterRules.applyDefense)
+            ? CharacterRules.applyDefense(raw, player)
+            : raw;
         player.hp = Math.max(0, player.hp - dmg);
         player.hurtTimer = 400;
         if (this.poisonDamage && Math.random() < 0.5) {
@@ -400,18 +475,29 @@ class Enemy {
         player.skills = ab.skills;
         player.absorbedAttack  = ab.absorbedAttack;
         player.absorbedDefense = ab.absorbedDefense;
-        player.attack = CharacterRules.playerSwordDamage(player.skills, player.absorbedAttack);
-        const prevLevel = player.level || 1;
-        player.xp += this.xp || 10;
-        player.level = 1 + Math.floor((player.xp || 0) / 100);
+        if (typeof CharacterRules !== 'undefined' && CharacterRules.syncHeroCombatStats) {
+            CharacterRules.syncHeroCombatStats(player);
+        } else {
+            player.attack = CharacterRules.playerSwordDamage(player.skills, player.absorbedAttack, player.level);
+        }
+        const xpResult = (typeof grantKillXp === 'function')
+            ? grantKillXp(player, this)
+            : { leveled: false, prevLevel: player.level || 1 };
         player.killCount++;
 
         if (ab.hpGain > 0) notify(`⚡ +${ab.hpGain} مهارة`, '#f0c040', this.x, this.y + 18);
         SFX.xp();
+        if (typeof ForestQuests !== 'undefined' && ForestQuests.onEvent) {
+            ForestQuests.onEvent({
+                type: 'kill',
+                enemyId: this.id,
+                level: this.level || 1,
+                nocturnal: !!this.nocturnal
+            });
+        }
         updateHUD();
         checkCompletion();
-        if (player.level > prevLevel) {
-            notify(`⭐ ارتقيت للمستوى ${player.level}!`, '#f0c040');
+        if (xpResult.leveled) {
             if (typeof saveForestProgress === 'function') saveForestProgress({ force: true });
         } else if (player.killCount % 5 === 0) {
             saveForestProgress({ debounce: true });
@@ -481,8 +567,28 @@ class Enemy {
             ctx.fillStyle = '#ffd060';
             ctx.strokeStyle = 'rgba(0,0,0,0.85)';
             ctx.lineWidth = 3;
-            ctx.strokeText('!', sx, sy - this.radius - 16);
-            ctx.fillText('!', sx, sy - this.radius - 16);
+            ctx.strokeText('!', sx, sy - this.radius - 28);
+            ctx.fillText('!', sx, sy - this.radius - 28);
+        }
+
+        // اسم الوحش + المستوى (قريب من اللاعب ~200px) بلون الخطر
+        if (!this.isDead) {
+            const pdx = (typeof player !== 'undefined' ? player.x : this.x) - this.x;
+            const pdy = (typeof player !== 'undefined' ? player.y : this.y) - this.y;
+            if (pdx * pdx + pdy * pdy <= 200 * 200) {
+                const labelY = sy - this.radius - (this.hp < this.maxHp ? 22 : 14);
+                const label = `${this.name || this.id} · م${this.level || 1}`;
+                const threat = this.getThreatColor();
+                ctx.globalAlpha = 1;
+                ctx.font = 'bold 11px Cairo, Tajawal, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'bottom';
+                ctx.lineWidth = 3.5;
+                ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+                ctx.strokeText(label, sx, labelY);
+                ctx.fillStyle = threat;
+                ctx.fillText(label, sx, labelY);
+            }
         }
 
         if (!this.isDead && this.hp < this.maxHp) {
@@ -503,7 +609,7 @@ class Arrow {
     constructor(x, y, angle) {
         this.x = x; this.y = y;
         this.angle = angle;
-        this.dmg = CharacterRules.playerBowDamage(player.skills, player.absorbedAttack);
+        this.dmg = CharacterRules.playerBowDamage(player.skills, player.absorbedAttack, player.level);
         this.traveled = 0;
         this.dead = false;
     }

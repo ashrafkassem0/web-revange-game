@@ -9,7 +9,7 @@ const player = {
     hp: 100, maxHp: 100,
     stamina: 150,
     weapon: 'sword',
-    attack: 30, defense: 5,
+    attack: 25, defense: 5,
     skills: { sword: 1, bow: 1, swimming: 1, woodcutting: 0, fishing: 0 },
     absorbedAttack: 0, absorbedDefense: 0,
     inventory: {
@@ -18,7 +18,7 @@ const player = {
         beastHide: 0, nightCrystal: 0, venomSac: 0, shadowEssence: 0,
         herb: 0, honey: 0, herbSalve: 0, revitalTonic: 0
     },
-    craftedItems: { axe: false, fishingRod: false, hornSpear: false, hornSword: false, leatherArmor: false, shadowArmor: false },
+    craftedItems: { axe: false, pickaxe: false, fishingRod: false, hornSpear: false, hornSword: false, leatherArmor: false, shadowArmor: false },
     attackCd: 0, hurtTimer: 0, chopCd: 0, repairCd: 0,
     walkTimer: 0, isMoving: false,
     isFishing: false, fishingTimer: 0, fishingBite: false, fishingBiteTimer: 0,
@@ -47,14 +47,16 @@ function updatePlayer(dt) {
     if (dx !== 0 && dy !== 0) { dx *= 0.707; dy *= 0.707; }
 
     const wantSprint = keys.sprint && moving;
+    // dt-normalized (~60fps baseline) حتى يكون النقصان/الاستعادة متسقاً
+    const frame = Math.max(0.5, Math.min(2.5, (dt || 16.67) / 16.67));
     if (wantSprint && player.stamina > 0) {
-        player.stamina = Math.max(0, player.stamina - CFG.STAMINA_DRAIN);
+        player.stamina = Math.max(0, player.stamina - CFG.STAMINA_DRAIN * frame);
         player.isSprinting = player.stamina > 0;
     } else {
         player.isSprinting = false;
         if (!moving || !wantSprint) {
             const regen = player.nauseous ? CFG.STAMINA_REGEN * 0.35 : CFG.STAMINA_REGEN;
-            player.stamina = Math.min(CFG.STAMINA_MAX, player.stamina + regen);
+            player.stamina = Math.min(CFG.STAMINA_MAX, player.stamina + regen * frame);
         }
     }
 
@@ -96,6 +98,9 @@ function updatePlayer(dt) {
     player.chopCd    = Math.max(0, player.chopCd - dt);
     player.repairCd  = Math.max(0, (player.repairCd || 0) - dt);
     for (const t of trees) t.shakeTimer = Math.max(0, (t.shakeTimer || 0) - dt);
+    if (typeof rocks !== 'undefined') {
+        for (const r of rocks) r.shakeTimer = Math.max(0, (r.shakeTimer || 0) - dt);
+    }
 
     for (const res of resources) res.update(dt);
 }
@@ -192,6 +197,32 @@ function drawPlayer(camX, camY) {
     ctx.fillStyle = 'rgba(255,255,255,0.6)';
     ctx.beginPath(); ctx.arc(sx - 2, headY - 2, 0.8, 0, Math.PI * 2); ctx.fill();
     ctx.beginPath(); ctx.arc(sx + 4, headY - 2, 0.8, 0, Math.PI * 2); ctx.fill();
+
+    // Nose
+    ctx.fillStyle = '#a87850';
+    ctx.beginPath();
+    ctx.moveTo(sx, headY + 0.5);
+    ctx.lineTo(sx - 1.6, headY + 3.2);
+    ctx.lineTo(sx + 1.6, headY + 3.2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = 'rgba(90, 50, 20, 0.35)';
+    ctx.beginPath();
+    ctx.ellipse(sx + 0.6, headY + 2.8, 1.1, 0.7, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Mouth
+    ctx.strokeStyle = '#6a4030';
+    ctx.lineWidth = 1.15;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.arc(sx, headY + 4.2, 2.6, 0.18 * Math.PI, 0.82 * Math.PI);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(180, 70, 80, 0.45)';
+    ctx.lineWidth = 0.7;
+    ctx.beginPath();
+    ctx.arc(sx, headY + 4.6, 1.5, 0.25 * Math.PI, 0.75 * Math.PI);
+    ctx.stroke();
 
     // Weapon
     if (player.weapon === 'sword') {

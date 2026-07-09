@@ -1,0 +1,1007 @@
+// Auto-generated from game/data/quran_ayahs.json
+window.QURAN_AYAHS_DATA = {
+  "reciter": "Abu_Bakr_Ash-Shaatree_128kbps",
+  "base_url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps",
+  "ayahs": [
+    {
+      "id": "002255",
+      "file": "002255.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/002255.mp3",
+      "surah": 2,
+      "ayah": 255,
+      "surah_name": "البقرة",
+      "title": "آية الكرسي",
+      "category": "الطمأنينة والرحمة والقرآن"
+    },
+    {
+      "id": "002285",
+      "file": "002285.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/002285.mp3",
+      "surah": 2,
+      "ayah": 285,
+      "surah_name": "البقرة",
+      "title": "آمن الرسول بما أنزل إليه...",
+      "category": "الطمأنينة والرحمة والقرآن"
+    },
+    {
+      "id": "002286",
+      "file": "002286.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/002286.mp3",
+      "surah": 2,
+      "ayah": 286,
+      "surah_name": "البقرة",
+      "title": "لا يكلف الله نفساً إلا وسعها...",
+      "category": "الطمأنينة والرحمة والقرآن"
+    },
+    {
+      "id": "039053",
+      "file": "039053.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/039053.mp3",
+      "surah": 39,
+      "ayah": 53,
+      "surah_name": "الزمر",
+      "title": "قل يا عبادي الذين أسرفوا على أنفسهم لا تقنطوا من رحمة الله...",
+      "category": "الطمأنينة والرحمة والقرآن"
+    },
+    {
+      "id": "057016",
+      "file": "057016.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/057016.mp3",
+      "surah": 57,
+      "ayah": 16,
+      "surah_name": "الحديد",
+      "title": "ألم يأن للذين آمنوا أن تخشع قلوبهم لذكر الله...",
+      "category": "الطمأنينة والرحمة والقرآن"
+    },
+    {
+      "id": "033035",
+      "file": "033035.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/033035.mp3",
+      "surah": 33,
+      "ayah": 35,
+      "surah_name": "الأحزاب",
+      "title": "إن المسلمين والمسلمات... أعد الله لهم مغفرة وأجراً عظيماً",
+      "category": "الطمأنينة والرحمة والقرآن"
+    },
+    {
+      "id": "003191",
+      "file": "003191.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/003191.mp3",
+      "surah": 3,
+      "ayah": 191,
+      "surah_name": "آل عمران",
+      "title": "الذين يذكرون الله قياماً وقعوداً وعلى جنوبهم...",
+      "category": "الطمأنينة والرحمة والقرآن"
+    },
+    {
+      "id": "003193",
+      "file": "003193.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/003193.mp3",
+      "surah": 3,
+      "ayah": 193,
+      "surah_name": "آل عمران",
+      "title": "ربنا إننا سمعنا منادياً ينادي للإيمان...",
+      "category": "الطمأنينة والرحمة والقرآن"
+    },
+    {
+      "id": "007054",
+      "file": "007054.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/007054.mp3",
+      "surah": 7,
+      "ayah": 54,
+      "surah_name": "الأعراف",
+      "title": "إن ربكم الله الذي خلق السماوات والأرض في ستة أيام...",
+      "category": "الطمأنينة والرحمة والقرآن"
+    },
+    {
+      "id": "002261",
+      "file": "002261.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/002261.mp3",
+      "surah": 2,
+      "ayah": 261,
+      "surah_name": "البقرة",
+      "title": "مثل الذين ينفقون أموالهم في سبيل الله كمثل حبة...",
+      "category": "الطمأنينة والرحمة والقرآن"
+    },
+    {
+      "id": "057021",
+      "file": "057021.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/057021.mp3",
+      "surah": 57,
+      "ayah": 21,
+      "surah_name": "الحديد",
+      "title": "سابقوا إلى مغفرة من ربكم وجنة عرضها كعرض السماء والأرض...",
+      "category": "الطمأنينة والرحمة والقرآن"
+    },
+    {
+      "id": "009128",
+      "file": "009128.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/009128.mp3",
+      "surah": 9,
+      "ayah": 128,
+      "surah_name": "التوبة",
+      "title": "لقد جاءكم رسول من أنفسكم عزيز عليه ما عنتم...",
+      "category": "الطمأنينة والرحمة والقرآن"
+    },
+    {
+      "id": "002186",
+      "file": "002186.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/002186.mp3",
+      "surah": 2,
+      "ayah": 186,
+      "surah_name": "البقرة",
+      "title": "وإذا سألك عبادي عني فإني قريب...",
+      "category": "الطمأنينة والرحمة والقرآن"
+    },
+    {
+      "id": "016125",
+      "file": "016125.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/016125.mp3",
+      "surah": 16,
+      "ayah": 125,
+      "surah_name": "النحل",
+      "title": "ادع إلى سبيل ربك بالحكمة والموعظة الحسنة...",
+      "category": "الطمأنينة والرحمة والقرآن"
+    },
+    {
+      "id": "003134",
+      "file": "003134.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/003134.mp3",
+      "surah": 3,
+      "ayah": 134,
+      "surah_name": "آل عمران",
+      "title": "الذين ينفقون في السراء والضراء والكاظمين الغيظ...",
+      "category": "الطمأنينة والرحمة والقرآن"
+    },
+    {
+      "id": "003026",
+      "file": "003026.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/003026.mp3",
+      "surah": 3,
+      "ayah": 26,
+      "surah_name": "آل عمران",
+      "title": "قل اللهم مالك الملك تؤتي الملك من تشاء...",
+      "category": "النور والملك والتوحيد"
+    },
+    {
+      "id": "003027",
+      "file": "003027.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/003027.mp3",
+      "surah": 3,
+      "ayah": 27,
+      "surah_name": "آل عمران",
+      "title": "تولج الليل في النهار وتولج النهار في الليل...",
+      "category": "النور والملك والتوحيد"
+    },
+    {
+      "id": "006059",
+      "file": "006059.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/006059.mp3",
+      "surah": 6,
+      "ayah": 59,
+      "surah_name": "الأنعام",
+      "title": "وعنده مفاتح الغيب لا يعلمها إلا هو...",
+      "category": "النور والملك والتوحيد"
+    },
+    {
+      "id": "024035",
+      "file": "024035.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/024035.mp3",
+      "surah": 24,
+      "ayah": 35,
+      "surah_name": "النور",
+      "title": "الله نور السماوات والأرض...",
+      "category": "النور والملك والتوحيد"
+    },
+    {
+      "id": "027062",
+      "file": "027062.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/027062.mp3",
+      "surah": 27,
+      "ayah": 62,
+      "surah_name": "النمل",
+      "title": "أمن يجيب المضطر إذا دعاه ويكشف السوء...",
+      "category": "النور والملك والتوحيد"
+    },
+    {
+      "id": "035029",
+      "file": "035029.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/035029.mp3",
+      "surah": 35,
+      "ayah": 29,
+      "surah_name": "فاطر",
+      "title": "إن الذين يتلون كتاب الله وأقاموا الصلاة...",
+      "category": "النور والملك والتوحيد"
+    },
+    {
+      "id": "002164",
+      "file": "002164.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/002164.mp3",
+      "surah": 2,
+      "ayah": 164,
+      "surah_name": "البقرة",
+      "title": "إن في خلق السماوات والأرض واختلاف الليل والنهار... لآيات لقوم يعقلون",
+      "category": "النور والملك والتوحيد"
+    },
+    {
+      "id": "022018",
+      "file": "022018.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/022018.mp3",
+      "surah": 22,
+      "ayah": 18,
+      "surah_name": "الحج",
+      "title": "ألم تر أن الله يسجد له من في السماوات ومن في الأرض...",
+      "category": "النور والملك والتوحيد"
+    },
+    {
+      "id": "013002",
+      "file": "013002.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/013002.mp3",
+      "surah": 13,
+      "ayah": 2,
+      "surah_name": "الرعد",
+      "title": "الله الذي رفع السماوات بغير عمد ترونها...",
+      "category": "النور والملك والتوحيد"
+    },
+    {
+      "id": "057004",
+      "file": "057004.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/057004.mp3",
+      "surah": 57,
+      "ayah": 4,
+      "surah_name": "الحديد",
+      "title": "هو الذي خلق السماوات والأرض في ستة أيام ثم استوى على العرش...",
+      "category": "النور والملك والتوحيد"
+    },
+    {
+      "id": "032004",
+      "file": "032004.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/032004.mp3",
+      "surah": 32,
+      "ayah": 4,
+      "surah_name": "السجدة",
+      "title": "الله الذي خلق السماوات والأرض وما بينهما في ستة أيام...",
+      "category": "النور والملك والتوحيد"
+    },
+    {
+      "id": "030021",
+      "file": "030021.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/030021.mp3",
+      "surah": 30,
+      "ayah": 21,
+      "surah_name": "الروم",
+      "title": "ومن آياته أن خلق لكم من أنفسكم أزواجاً لتسكنوا إليها...",
+      "category": "النور والملك والتوحيد"
+    },
+    {
+      "id": "003018",
+      "file": "003018.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/003018.mp3",
+      "surah": 3,
+      "ayah": 18,
+      "surah_name": "آل عمران",
+      "title": "شهد الله أنه لا إله إلا هو والملائكة وأولو العلم...",
+      "category": "النور والملك والتوحيد"
+    },
+    {
+      "id": "067003",
+      "file": "067003.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/067003.mp3",
+      "surah": 67,
+      "ayah": 3,
+      "surah_name": "الملك",
+      "title": "الذي خلق سبع سماوات طباقاً ما ترى في خلق الرحمن من تفاوت...",
+      "category": "النور والملك والتوحيد"
+    },
+    {
+      "id": "067004",
+      "file": "067004.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/067004.mp3",
+      "surah": 67,
+      "ayah": 4,
+      "surah_name": "الملك",
+      "title": "ثم ارجع البصر كرتين ينقلب إليك البصر خاسئاً وهو حسير",
+      "category": "النور والملك والتوحيد"
+    },
+    {
+      "id": "012021",
+      "file": "012021.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/012021.mp3",
+      "surah": 12,
+      "ayah": 21,
+      "surah_name": "يوسف",
+      "title": "وقال الذي اشتراه من مصر لامراته أكرمي مثواه...",
+      "category": "قصص الأنبياء"
+    },
+    {
+      "id": "012084",
+      "file": "012084.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/012084.mp3",
+      "surah": 12,
+      "ayah": 84,
+      "surah_name": "يوسف",
+      "title": "وتولى عنهم وقال يا أسفى على يوسف وابيضت عيناه من الحزن...",
+      "category": "قصص الأنبياء"
+    },
+    {
+      "id": "012085",
+      "file": "012085.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/012085.mp3",
+      "surah": 12,
+      "ayah": 85,
+      "surah_name": "يوسف",
+      "title": "قالوا تالله تفتأ تذكر يوسف...",
+      "category": "قصص الأنبياء"
+    },
+    {
+      "id": "012086",
+      "file": "012086.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/012086.mp3",
+      "surah": 12,
+      "ayah": 86,
+      "surah_name": "يوسف",
+      "title": "قال إنما أشكو بثي وحزني إلى الله...",
+      "category": "قصص الأنبياء"
+    },
+    {
+      "id": "019004",
+      "file": "019004.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/019004.mp3",
+      "surah": 19,
+      "ayah": 4,
+      "surah_name": "مريم",
+      "title": "قال رب إني وهن العظم مني واشتعل الرأس شيباً...",
+      "category": "قصص الأنبياء"
+    },
+    {
+      "id": "019017",
+      "file": "019017.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/019017.mp3",
+      "surah": 19,
+      "ayah": 17,
+      "surah_name": "مريم",
+      "title": "فاتخذت من دونهم حجاباً فأرسلنا إليها روحنا...",
+      "category": "قصص الأنبياء"
+    },
+    {
+      "id": "021087",
+      "file": "021087.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/021087.mp3",
+      "surah": 21,
+      "ayah": 87,
+      "surah_name": "الأنبياء",
+      "title": "وذا النون إذ ذهب مغاضباً... فنادى في الظلمات أن لا إله إلا أنت سبحانك...",
+      "category": "قصص الأنبياء"
+    },
+    {
+      "id": "028024",
+      "file": "028024.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/028024.mp3",
+      "surah": 28,
+      "ayah": 24,
+      "surah_name": "القصص",
+      "title": "فسقى لهما ثم تولى إلى الظل فقال رب إني لما أنزلت إلي من خير فقير",
+      "category": "قصص الأنبياء"
+    },
+    {
+      "id": "012100",
+      "file": "012100.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/012100.mp3",
+      "surah": 12,
+      "ayah": 100,
+      "surah_name": "يوسف",
+      "title": "ورفع أبويه على العرش وخروا له سجداً وقال يا أبت هذا تأويل رؤياي...",
+      "category": "قصص الأنبياء"
+    },
+    {
+      "id": "012031",
+      "file": "012031.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/012031.mp3",
+      "surah": 12,
+      "ayah": 31,
+      "surah_name": "يوسف",
+      "title": "فلما سمعت بمكرهن أرسلت إليهن... وقلن حاش لله ما هذا بشراً...",
+      "category": "قصص الأنبياء"
+    },
+    {
+      "id": "012080",
+      "file": "012080.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/012080.mp3",
+      "surah": 12,
+      "ayah": 80,
+      "surah_name": "يوسف",
+      "title": "فلما استيأسوا منه خلصوا نجياً قال كبيرهم...",
+      "category": "قصص الأنبياء"
+    },
+    {
+      "id": "028015",
+      "file": "028015.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/028015.mp3",
+      "surah": 28,
+      "ayah": 15,
+      "surah_name": "القصص",
+      "title": "ودخل المدينة على حين غفلة من أهلها فوجد فيها رجلين يقتتلان...",
+      "category": "قصص الأنبياء"
+    },
+    {
+      "id": "012043",
+      "file": "012043.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/012043.mp3",
+      "surah": 12,
+      "ayah": 43,
+      "surah_name": "يوسف",
+      "title": "وقال الملك إني أرى سبع بقرات سمان يأكلهن سبع عجاف...",
+      "category": "قصص الأنبياء"
+    },
+    {
+      "id": "012090",
+      "file": "012090.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/012090.mp3",
+      "surah": 12,
+      "ayah": 90,
+      "surah_name": "يوسف",
+      "title": "قالوا أئنك لأنت يوسف قال أنا يوسف وهذا أخي...",
+      "category": "قصص الأنبياء"
+    },
+    {
+      "id": "012004",
+      "file": "012004.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/012004.mp3",
+      "surah": 12,
+      "ayah": 4,
+      "surah_name": "يوسف",
+      "title": "إذ قال يوسف لأبيه يا أبت إني رأيت أحد عشر كوكباً...",
+      "category": "قصص الأنبياء"
+    },
+    {
+      "id": "018065",
+      "file": "018065.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/018065.mp3",
+      "surah": 18,
+      "ayah": 65,
+      "surah_name": "الكهف",
+      "title": "فوجدا عبداً من عبادنا آتيناه رحمة من عندنا وعلمناه من لدنا علماً",
+      "category": "قصص الأنبياء"
+    },
+    {
+      "id": "018071",
+      "file": "018071.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/018071.mp3",
+      "surah": 18,
+      "ayah": 71,
+      "surah_name": "الكهف",
+      "title": "فانطلقا حتى إذا ركبا في السفينة خرقها قال أخرقتها لتغرق أهلها...",
+      "category": "قصص الأنبياء"
+    },
+    {
+      "id": "018010",
+      "file": "018010.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/018010.mp3",
+      "surah": 18,
+      "ayah": 10,
+      "surah_name": "الكهف",
+      "title": "إذ أوى الفتية إلى الكهف فقالوا ربنا آتنا من لدنك رحمة...",
+      "category": "قصص الأنبياء"
+    },
+    {
+      "id": "005054",
+      "file": "005054.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/005054.mp3",
+      "surah": 5,
+      "ayah": 54,
+      "surah_name": "المائدة",
+      "title": "يا أيها الذين آمنوا من يرتد منكم عن دينه فسوف يأتي الله بقوم يحبهم...",
+      "category": "قصص الأنبياء"
+    },
+    {
+      "id": "022078",
+      "file": "022078.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/022078.mp3",
+      "surah": 22,
+      "ayah": 78,
+      "surah_name": "الحج",
+      "title": "وجاهدوا في الله حق جهاده هو اجتباكم...",
+      "category": "قصص الأنبياء"
+    },
+    {
+      "id": "003185",
+      "file": "003185.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/003185.mp3",
+      "surah": 3,
+      "ayah": 185,
+      "surah_name": "آل عمران",
+      "title": "كل نفس ذائقة الموت وإنما توفون أجوركم يوم القيامة...",
+      "category": "الموعظة والآخرة واليقين"
+    },
+    {
+      "id": "006032",
+      "file": "006032.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/006032.mp3",
+      "surah": 6,
+      "ayah": 32,
+      "surah_name": "الأنعام",
+      "title": "وما الحياة الدنيا إلا لعب ولهو وللدار الآخرة خير...",
+      "category": "الموعظة والآخرة واليقين"
+    },
+    {
+      "id": "018045",
+      "file": "018045.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/018045.mp3",
+      "surah": 18,
+      "ayah": 45,
+      "surah_name": "الكهف",
+      "title": "واضرب لهم مثل الحياة الدنيا كماء أنزلناه من السماء...",
+      "category": "الموعظة والآخرة واليقين"
+    },
+    {
+      "id": "018046",
+      "file": "018046.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/018046.mp3",
+      "surah": 18,
+      "ayah": 46,
+      "surah_name": "الكهف",
+      "title": "المال والبنون زينة الحياة الدنيا والباقيات الصالحات خير عند ربك...",
+      "category": "الموعظة والآخرة واليقين"
+    },
+    {
+      "id": "018049",
+      "file": "018049.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/018049.mp3",
+      "surah": 18,
+      "ayah": 49,
+      "surah_name": "الكهف",
+      "title": "ووضع الكتاب فترى المجرمين مشفقين مما فيه...",
+      "category": "الموعظة والآخرة واليقين"
+    },
+    {
+      "id": "031034",
+      "file": "031034.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/031034.mp3",
+      "surah": 31,
+      "ayah": 34,
+      "surah_name": "لقمان",
+      "title": "إن الله عنده علم الساعة وينزل الغيث ويعلم ما في الأرحام...",
+      "category": "الموعظة والآخرة واليقين"
+    },
+    {
+      "id": "039068",
+      "file": "039068.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/039068.mp3",
+      "surah": 39,
+      "ayah": 68,
+      "surah_name": "الزمر",
+      "title": "ونفخ في الصور فصعق من في السماوات ومن في الأرض...",
+      "category": "الموعظة والآخرة واليقين"
+    },
+    {
+      "id": "039069",
+      "file": "039069.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/039069.mp3",
+      "surah": 39,
+      "ayah": 69,
+      "surah_name": "الزمر",
+      "title": "وأشرقت الأرض بنور ربها ووضع الكتاب...",
+      "category": "الموعظة والآخرة واليقين"
+    },
+    {
+      "id": "040016",
+      "file": "040016.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/040016.mp3",
+      "surah": 40,
+      "ayah": 16,
+      "surah_name": "غافر",
+      "title": "يوم هم بارزون لا يخفى على الله منهم شيء لمن الملك اليوم لله الواحد القهار",
+      "category": "الموعظة والآخرة واليقين"
+    },
+    {
+      "id": "050021",
+      "file": "050021.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/050021.mp3",
+      "surah": 50,
+      "ayah": 21,
+      "surah_name": "ق",
+      "title": "وجاءت كل نفس معها سائق وشهيد",
+      "category": "الموعظة والآخرة واليقين"
+    },
+    {
+      "id": "050022",
+      "file": "050022.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/050022.mp3",
+      "surah": 50,
+      "ayah": 22,
+      "surah_name": "ق",
+      "title": "لقد كنت في غفلة من هذا فكشفنا عنك غطاءك فبصرك اليوم حديد",
+      "category": "الموعظة والآخرة واليقين"
+    },
+    {
+      "id": "039071",
+      "file": "039071.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/039071.mp3",
+      "surah": 39,
+      "ayah": 71,
+      "surah_name": "الزمر",
+      "title": "وسيق الذين كفروا إلى جهنم زمراً...",
+      "category": "الموعظة والآخرة واليقين"
+    },
+    {
+      "id": "057020",
+      "file": "057020.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/057020.mp3",
+      "surah": 57,
+      "ayah": 20,
+      "surah_name": "الحديد",
+      "title": "اعلموا أنما الحياة الدنيا لعب ولهو وزينة...",
+      "category": "الموعظة والآخرة واليقين"
+    },
+    {
+      "id": "007179",
+      "file": "007179.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/007179.mp3",
+      "surah": 7,
+      "ayah": 179,
+      "surah_name": "الأعراف",
+      "title": "ولقد ذرأنا لجهنم كثيراً من الجن والإنس...",
+      "category": "الموعظة والآخرة واليقين"
+    },
+    {
+      "id": "009111",
+      "file": "009111.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/009111.mp3",
+      "surah": 9,
+      "ayah": 111,
+      "surah_name": "التوبة",
+      "title": "إن الله اشترى من المؤمنين أنفسهم وأموالهم بأن لهم الجنة...",
+      "category": "الموعظة والآخرة واليقين"
+    },
+    {
+      "id": "018110",
+      "file": "018110.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/018110.mp3",
+      "surah": 18,
+      "ayah": 110,
+      "surah_name": "الكهف",
+      "title": "قل إنما أنا بشر مثلكم يوحى إلي أنما إلهكم إله واحد...",
+      "category": "الموعظة والآخرة واليقين"
+    },
+    {
+      "id": "023100",
+      "file": "023100.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/023100.mp3",
+      "surah": 23,
+      "ayah": 100,
+      "surah_name": "المؤمنون",
+      "title": "لعلي أعمل صالحاً فيما تركت كلا إنها كلمة هو قائلها...",
+      "category": "الموعظة والآخرة واليقين"
+    },
+    {
+      "id": "013011",
+      "file": "013011.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/013011.mp3",
+      "surah": 13,
+      "ayah": 11,
+      "surah_name": "الرعد",
+      "title": "إن الله لا يغير ما بقوم حتى يغيروا ما بأنفسهم...",
+      "category": "الموعظة والآخرة واليقين"
+    },
+    {
+      "id": "039009",
+      "file": "039009.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/039009.mp3",
+      "surah": 39,
+      "ayah": 9,
+      "surah_name": "الزمر",
+      "title": "أمن هو قانت آناء الليل ساجداً وقائماً يحذر الآخرة...",
+      "category": "الموعظة والآخرة واليقين"
+    },
+    {
+      "id": "049013",
+      "file": "049013.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/049013.mp3",
+      "surah": 49,
+      "ayah": 13,
+      "surah_name": "الحجرات",
+      "title": "يا أيها الناس إنا خلقناكم من ذكر وأنثى وجعلناكم شعوباً وقبائل...",
+      "category": "الموعظة والآخرة واليقين"
+    },
+    {
+      "id": "048029",
+      "file": "048029.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/048029.mp3",
+      "surah": 48,
+      "ayah": 29,
+      "surah_name": "الفتح",
+      "title": "محمد رسول الله والذين معه أشداء على الكفار رحماء بينهم...",
+      "category": "قصار السور"
+    },
+    {
+      "id": "066008",
+      "file": "066008.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/066008.mp3",
+      "surah": 66,
+      "ayah": 8,
+      "surah_name": "التحريم",
+      "title": "يا أيها الذين آمنوا توبوا إلى الله توبة نصوحاً...",
+      "category": "قصار السور"
+    },
+    {
+      "id": "006151",
+      "file": "006151.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/006151.mp3",
+      "surah": 6,
+      "ayah": 151,
+      "surah_name": "الأنعام",
+      "title": "قل تعالوا أتل ما حرم ربكم عليكم...",
+      "category": "قصار السور"
+    },
+    {
+      "id": "006152",
+      "file": "006152.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/006152.mp3",
+      "surah": 6,
+      "ayah": 152,
+      "surah_name": "الأنعام",
+      "title": "ولا تقربوا مال اليتيم إلا بالتي هي أحسن...",
+      "category": "قصار السور"
+    },
+    {
+      "id": "003135",
+      "file": "003135.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/003135.mp3",
+      "surah": 3,
+      "ayah": 135,
+      "surah_name": "آل عمران",
+      "title": "والذين إذا فعلوا فاحشة أو ظلموا أنفسهم ذكروا الله...",
+      "category": "قصار السور"
+    },
+    {
+      "id": "025070",
+      "file": "025070.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/025070.mp3",
+      "surah": 25,
+      "ayah": 70,
+      "surah_name": "الفرقان",
+      "title": "إلا من تاب وآمن وعمل عملاً صالحاً فأولئك يبدل الله سيئاتهم حسنات...",
+      "category": "قصار السور"
+    },
+    {
+      "id": "016097",
+      "file": "016097.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/016097.mp3",
+      "surah": 16,
+      "ayah": 97,
+      "surah_name": "النحل",
+      "title": "من عمل صالحاً من ذكر أو أنثى وهو مؤمن فلنحيينه حياة طيبة...",
+      "category": "قصار السور"
+    },
+    {
+      "id": "047019",
+      "file": "047019.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/047019.mp3",
+      "surah": 47,
+      "ayah": 19,
+      "surah_name": "محمد",
+      "title": "فاعلم أنه لا إله إلا الله واستغفر لذنبك وللمؤمنين والمؤمنات...",
+      "category": "قصار السور"
+    },
+    {
+      "id": "065003",
+      "file": "065003.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/065003.mp3",
+      "surah": 65,
+      "ayah": 3,
+      "surah_name": "الطلاق",
+      "title": "ويرزقه من حيث لا يحتسب ومن يتوكل على الله فهو حسبه...",
+      "category": "قصار السور"
+    },
+    {
+      "id": "029002",
+      "file": "029002.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/029002.mp3",
+      "surah": 29,
+      "ayah": 2,
+      "surah_name": "العنكبوت",
+      "title": "أحسب الناس أن يتركوا أن يقولوا آمنا وهم لا يفتنون",
+      "category": "قصار السور"
+    },
+    {
+      "id": "078038",
+      "file": "078038.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/078038.mp3",
+      "surah": 78,
+      "ayah": 38,
+      "surah_name": "النبأ",
+      "title": "يوم يقوم الروح والملائكة صفاً لا يتكلمون إلا من أذن له الرحمن...",
+      "category": "قصار السور"
+    },
+    {
+      "id": "011114",
+      "file": "011114.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/011114.mp3",
+      "surah": 11,
+      "ayah": 114,
+      "surah_name": "هود",
+      "title": "وأقم الصلاة طرفي النهار وزلفاً من الليل...",
+      "category": "قصار السور"
+    },
+    {
+      "id": "014034",
+      "file": "014034.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/014034.mp3",
+      "surah": 14,
+      "ayah": 34,
+      "surah_name": "إبراهيم",
+      "title": "وآتاكم من كل ما سألتموه وإن تعدوا نعمة الله لا تحصوها...",
+      "category": "قصار السور"
+    },
+    {
+      "id": "033056",
+      "file": "033056.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/033056.mp3",
+      "surah": 33,
+      "ayah": 56,
+      "surah_name": "الأحزاب",
+      "title": "إن الله وملائكته يصلون على النبي...",
+      "category": "قصار السور"
+    },
+    {
+      "id": "004031",
+      "file": "004031.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/004031.mp3",
+      "surah": 4,
+      "ayah": 31,
+      "surah_name": "النساء",
+      "title": "إن تجتنبوا كبائر ما تنهون عنه نكفر عنكم سيئاتكم...",
+      "category": "قصار السور"
+    },
+    {
+      "id": "061011",
+      "file": "061011.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/061011.mp3",
+      "surah": 61,
+      "ayah": 11,
+      "surah_name": "الصف",
+      "title": "تؤمنون بالله ورسوله وتجاهدون في سبيل الله بأموالكم وأنفسكم...",
+      "category": "قصار السور"
+    },
+    {
+      "id": "003008",
+      "file": "003008.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/003008.mp3",
+      "surah": 3,
+      "ayah": 8,
+      "surah_name": "آل عمران",
+      "title": "ربنا لا تزغ قلوبنا بعد إذ هديتنا وهب لنا من لدنك رحمة...",
+      "category": "قصار السور"
+    },
+    {
+      "id": "021035",
+      "file": "021035.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/021035.mp3",
+      "surah": 21,
+      "ayah": 35,
+      "surah_name": "الأنبياء",
+      "title": "كل نفس ذائقة الموت ونبلوكم بالشر والخير فتنة وإلينا ترجعون",
+      "category": "قصار السور"
+    },
+    {
+      "id": "035015",
+      "file": "035015.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/035015.mp3",
+      "surah": 35,
+      "ayah": 15,
+      "surah_name": "فاطر",
+      "title": "يا أيها الناس أنتم الفقراء إلى الله والله هو الغني الحميد",
+      "category": "قصار السور"
+    },
+    {
+      "id": "002201",
+      "file": "002201.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/002201.mp3",
+      "surah": 2,
+      "ayah": 201,
+      "surah_name": "البقرة",
+      "title": "ومنهم من يقول ربنا آتنا في الدنيا حسنة وفي الآخرة حسنة...",
+      "category": "قصار السور"
+    },
+    {
+      "id": "029069",
+      "file": "029069.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/029069.mp3",
+      "surah": 29,
+      "ayah": 69,
+      "surah_name": "العنكبوت",
+      "title": "والذين جاهدوا فينا لنهدينهم سبلنا وإن الله لمع المحسنين",
+      "category": "قصار السور"
+    },
+    {
+      "id": "064011",
+      "file": "064011.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/064011.mp3",
+      "surah": 64,
+      "ayah": 11,
+      "surah_name": "التغابن",
+      "title": "ما أصاب من مصيبة إلا بإذن الله ومن يؤمن بالله يهد قلبه...",
+      "category": "قصار السور"
+    },
+    {
+      "id": "078040",
+      "file": "078040.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/078040.mp3",
+      "surah": 78,
+      "ayah": 40,
+      "surah_name": "النبأ",
+      "title": "آية مختارة",
+      "category": "قصار السور"
+    },
+    {
+      "id": "002083",
+      "file": "002083.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/002083.mp3",
+      "surah": 2,
+      "ayah": 83,
+      "surah_name": "البقرة",
+      "title": "وإذ أخذنا ميثاق بني إسرائيل لا تعبدون إلا الله...",
+      "category": "قصار السور"
+    },
+    {
+      "id": "002177",
+      "file": "002177.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/002177.mp3",
+      "surah": 2,
+      "ayah": 177,
+      "surah_name": "البقرة",
+      "title": "ليس البر أن تولوا وجوهكم قبل المشرق والمغرب...",
+      "category": "قصار السور"
+    },
+    {
+      "id": "002215",
+      "file": "002215.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/002215.mp3",
+      "surah": 2,
+      "ayah": 215,
+      "surah_name": "البقرة",
+      "title": "يسألونك ماذا ينفقون قل ما أنفقتم من خير فللوالدين...",
+      "category": "قصار السور"
+    },
+    {
+      "id": "002254",
+      "file": "002254.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/002254.mp3",
+      "surah": 2,
+      "ayah": 254,
+      "surah_name": "البقرة",
+      "title": "يا أيها الذين آمنوا أنفقوا مما رزقناكم من قبل أن يأتي يوم...",
+      "category": "قصار السور"
+    },
+    {
+      "id": "002275",
+      "file": "002275.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/002275.mp3",
+      "surah": 2,
+      "ayah": 275,
+      "surah_name": "البقرة",
+      "title": "الذين يأكلون الربا لا يقومون إلا كما يقوم الذي يتخبطه الشيطان...",
+      "category": "قصار السور"
+    },
+    {
+      "id": "003092",
+      "file": "003092.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/003092.mp3",
+      "surah": 3,
+      "ayah": 92,
+      "surah_name": "آل عمران",
+      "title": "لن تنالوا البر حتى تنفقوا مما تحبون...",
+      "category": "قصار السور"
+    },
+    {
+      "id": "003103",
+      "file": "003103.mp3",
+      "url": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/003103.mp3",
+      "surah": 3,
+      "ayah": 103,
+      "surah_name": "آل عمران",
+      "title": "واعتصموا بحبل الله جميعاً ولا تفرقوا...",
+      "category": "قصار السور"
+    }
+  ]
+};

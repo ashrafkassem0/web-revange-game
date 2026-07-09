@@ -12,6 +12,7 @@ function serializeEnemies() {
             x: Math.round(e.x),
             y: Math.round(e.y),
             hp: e.hp,
+            level: e.level || 1,
             homeX: e.homeX != null ? Math.round(e.homeX) : Math.round(e.x),
             homeY: e.homeY != null ? Math.round(e.homeY) : Math.round(e.y),
             leashRadius: e.leashRadius || 400,
@@ -26,10 +27,21 @@ function restoreEnemies(arr) {
     for (const s of arr) {
         const tmpl = ENEMY_TEMPLATES[s.id];
         if (!tmpl) continue;
-        const e = new Enemy(tmpl, s.x, s.y);
+        const e = new Enemy(tmpl, s.x, s.y, s.level);
         if (typeof s.hp === 'number') e.hp = Math.min(e.maxHp, s.hp);
         e.homeX = s.homeX != null ? s.homeX : s.x;
         e.homeY = s.homeY != null ? s.homeY : s.y;
+        // أخرج الوحوش المحفوظة داخل منطقة البوابة الآمنة
+        if (typeof isInCityPortalSafeZone === 'function' && isInCityPortalSafeZone(e.x, e.y)) {
+            const ang = Math.atan2(e.y - CITY_PORTAL.y, e.x - CITY_PORTAL.x) || Math.PI;
+            const outR = (CITY_PORTAL.safeRadius || 220) + e.radius + 24;
+            e.x = CITY_PORTAL.x + Math.cos(ang) * outR;
+            e.y = CITY_PORTAL.y + Math.sin(ang) * outR;
+            if (typeof isInCityPortalSafeZone === 'function' && isInCityPortalSafeZone(e.homeX, e.homeY)) {
+                e.homeX = e.x;
+                e.homeY = e.y;
+            }
+        }
         e.leashRadius = s.leashRadius || 400;
         e.provoked = !!s.provoked;
         if (e.provoked && typeof e.applyProvokedStats === 'function') e.applyProvokedStats();
@@ -87,6 +99,8 @@ function saveForestProgress(opts) {
         ? resources.map((r, i) => r.collected ? i : -1).filter(i => i >= 0) : [];
     const choppedTrees = (typeof trees !== 'undefined')
         ? trees.map((t, i) => t.chopped ? i : -1).filter(i => i >= 0) : [];
+    const minedRocks = (typeof rocks !== 'undefined')
+        ? rocks.map((r, i) => r.mined ? i : -1).filter(i => i >= 0) : [];
 
     const structuresData = (typeof serializeStructures === 'function') ? serializeStructures() : undefined;
     const camp = getLastCampfirePos(opts.campfire || null);
@@ -114,6 +128,7 @@ function saveForestProgress(opts) {
         gameCompleted: !!gameCompleted,
         collectedResources: collectedRes,
         choppedTrees: choppedTrees,
+        minedRocks: minedRocks,
         clockMinutes: (typeof gameClock !== 'undefined') ? gameClock.minutes : undefined,
         dayCount: (typeof dayCount !== 'undefined') ? dayCount : undefined,
         weather: (typeof serializeWeather === 'function') ? serializeWeather() : undefined,
@@ -212,8 +227,12 @@ function resumeGame(savedState, opts) {
     player.stamina        = savedState.stamina != null ? savedState.stamina : CFG.STAMINA_MAX;
     player.killCount      = savedState.killCount || 0;
     player.distanceTraveled = savedState.distanceTraveled || 0;
-    player.xp             = savedState.xp || 0;
-    player.level          = savedState.level || (1 + Math.floor((player.xp || 0) / 100));
+    if (typeof syncHeroProgressFromSave === 'function') {
+        syncHeroProgressFromSave(player, savedState.xp || 0, savedState.level || 1);
+    } else {
+        player.xp = savedState.xp || 0;
+        player.level = savedState.level || 1;
+    }
     if (savedState.weapon) player.weapon = savedState.weapon;
     if (savedState.facing != null) player.facing = savedState.facing;
 
@@ -227,7 +246,7 @@ function resumeGame(savedState, opts) {
     }
     if (typeof GameState !== 'undefined' && GameState.getCraftedItems) {
         player.craftedItems = Object.assign(
-            { axe: false, fishingRod: false, hornSpear: false, hornSword: false, leatherArmor: false, shadowArmor: false },
+            { axe: false, pickaxe: false, fishingRod: false, hornSpear: false, hornSword: false, leatherArmor: false, shadowArmor: false },
             GameState.getCraftedItems()
         );
     } else if (savedState.craftedItems) {
@@ -237,6 +256,11 @@ function resumeGame(savedState, opts) {
         const st = GameState.getHeroStats();
         if (st.maxHp != null) player.maxHp = st.maxHp;
         if (st.hp != null) player.hp = Math.min(st.hp, player.maxHp);
+        if (st.xp != null || st.level != null) {
+            if (typeof syncHeroProgressFromSave === 'function') {
+                syncHeroProgressFromSave(player, st.xp != null ? st.xp : player.xp, st.level != null ? st.level : player.level);
+            }
+        }
     }
     if (savedState.skills) player.skills = Object.assign({}, player.skills, savedState.skills);
     if (savedState.absorbedAttack != null) player.absorbedAttack = savedState.absorbedAttack;
@@ -263,6 +287,11 @@ function resumeGame(savedState, opts) {
     if (savedState.choppedTrees) {
         for (const idx of savedState.choppedTrees) {
             if (trees[idx]) { trees[idx].chopped = true; trees[idx].hp = 0; }
+        }
+    }
+    if (savedState.minedRocks && typeof rocks !== 'undefined') {
+        for (const idx of savedState.minedRocks) {
+            if (rocks[idx]) { rocks[idx].mined = true; rocks[idx].hp = 0; }
         }
     }
 
@@ -292,6 +321,12 @@ function resumeGame(savedState, opts) {
     gameRunning = true;
     lastTime = performance.now();
     updateHUD();
+    if (typeof ForestQuests !== 'undefined') {
+        if (ForestQuests._hydrateRadiantDef) ForestQuests._hydrateRadiantDef();
+        if (ForestQuests.ensureRadiantOffer) ForestQuests.ensureRadiantOffer();
+        if (ForestQuests.ensureObjectiveSpawns) ForestQuests.ensureObjectiveSpawns();
+        if (ForestQuests.refreshHud) ForestQuests.refreshHud();
+    }
     if (typeof focusGameCanvas === 'function') focusGameCanvas();
     gameLoop(lastTime);
 }

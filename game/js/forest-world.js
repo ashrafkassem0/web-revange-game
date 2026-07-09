@@ -102,8 +102,8 @@ const REGION_DEFS = {
         pathKey: 'organic1',
         tile: T.DARK,
         layers: [
-            { scale: 1.00, texture: 'deep' },
-            { scale: 0.72, texture: 'dark' },
+            { scale: 1.00, texture: 'deep', tile: T.DEEP },
+            { scale: 0.72, texture: 'dark', tile: T.DARK },
         ],
     },
     centerMeadows: {
@@ -271,6 +271,7 @@ function generateWorld() {
     tileMap.fill(T.GRASS);
     stampAllRegions();
     generateTrees();
+    generateRocks();
 }
 
 function seededRand(seed) {
@@ -283,32 +284,136 @@ function _hexA(hex, a) {
     return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
 }
 
+/** بلاطة العالم عند إحداثيات العالم */
+function tileAtWorld(wx, wy) {
+    return getTile(Math.floor(wx / CFG.TILE_SIZE), Math.floor(wy / CFG.TILE_SIZE));
+}
+
+/** أشجار: غابة مظلمة / غابة عميقة / أعشاب فقط — لا جبال ولا ماء ولا رمال */
+function canPlaceTreeAt(wx, wy) {
+    if (isWater(wx, wy)) return false;
+    const t = tileAtWorld(wx, wy);
+    return t === T.GRASS || t === T.DARK || t === T.DEEP;
+}
+
+/** عسل: الغابات المظلمة / العميقة فقط */
+function canPlaceHoneyAt(wx, wy) {
+    if (isWater(wx, wy)) return false;
+    const t = tileAtWorld(wx, wy);
+    return t === T.DARK || t === T.DEEP;
+}
+
+/** أعشاب: المراعي العشبية فقط */
+function canPlaceHerbAt(wx, wy) {
+    if (isWater(wx, wy)) return false;
+    return tileAtWorld(wx, wy) === T.GRASS;
+}
+
+/** عصي ساقطة: غابات + أعشاب */
+function canPlaceStickAt(wx, wy) {
+    return canPlaceTreeAt(wx, wy);
+}
+
+/** حجارة صغيرة / صخور تعدين: جبال وصخور (+ سفوح رملية خفيفة) — لا غابات ولا ماء */
+function canPlaceStoneAt(wx, wy) {
+    if (isWater(wx, wy)) return false;
+    const t = tileAtWorld(wx, wy);
+    return t === T.ROCK || t === T.SAND;
+}
+
+function canPlaceMineRockAt(wx, wy) {
+    if (isWater(wx, wy)) return false;
+    const t = tileAtWorld(wx, wy);
+    return t === T.ROCK || (t === T.SAND && pointInRegion('mountains', wx, wy, 1.05));
+}
+
+/**
+ * يضع عناصر داخل مناطق إقليمية محددة مع فلتر بلاطة.
+ * @param {string[]} regionKeys مفاتيح REGION_DEFS
+ * @param {function} tileOk (x,y) => boolean
+ */
+function _pickBiomePoint(regionKeys, tileOk, seedRef, avoidList, minDist) {
+    avoidList = avoidList || [];
+    minDist = minDist || 20;
+    for (let tries = 0; tries < 40; tries++) {
+        const key = regionKeys[Math.floor(seededRand(seedRef.n++) * regionKeys.length)];
+        const region = REGION_DEFS[key];
+        if (!region) continue;
+        const pad = 50;
+        const x = region.x + pad + seededRand(seedRef.n++) * Math.max(40, region.w - pad * 2);
+        const y = region.y + pad + seededRand(seedRef.n++) * Math.max(40, region.h - pad * 2);
+        if (!pointInRegion(key, x, y, 1)) continue;
+        if (typeof tileOk === 'function' && !tileOk(x, y)) continue;
+        let ok = true;
+        for (const o of avoidList) {
+            const or = o.r || 12;
+            if (Math.hypot((o.x || 0) - x, (o.y || 0) - y) < or + minDist) { ok = false; break; }
+        }
+        if (!ok) continue;
+        return { x, y, regionKey: key };
+    }
+    return null;
+}
+
 function generateTrees() {
-    const zones = [
-        { x1: 50,   y1: 50,   x2: 880,  y2: 1000, count: 42, rMin: 18, rMax: 38 },
-        { x1: 2300, y1: 50,   x2: 3150, y2: 1000, count: 36, rMin: 18, rMax: 36 },
-        { x1: 50,   y1: 50,   x2: 320,  y2: 3150, count: 44, rMin: 20, rMax: 40 },
-        { x1: 800,  y1: 400,  x2: 2400, y2: 2200, count: 34, rMin: 16, rMax: 30 },
-        { x1: 800,  y1: 2000, x2: 2800, y2: 3150, count: 22, rMin: 15, rMax: 26 },
+    // غابة الغرب المظلمة + مراعي الوسط (أعشاب) — لا جبال / ماء / بوابة رملية
+    const plans = [
+        { regions: ['westForest'], count: 70, rMin: 18, rMax: 40 },
+        { regions: ['centerMeadows'], count: 48, rMin: 15, rMax: 30 },
     ];
-    let seed = 0;
-    for (const z of zones) {
+    const seedRef = { n: 0 };
+    for (const plan of plans) {
         let placed = 0, tries = 0;
-        while (placed < z.count && tries < z.count * 6) {
+        while (placed < plan.count && tries < plan.count * 12) {
             tries++;
-            const x = z.x1 + seededRand(seed++) * (z.x2 - z.x1);
-            const y = z.y1 + seededRand(seed++) * (z.y2 - z.y1);
-            const r = z.rMin + seededRand(seed++) * (z.rMax - z.rMin);
-            if (isWater(x, y)) continue;
+            const pt = _pickBiomePoint(plan.regions, canPlaceTreeAt, seedRef, trees, 14);
+            if (!pt) continue;
+            const r = plan.rMin + seededRand(seedRef.n++) * (plan.rMax - plan.rMin);
             let ok = true;
             for (const t of trees) {
-                if (Math.hypot(t.x - x, t.y - y) < t.r + r + 8) { ok = false; break; }
+                if (Math.hypot(t.x - pt.x, t.y - pt.y) < t.r + r + 8) { ok = false; break; }
             }
-            if (ok) {
-                const maxHp = 3;
-                trees.push({ x, y, r, hp: maxHp, maxHp, chopped: false, shakeTimer: 0 });
-                placed++;
+            if (!ok) continue;
+            const maxHp = 3;
+            trees.push({ x: pt.x, y: pt.y, r, hp: maxHp, maxHp, chopped: false, shakeTimer: 0 });
+            placed++;
+        }
+    }
+}
+
+/** صخور كبيرة قابلة للتعدين — الجبال والصخور فقط */
+function generateRocks() {
+    if (typeof rocks === 'undefined') return;
+    rocks.length = 0;
+    const plans = [
+        { regions: ['mountains'], count: 18, rMin: 22, rMax: 38 },
+        { regions: ['northSand'], count: 4, rMin: 20, rMax: 30 }, // سفوح رملية قرب الجبال فقط عبر canPlaceMineRockAt
+    ];
+    const seedRef = { n: 9000 };
+    for (const plan of plans) {
+        let placed = 0, tries = 0;
+        while (placed < plan.count && tries < plan.count * 14) {
+            tries++;
+            const pt = _pickBiomePoint(plan.regions, canPlaceMineRockAt, seedRef, rocks.concat(trees), 20);
+            if (!pt) continue;
+            const r = plan.rMin + seededRand(seedRef.n++) * (plan.rMax - plan.rMin);
+            let ok = true;
+            for (const rk of rocks) {
+                if (Math.hypot(rk.x - pt.x, rk.y - pt.y) < rk.r + r + 18) { ok = false; break; }
             }
+            if (!ok) continue;
+            for (const t of trees) {
+                if (Math.hypot(t.x - pt.x, t.y - pt.y) < t.r + r + 12) { ok = false; break; }
+            }
+            if (!ok) continue;
+            const maxHp = 3 + Math.floor(seededRand(seedRef.n++) * 2);
+            rocks.push({
+                x: pt.x, y: pt.y, r,
+                hp: maxHp, maxHp,
+                mined: false, shakeTimer: 0,
+                yieldMin: 2, yieldMax: 5
+            });
+            placed++;
         }
     }
 }
@@ -384,17 +489,57 @@ function _tileOkForPrefer(tile, prefer, tries) {
     return tile !== T.WATER;
 }
 
+/** منطقة مفضّلة لتوليد أهداف مهام القتل */
+const QUEST_SPAWN_REGIONS = {
+    wildRabbit: 'centerMeadows',
+    fox: 'centerMeadows',
+    wolf: 'mountains',
+    deer: 'centerMeadows',
+    wildBoar: 'centerMeadows',
+    bear: 'mountains',
+    snake: 'westForest',
+    direWolf: 'westForest',
+    nightPanther: 'westForest',
+    giantSpider: 'westForest'
+};
+
 /** يختار نقطة توليد داخل Animal Zone الإقليمية (شكل متموج) */
 function pickHabitatSpawn(type, opts) {
     opts = opts || {};
     const hab = ANIMAL_HABITATS[type];
-    const zones = hab && hab.zones && hab.zones.length
-        ? hab.zones
+    let zones = hab && hab.zones && hab.zones.length
+        ? hab.zones.slice()
         : [[220, 220, CFG.WORLD_W - 220, CFG.WORLD_H - 220]];
-    const regionKeys = (hab && hab.regionKeys) || [];
+    let regionKeys = (hab && hab.regionKeys) ? hab.regionKeys.slice() : [];
     const prefer = hab ? hab.prefer : undefined;
     const minDist = opts.minDistFromPlayer || 0;
     const radius = opts.radius || 16;
+    const preferRegion = opts.preferRegionKey || null;
+
+    // إن طُلبت منطقة معيّنة (مثل مراعي الأرانب) — ضيّق الاختيار إليها أولاً
+    if (preferRegion && regionKeys.length) {
+        const filteredZones = [];
+        const filteredKeys = [];
+        for (let i = 0; i < regionKeys.length; i++) {
+            if (regionKeys[i] === preferRegion) {
+                filteredZones.push(zones[i]);
+                filteredKeys.push(regionKeys[i]);
+            }
+        }
+        if (filteredZones.length) {
+            zones = filteredZones;
+            regionKeys = filteredKeys;
+        } else if (REGION_DEFS[preferRegion]) {
+            const region = REGION_DEFS[preferRegion];
+            zones = [[
+                region.x + 40,
+                region.y + 40,
+                region.x + region.w - 40,
+                region.y + region.h - 40
+            ]];
+            regionKeys = [preferRegion];
+        }
+    }
 
     for (let tries = 0; tries < 60; tries++) {
         const zi = Math.floor(Math.random() * zones.length);
@@ -413,22 +558,82 @@ function pickHabitatSpawn(type, opts) {
         if (minDist > 0 && typeof player !== 'undefined' &&
             Math.hypot(x - player.x, y - player.y) < minDist) continue;
         if (_isBlockedByStructure(x, y, radius)) continue;
+        if (typeof isInCityPortalSafeZone === 'function' && isInCityPortalSafeZone(x, y, radius + 20)) continue;
         return { x, y, leash: (hab && hab.leash) || 400, regionKey: regionKey || null };
     }
     return null;
 }
 
 function spawnEnemyInHabitat(type, opts) {
+    opts = opts || {};
     const tmpl = ENEMY_TEMPLATES[type];
     if (!tmpl) return null;
-    const pt = pickHabitatSpawn(type, Object.assign({ radius: tmpl.radius || 16 }, opts || {}));
+    const pt = pickHabitatSpawn(type, Object.assign({ radius: tmpl.radius || 16 }, opts));
     if (!pt) return null;
-    const e = new Enemy(tmpl, pt.x, pt.y);
+    let forceLevel = opts.forceLevel;
+    if (forceLevel == null && opts.minLevel != null) {
+        const lo = tmpl.levelMin != null ? tmpl.levelMin : 1;
+        const hi = tmpl.levelMax != null ? tmpl.levelMax : lo;
+        forceLevel = Math.max(lo, Math.min(hi, opts.minLevel));
+    }
+    const e = new Enemy(tmpl, pt.x, pt.y, forceLevel);
     e.homeX = pt.x;
     e.homeY = pt.y;
     e.leashRadius = pt.leash;
+    if (opts.questSpawn) e.questSpawn = true;
     enemies.push(e);
     return e;
+}
+
+/**
+ * يضمن وجود عدد كافٍ من نوع حيوان حيّ في موطنه (لمهام القتل).
+ * @returns {number} عدد ما تم توليده الآن
+ */
+function ensureHabitatPopulation(type, targetCount, opts) {
+    opts = opts || {};
+    if (!type || !(targetCount > 0)) return 0;
+    if (typeof enemies === 'undefined' || !enemies) return 0;
+    const tmpl = ENEMY_TEMPLATES[type];
+    if (!tmpl) return 0;
+
+    const minLevel = opts.minLevel != null ? opts.minLevel : 1;
+    const preferRegion = opts.preferRegionKey || QUEST_SPAWN_REGIONS[type] || null;
+    let alive = 0;
+    for (const e of enemies) {
+        if (e.isDead || e.id !== type) continue;
+        if ((e.level || 1) < minLevel) continue;
+        // إن حُددت منطقة مهمة — احسب فقط من بداخلها
+        if (preferRegion && typeof pointInRegion === 'function') {
+            if (!pointInRegion(preferRegion, e.x, e.y, 1)) continue;
+        }
+        alive++;
+    }
+    const need = Math.max(0, targetCount - alive);
+    if (!need) return 0;
+
+    const spawnOpts = {
+        preferRegionKey: preferRegion,
+        minDistFromPlayer: opts.minDistFromPlayer != null ? opts.minDistFromPlayer : 90,
+        minLevel: minLevel,
+        forceLevel: opts.forceLevel,
+        questSpawn: true
+    };
+
+    let spawned = 0;
+    for (let i = 0; i < need; i++) {
+        const e = spawnEnemyInHabitat(type, spawnOpts);
+        if (e) spawned++;
+    }
+    return spawned;
+}
+
+if (typeof window !== 'undefined') {
+    window.QUEST_SPAWN_REGIONS = QUEST_SPAWN_REGIONS;
+    window.pickHabitatSpawn = pickHabitatSpawn;
+    window.spawnEnemyInHabitat = spawnEnemyInHabitat;
+    window.ensureHabitatPopulation = ensureHabitatPopulation;
+    window.ANIMAL_HABITATS = ANIMAL_HABITATS;
+    window.ANIMAL_ZONES = ANIMAL_ZONES;
 }
 
 function spawnEnemies() {
@@ -439,45 +644,34 @@ function spawnEnemies() {
     }
 }
 
-// ===== SPAWN RESOURCES =====
+// ===== SPAWN RESOURCES — كل مورد في بيئته الطبيعية =====
 function spawnResources() {
-    for (let i = 0; i < 28; i++) {
-        let x, y, tries = 0;
-        do {
-            x = 300 + seededRand(i * 11) * 2600;
-            y = 300 + seededRand(i * 17) * 2600;
-            tries++;
-        } while ((isWater(x, y) || getTile(Math.floor(x / CFG.TILE_SIZE), Math.floor(y / CFG.TILE_SIZE)) === T.ROCK) && tries < 10);
-        resources.push(new ResourceNode('stick', x, y));
+    const seedRef = { n: 200 };
+
+    // عصي: غابة مظلمة + مراعي عشبية
+    for (let i = 0; i < 26; i++) {
+        const regions = i < 16 ? ['westForest'] : ['centerMeadows'];
+        const pt = _pickBiomePoint(regions, canPlaceStickAt, seedRef, resources, 28);
+        if (pt) resources.push(new ResourceNode('stick', pt.x, pt.y));
     }
-    for (let i = 0; i < 20; i++) {
-        let x, y, tries = 0;
-        do {
-            x = 400 + seededRand(i * 19 + 50) * 2800;
-            y = 400 + seededRand(i * 23 + 50) * 2400;
-            tries++;
-        } while (isWater(x, y) && tries < 10);
-        resources.push(new ResourceNode('stone', x, y));
-    }
-    // أعشاب نادرة على العشب (لا تستجيب — تُجمع مرة)
+
+    // حجارة صغيرة: جبال / صخور (+ رمال سفوح)
     for (let i = 0; i < 10; i++) {
-        let x, y, tries = 0;
-        do {
-            x = 350 + seededRand(i * 31 + 200) * 2500;
-            y = 350 + seededRand(i * 37 + 210) * 2500;
-            tries++;
-        } while ((isWater(x, y) || getTile(Math.floor(x / CFG.TILE_SIZE), Math.floor(y / CFG.TILE_SIZE)) === T.ROCK) && tries < 14);
-        resources.push(new ResourceNode('herb', x, y));
+        const regions = i < 8 ? ['mountains'] : ['northSand'];
+        const pt = _pickBiomePoint(regions, canPlaceStoneAt, seedRef, resources, 32);
+        if (pt) resources.push(new ResourceNode('stone', pt.x, pt.y));
     }
-    // خلايا عسل قليلة (3–8)
-    for (let i = 0; i < 6; i++) {
-        let x, y, tries = 0;
-        do {
-            x = 450 + seededRand(i * 41 + 300) * 2300;
-            y = 450 + seededRand(i * 43 + 310) * 2300;
-            tries++;
-        } while (isWater(x, y) && tries < 14);
-        resources.push(new ResourceNode('honey', x, y));
+
+    // أعشاب: مراعي الوسط فقط
+    for (let i = 0; i < 12; i++) {
+        const pt = _pickBiomePoint(['centerMeadows'], canPlaceHerbAt, seedRef, resources, 36);
+        if (pt) resources.push(new ResourceNode('herb', pt.x, pt.y));
+    }
+
+    // عسل: الغابة المظلمة فقط (westForest)
+    for (let i = 0; i < 7; i++) {
+        const pt = _pickBiomePoint(['westForest'], canPlaceHoneyAt, seedRef, resources, 48);
+        if (pt) resources.push(new ResourceNode('honey', pt.x, pt.y));
     }
 }
 
@@ -682,6 +876,7 @@ function drawWorld(camX, camY) {
         if (tree.y - tree.r > player.y) continue;
         drawTree(tree, camX, camY);
     }
+    if (typeof drawRocksBehind === 'function') drawRocksBehind(camX, camY);
 }
 
 function drawTreesFront(camX, camY) {
@@ -689,6 +884,143 @@ function drawTreesFront(camX, camY) {
         if (tree.y - tree.r <= player.y) continue;
         drawTree(tree, camX, camY);
     }
+}
+
+function drawRocksBehind(camX, camY) {
+    if (typeof rocks === 'undefined') return;
+    for (const rock of rocks) {
+        if (rock.y > player.y) continue;
+        drawRock(rock, camX, camY);
+    }
+}
+
+function drawRocksFront(camX, camY) {
+    if (typeof rocks === 'undefined') return;
+    for (const rock of rocks) {
+        if (rock.y <= player.y) continue;
+        drawRock(rock, camX, camY);
+    }
+}
+
+function drawRock(rock, camX, camY) {
+    const { x, y, r, mined, hp, maxHp, shakeTimer } = rock;
+    const shake = shakeTimer > 0 ? Math.sin(shakeTimer * 0.055) * 2.5 * (shakeTimer / 300) : 0;
+    const sx = x - camX + shake;
+    const sy = y - camY;
+    const VW = canvas.width / ZOOM, VH = canvas.height / ZOOM;
+    if (sx < -r - 10 || sx > VW + r + 10 || sy < -r - 10 || sy > VH + r + 10) return;
+
+    const near = !mined && Math.hypot(player.x - x, player.y - y) < r + 34;
+    ctx.save();
+
+    // ظل
+    ctx.beginPath();
+    ctx.ellipse(sx + 2, sy + r * 0.35, r * 1.05, r * 0.38, 0, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';
+    ctx.fill();
+
+    if (mined) {
+        // بقايا حصى
+        ctx.fillStyle = '#5a5848';
+        ctx.beginPath();
+        ctx.ellipse(sx, sy + 2, r * 0.55, r * 0.28, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#6e6a58';
+        for (let i = 0; i < 4; i++) {
+            const a = i * 1.7;
+            ctx.beginPath();
+            ctx.arc(sx + Math.cos(a) * r * 0.35, sy + Math.sin(a) * r * 0.18, 3 + (i % 2), 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.restore();
+        return;
+    }
+
+    // جسم الصخرة (طبقات)
+    ctx.beginPath();
+    ctx.moveTo(sx - r * 0.95, sy + r * 0.15);
+    ctx.quadraticCurveTo(sx - r * 1.05, sy - r * 0.35, sx - r * 0.45, sy - r * 0.75);
+    ctx.quadraticCurveTo(sx, sy - r * 1.05, sx + r * 0.5, sy - r * 0.7);
+    ctx.quadraticCurveTo(sx + r * 1.05, sy - r * 0.25, sx + r * 0.9, sy + r * 0.2);
+    ctx.quadraticCurveTo(sx + r * 0.2, sy + r * 0.45, sx - r * 0.95, sy + r * 0.15);
+    ctx.closePath();
+    ctx.fillStyle = '#6a6860';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // إبراز علوي
+    ctx.beginPath();
+    ctx.moveTo(sx - r * 0.4, sy - r * 0.55);
+    ctx.quadraticCurveTo(sx, sy - r * 0.85, sx + r * 0.35, sy - r * 0.5);
+    ctx.quadraticCurveTo(sx, sy - r * 0.35, sx - r * 0.4, sy - r * 0.55);
+    ctx.fillStyle = 'rgba(180,175,160,0.35)';
+    ctx.fill();
+
+    // شقوق
+    ctx.strokeStyle = 'rgba(40,38,32,0.55)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(sx - r * 0.2, sy - r * 0.4);
+    ctx.lineTo(sx + r * 0.1, sy + r * 0.05);
+    ctx.moveTo(sx + r * 0.25, sy - r * 0.2);
+    ctx.lineTo(sx + r * 0.05, sy + r * 0.25);
+    ctx.stroke();
+
+    // بقع لون
+    ctx.fillStyle = 'rgba(90, 100, 70, 0.25)';
+    ctx.beginPath();
+    ctx.ellipse(sx - r * 0.25, sy + r * 0.05, r * 0.28, r * 0.16, -0.4, 0, Math.PI * 2);
+    ctx.fill();
+
+    if (hp < maxHp) {
+        ctx.strokeStyle = '#c8b070';
+        ctx.lineWidth = 2;
+        for (let i = 0; i < maxHp - hp; i++) {
+            const nx = sx - r * 0.3 + i * (r * 0.35);
+            const ny = sy - r * 0.1;
+            ctx.beginPath();
+            ctx.moveTo(nx, ny - 4);
+            ctx.lineTo(nx + 5, ny + 4);
+            ctx.moveTo(nx + 5, ny - 4);
+            ctx.lineTo(nx, ny + 4);
+            ctx.stroke();
+        }
+    }
+
+    if (near) {
+        const hasPick = player.craftedItems && player.craftedItems.pickaxe;
+        ctx.beginPath();
+        ctx.arc(sx, sy - r * 0.15, r * 1.15, 0, Math.PI * 2);
+        ctx.strokeStyle = hasPick ? 'rgba(180,200,220,0.75)' : 'rgba(180,180,180,0.4)';
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+
+        ctx.font = 'bold 11px Cairo';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        const label = hasPick
+            ? `[E] ⛏️ عدّن (${hp}/${maxHp})`
+            : `[E] ⛏️ تحتاج معول`;
+        ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+        ctx.lineWidth = 3;
+        ctx.strokeText(label, sx, sy - r * 1.35);
+        ctx.fillStyle = hasPick ? '#c8d8e8' : '#aaa';
+        ctx.fillText(label, sx, sy - r * 1.35);
+
+        const bw = r * 2.2, bh = 6;
+        const bx = sx - bw / 2, by = sy - r * 1.15;
+        ctx.fillStyle = '#333';
+        ctx.fillRect(bx, by, bw, bh);
+        ctx.fillStyle = hp === maxHp ? '#7f8c8d' : '#b0c4de';
+        ctx.fillRect(bx, by, bw * (hp / maxHp), bh);
+        ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(bx, by, bw, bh);
+    }
+
+    ctx.restore();
 }
 
 function drawTree(tree, camX, camY) {
