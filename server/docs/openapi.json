@@ -1,0 +1,654 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Revenge API",
+    "description": "الانتقام (Revenge) — Auth, Game State, and Leaderboard API",
+    "version": "2.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3001",
+      "description": "Local development"
+    }
+  ],
+  "tags": [
+    { "name": "Health", "description": "Server health check" },
+    { "name": "Auth", "description": "Registration, login, and session" },
+    { "name": "Game Saves", "description": "Save slots and sync" },
+    { "name": "Leaderboard", "description": "Rankings and player profiles" }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "JWT token from /api/v1/auth/login or /api/v1/auth/register"
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": { "type": "string", "example": "البريد الإلكتروني غير صحيح" }
+        },
+        "required": ["error"]
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "example": 1 },
+          "username": { "type": "string", "example": "ashraf" },
+          "email": { "type": "string", "format": "email", "example": "ashraf@example.com" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "last_login_at": { "type": "string", "format": "date-time" },
+          "leaderboard_opt_out": { "type": "integer", "example": 0 }
+        }
+      },
+      "AuthResponse": {
+        "type": "object",
+        "properties": {
+          "user": { "$ref": "#/components/schemas/User" },
+          "token": { "type": "string", "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." }
+        }
+      },
+      "RegisterRequest": {
+        "type": "object",
+        "required": ["username", "email", "password"],
+        "properties": {
+          "username": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 20,
+            "example": "ashraf"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "ashraf@example.com"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 8,
+            "description": "Must contain at least one letter and one number",
+            "example": "TestPass123!"
+          }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "required": ["email", "password"],
+        "properties": {
+          "email": { "type": "string", "format": "email", "example": "ashraf@example.com" },
+          "password": { "type": "string", "example": "TestPass123!" }
+        }
+      },
+      "SaveSummary": {
+        "type": "object",
+        "properties": {
+          "slot": { "type": "integer", "example": 1 },
+          "hero_level": { "type": "integer", "example": 5 },
+          "current_map": { "type": "string", "example": "forest" },
+          "total_kills": { "type": "integer", "example": 42 },
+          "completed_game": { "type": "integer", "example": 0 },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "GameSave": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "userId": { "type": "integer" },
+          "slot": { "type": "integer", "example": 1 },
+          "heroLevel": { "type": "integer", "example": 5 },
+          "heroXp": { "type": "integer", "example": 1200 },
+          "currentMap": { "type": "string", "example": "forest" },
+          "totalKills": { "type": "integer", "example": 42 },
+          "totalDistance": { "type": "number", "example": 1500.5 },
+          "completedGame": { "type": "boolean", "example": false },
+          "heroStats": { "type": "object", "additionalProperties": true },
+          "inventory": { "type": "object", "additionalProperties": true },
+          "progress": { "type": "object", "additionalProperties": true },
+          "worldState": { "type": "object", "nullable": true, "additionalProperties": true },
+          "meta": { "type": "object", "additionalProperties": true },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "SaveGameRequest": {
+        "type": "object",
+        "properties": {
+          "timestamp": { "type": "string", "format": "date-time" },
+          "heroStats": { "type": "object", "additionalProperties": true },
+          "inventory": { "type": "object", "additionalProperties": true },
+          "progress": {
+            "type": "object",
+            "properties": {
+              "heroLevel": { "type": "integer", "example": 5 },
+              "currentMap": { "type": "string", "example": "forest" },
+              "completedGame": { "type": "boolean", "example": false }
+            }
+          },
+          "worldState": { "type": "object", "additionalProperties": true },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "totalKills": { "type": "integer", "example": 42 },
+              "totalDistance": { "type": "number", "example": 1500.5 }
+            }
+          }
+        }
+      },
+      "SyncRequest": {
+        "type": "object",
+        "required": ["saves"],
+        "properties": {
+          "saves": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["slot", "data"],
+              "properties": {
+                "slot": { "type": "integer", "example": 1 },
+                "timestamp": { "type": "string", "format": "date-time" },
+                "data": { "$ref": "#/components/schemas/SaveGameRequest" }
+              }
+            }
+          }
+        }
+      },
+      "LeaderboardEntry": {
+        "type": "object",
+        "properties": {
+          "rank": { "type": "integer", "example": 1 },
+          "username": { "type": "string", "example": "ashraf" },
+          "level": { "type": "integer", "example": 10 },
+          "totalKills": { "type": "integer", "example": 150 },
+          "totalDistance": { "type": "number", "example": 5000 },
+          "completed": { "type": "boolean", "example": true },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "SubmitScoreRequest": {
+        "type": "object",
+        "required": ["score"],
+        "properties": {
+          "score": { "type": "integer", "example": 5000 },
+          "level": { "type": "integer", "example": 10 },
+          "enemiesKilled": { "type": "integer", "example": 150 },
+          "playTime": { "type": "integer", "description": "Play time in seconds", "example": 3600 }
+        }
+      },
+      "PlayerProfile": {
+        "type": "object",
+        "properties": {
+          "username": { "type": "string", "example": "ashraf" },
+          "level": { "type": "integer", "example": 10 },
+          "totalKills": { "type": "integer", "example": 150 },
+          "totalDistance": { "type": "number", "example": 5000 },
+          "completed": { "type": "boolean", "example": false },
+          "achievements": { "type": "array", "items": { "type": "string" } },
+          "totalPlayMs": { "type": "integer", "example": 3600000 }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/api/health": {
+      "get": {
+        "tags": ["Health"],
+        "summary": "Health check",
+        "responses": {
+          "200": {
+            "description": "Server is running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "example": "ok" },
+                    "timestamp": { "type": "string", "format": "date-time" },
+                    "uptime": { "type": "number", "example": 120.5 }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/register": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Register a new user",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RegisterRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "User created",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AuthResponse" }
+              }
+            }
+          },
+          "400": { "description": "Validation error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "409": { "description": "Email or username already taken", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Login",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/LoginRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login successful",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AuthResponse" }
+              }
+            }
+          },
+          "401": { "description": "Invalid credentials", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "423": { "description": "Account locked", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/api/v1/auth/refresh": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Refresh JWT token",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "New token issued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "token": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Logout (client discards token)",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Logout acknowledged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": { "type": "string", "example": "تم تسجيل الخروج" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "tags": ["Auth"],
+        "summary": "Get current user profile",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "User profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "user": { "$ref": "#/components/schemas/User" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/api/v1/game/saves": {
+      "get": {
+        "tags": ["Game Saves"],
+        "summary": "List all save slots for current user",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Save slot summaries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "saves": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/SaveSummary" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/api/v1/game/saves/{slot}": {
+      "get": {
+        "tags": ["Game Saves"],
+        "summary": "Get a save slot",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "slot",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "minimum": 1, "maximum": 10 },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Full save data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "save": { "$ref": "#/components/schemas/GameSave" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Invalid slot", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "404": { "description": "Save not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      },
+      "post": {
+        "tags": ["Game Saves"],
+        "summary": "Save game state to a slot",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "slot",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "minimum": 1, "maximum": 10 },
+            "example": 1
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SaveGameRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Save successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "save": { "$ref": "#/components/schemas/GameSave" }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict — server has newer save",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": { "type": "string" },
+                    "save": { "$ref": "#/components/schemas/GameSave" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Invalid slot", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      },
+      "delete": {
+        "tags": ["Game Saves"],
+        "summary": "Delete a save slot",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "slot",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "minimum": 1, "maximum": 10 },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Save deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": { "type": "string", "example": "تم الحذف" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Invalid slot", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "404": { "description": "Save not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/api/v1/game/sync": {
+      "post": {
+        "tags": ["Game Saves"],
+        "summary": "Bulk sync multiple save slots",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SyncRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sync result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "saves": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "slot": { "type": "integer" },
+                          "data": { "$ref": "#/components/schemas/GameSave" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Invalid payload", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/api/v1/game/leaderboard": {
+      "get": {
+        "tags": ["Leaderboard"],
+        "summary": "Get leaderboard (public)",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": { "type": "integer", "default": 20, "maximum": 100 },
+            "example": 20
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": { "type": "integer", "default": 0 },
+            "example": 0
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Leaderboard entries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "entries": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/LeaderboardEntry" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/game/leaderboard/me": {
+      "get": {
+        "tags": ["Leaderboard"],
+        "summary": "Get current user's rank",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "User rank and entry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "rank": { "type": "integer", "nullable": true, "example": 5 },
+                    "entry": { "$ref": "#/components/schemas/LeaderboardEntry", "nullable": true }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/api/v1/game/leaderboard/submit": {
+      "post": {
+        "tags": ["Leaderboard"],
+        "summary": "Submit score to leaderboard",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SubmitScoreRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Score submitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Invalid score", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/api/v1/game/players/{id}/profile": {
+      "get": {
+        "tags": ["Leaderboard"],
+        "summary": "Get public player profile",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Player profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "profile": { "$ref": "#/components/schemas/PlayerProfile" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Invalid player id", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "404": { "description": "Player not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    }
+  }
+}
