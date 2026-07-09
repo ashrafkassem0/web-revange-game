@@ -166,6 +166,42 @@
             z-index: 10;
         }
 
+        .menu-audio {
+            position: absolute;
+            bottom: 52px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 12;
+            direction: rtl;
+            font-family: 'Cairo', sans-serif;
+            background: linear-gradient(135deg, rgba(30,42,26,0.92), rgba(42,48,32,0.92));
+            border: 1px solid #6a8040;
+            border-radius: 14px;
+            padding: 12px 18px;
+            min-width: 260px;
+            color: #e8e0c0;
+            box-shadow: 0 8px 28px rgba(0,0,0,0.4);
+        }
+        .menu-audio h3 {
+            margin: 0 0 10px;
+            font-size: 0.95rem;
+            color: #ffd060;
+            font-weight: 900;
+            text-align: center;
+        }
+        .menu-audio-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 8px;
+            font-size: 0.8rem;
+        }
+        .menu-audio-row label { color: #ccc; min-width: 70px; }
+        .menu-audio-row input[type="range"] { flex: 1; accent-color: #ffd060; cursor: pointer; }
+        .menu-audio-row input[type="checkbox"] { width: 15px; height: 15px; accent-color: #ffd060; cursor: pointer; }
+        .menu-audio-hint { text-align: center; font-size: 0.7rem; color: #777; margin-top: 4px; }
+
         .floating-particles {
             position: absolute;
             width: 100%;
@@ -211,27 +247,76 @@
             </div>
         </div>
 
+        <div class="menu-audio" id="menuAudio" dir="rtl">
+            <h3>الصوت</h3>
+            <div class="menu-audio-row">
+                <label for="menuMaster">الرئيسي</label>
+                <input type="range" id="menuMaster" min="0" max="100" value="100"
+                       oninput="menuAudioSlider('master', this.value)">
+            </div>
+            <div class="menu-audio-row">
+                <label for="menuSfx">المؤثرات</label>
+                <input type="range" id="menuSfx" min="0" max="100" value="100"
+                       oninput="menuAudioSlider('sfx', this.value)">
+            </div>
+            <div class="menu-audio-row">
+                <label for="menuAmbient">الأجواء</label>
+                <input type="range" id="menuAmbient" min="0" max="100" value="100"
+                       oninput="menuAudioSlider('ambient', this.value)">
+            </div>
+            <div class="menu-audio-row">
+                <label for="menuMute">كتم الصوت</label>
+                <input type="checkbox" id="menuMute" onchange="menuAudioMute(this.checked)">
+            </div>
+            <div class="menu-audio-hint">M لكتم الصوت</div>
+        </div>
+
         <div class="version-text">الإصدار 1.0</div>
     </div>
 
     <script src="js/shared.js"></script>
     <script src="js/sounds.js"></script>
     <script>
+        function slotSummaryText() {
+            const slots = (typeof SaveManager !== 'undefined') ? SaveManager.listSlots() : [];
+            const auto = slots.find(s => s.slot === 'auto' && !s.empty) ||
+                slots.find(s => !s.empty);
+            if (!auto) return '';
+            const map = (typeof mapLabelAr === 'function') ? mapLabelAr(auto.currentMap) : (auto.currentMap || '');
+            const time = (typeof formatPlayTime === 'function') ? formatPlayTime(auto.playTime) : '';
+            return `المستوى ${auto.level || 1} · ${map}${time ? ' · ' + time : ''}`;
+        }
+
         function checkContinue() {
             const progress = GameState.getProgress();
             const btn = document.getElementById('continueBtn');
-            if (progress.completedIntro) {
+            const hasSave = progress.completedIntro ||
+                (typeof SaveManager !== 'undefined' && SaveManager.hasAnySave());
+            if (hasSave && progress.completedIntro) {
                 btn.className = 'menu-btn menu-btn-continue';
+                const summary = slotSummaryText();
+                btn.title = summary || 'متابعة اللعب';
+                if (summary) btn.textContent = 'متابعة اللعب — ' + summary;
+                else btn.textContent = 'متابعة اللعب';
             } else {
                 btn.className = 'menu-btn menu-btn-disabled';
                 btn.title = 'ابدأ لعبة جديدة أولاً';
+                btn.textContent = 'متابعة اللعب';
+            }
+
+            // If every slot was corrupt, offer wipe
+            if (typeof GameState.handleTotalCorruption === 'function') {
+                GameState.handleTotalCorruption();
             }
         }
 
         function isFirstLaunch() {
-            for (let i = 0; i < localStorage.length; i++) {
-                if (localStorage.key(i)?.startsWith('revenge_')) return false;
-            }
+            if (typeof SaveManager !== 'undefined' && SaveManager.hasAnySave()) return false;
+            try {
+                for (let i = 0; i < localStorage.length; i++) {
+                    if (localStorage.key(i)?.startsWith('revenge_')) return false;
+                }
+            } catch (_) {}
             return true;
         }
 
@@ -244,7 +329,11 @@
         function newGame() {
             SFX.click();
             GameState.reset();
-            navigateTo('start/index.html');
+            if (typeof navigateToScene === 'function') {
+                navigateToScene('start', { skipPrereq: true, skipSave: true });
+            } else {
+                navigateTo('start/index.html');
+            }
         }
 
         function continueGame() {
@@ -252,15 +341,27 @@
             if (!progress.completedIntro) return;
 
             SFX.click();
-            // Flag the forest to skip its intro cutscene and resume directly
+            // Prefer auto slot; mark load for save-scum detection
+            if (typeof GameState.loadFromSlot === 'function') {
+                GameState.loadFromSlot('auto');
+            }
             GameState.save('skipForestIntro', true);
-            const stage = GameState.getCurrentStage();
-            if (stage === 'forest') {
-                navigateTo('forest/index.html');
-            } else if (stage === 'intro') {
-                navigateTo('start/index.html');
+
+            const stage = (typeof GameState.getCurrentStage === 'function')
+                ? GameState.getCurrentStage()
+                : 'forest';
+
+            const sceneId = (stage === 'intro') ? 'start'
+                : (stage === 'city') ? 'city'
+                : 'forest';
+
+            if (typeof navigateToScene === 'function') {
+                navigateToScene(sceneId, { skipPrereq: true, skipSave: true });
             } else {
-                navigateTo('forest/index.html');
+                const url = (typeof SaveManager !== 'undefined' && SaveManager.mapUrlFor)
+                    ? SaveManager.mapUrlFor(stage)
+                    : (stage === 'intro' ? 'start/index.html' : 'forest/index.html');
+                navigateTo(url);
             }
         }
 
@@ -277,9 +378,45 @@
             }
         }
 
+        function syncMenuAudioUI() {
+            if (typeof SFX === 'undefined') return;
+            const master = document.getElementById('menuMaster');
+            const sfx = document.getElementById('menuSfx');
+            const ambient = document.getElementById('menuAmbient');
+            const mute = document.getElementById('menuMute');
+            if (master && SFX.getMasterVolume) master.value = Math.round(SFX.getMasterVolume() * 100);
+            if (sfx && SFX.getSfxVolume) sfx.value = Math.round(SFX.getSfxVolume() * 100);
+            if (ambient && SFX.getAmbientVolume) ambient.value = Math.round(SFX.getAmbientVolume() * 100);
+            if (mute && SFX.isMuted) mute.checked = SFX.isMuted();
+        }
+
+        function menuAudioSlider(kind, value) {
+            if (typeof SFX === 'undefined') return;
+            const v = Math.max(0, Math.min(100, Number(value) || 0)) / 100;
+            if (kind === 'master' && SFX.setMasterVolume) SFX.setMasterVolume(v);
+            else if (kind === 'sfx' && SFX.setSfxVolume) SFX.setSfxVolume(v);
+            else if (kind === 'ambient' && SFX.setAmbientVolume) SFX.setAmbientVolume(v);
+        }
+
+        function menuAudioMute(checked) {
+            if (typeof SFX !== 'undefined' && SFX.mute) SFX.mute(!!checked);
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.repeat) return;
+            const tag = e.target && e.target.tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+            if (e.code === 'KeyM' && typeof SFX !== 'undefined' && SFX.toggleMute) {
+                SFX.toggleMute();
+                syncMenuAudioUI();
+            }
+        });
+
         redirectFirstLaunch();
         checkContinue();
         createParticles();
+        if (typeof SFX !== 'undefined' && SFX.loadSettings) SFX.loadSettings();
+        syncMenuAudioUI();
     </script>
 </body>
 </html>

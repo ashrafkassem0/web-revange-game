@@ -1,74 +1,315 @@
+'use strict';
+// =========================================================
+//  SFX — Web Audio procedural sounds (extended, not rewritten)
+// =========================================================
 const SFX = (() => {
     let ctx = null;
+    let masterGain = null;
+    let sfxBus = null;
+    let ambientBus = null;
+    let audioReady = true;
+
+    const state = {
+        master: 1,
+        sfx: 1,
+        ambient: 1,
+        muted: false
+    };
+
+    let rainLoop = null;
+    let rainWanted = false; // true while weather/story wants rain (for tab resume)
+    let pageHidden = false;
+
+    const cooldownUntil = { arrow: 0, sword: 0 };
+    const COOLDOWN_MS = { arrow: 100, sword: 300 };
 
     function getCtx() {
-        if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
-        if (ctx.state === 'suspended') ctx.resume();
-        return ctx;
+        if (!audioReady) return null;
+        try {
+            if (!ctx) {
+                const AC = window.AudioContext || window.webkitAudioContext;
+                if (!AC) {
+                    audioReady = false;
+                    return null;
+                }
+                ctx = new AC();
+                masterGain = ctx.createGain();
+                sfxBus = ctx.createGain();
+                ambientBus = ctx.createGain();
+                sfxBus.connect(masterGain);
+                ambientBus.connect(masterGain);
+                masterGain.connect(ctx.destination);
+                applyGains();
+            }
+            if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+            return ctx;
+        } catch (_) {
+            audioReady = false;
+            return null;
+        }
     }
 
-    function playTone(freq, duration, type = 'sine', volume = 0.3, fadeOut = true) {
+    function clamp01(v) {
+        v = Number(v);
+        if (!isFinite(v)) return 0;
+        return Math.max(0, Math.min(1, v));
+    }
+
+    function applyGains() {
+        const m = state.muted ? 0 : state.master;
+        if (masterGain) masterGain.gain.value = m;
+        if (sfxBus) sfxBus.gain.value = state.sfx;
+        if (ambientBus) ambientBus.gain.value = state.ambient;
+        // Soft-mute rain while tab is hidden without tearing down the loop
+        if (rainLoop && rainLoop.gain) {
+            const c = ctx;
+            // Base rain level; ambientBus already applies ambient volume
+            const target = pageHidden ? 0.0001 : 0.06;
+            if (c) {
+                rainLoop.gain.gain.cancelScheduledValues(c.currentTime);
+                rainLoop.gain.gain.setTargetAtTime(target, c.currentTime, 0.05);
+            } else {
+                rainLoop.gain.gain.value = target;
+            }
+        }
+    }
+
+    function persistAudio() {
+        try {
+            if (typeof GameState !== 'undefined' && GameState.save) {
+                GameState.save('audio', {
+                    master: state.master,
+                    sfx: state.sfx,
+                    ambient: state.ambient,
+                    muted: state.muted
+                });
+            }
+        } catch (_) { /* ignore */ }
+    }
+
+    function loadPersisted() {
+        try {
+            if (typeof GameState === 'undefined' || !GameState.load) return;
+            const saved = GameState.load('audio', null);
+            if (!saved || typeof saved !== 'object') return;
+            if (saved.master != null) state.master = clamp01(saved.master);
+            if (saved.sfx != null) state.sfx = clamp01(saved.sfx);
+            if (saved.ambient != null) state.ambient = clamp01(saved.ambient);
+            if (saved.muted != null) state.muted = !!saved.muted;
+            applyGains();
+        } catch (_) { /* ignore */ }
+    }
+
+    function canPlaySfx() {
+        if (state.muted || pageHidden) return false;
+        return !!getCtx();
+    }
+
+    function playTone(freq, duration, type, volume, fadeOut) {
+        if (type === undefined) type = 'sine';
+        if (volume === undefined) volume = 0.3;
+        if (fadeOut === undefined) fadeOut = true;
+        if (!canPlaySfx()) return;
         const c = getCtx();
-        const osc = c.createOscillator();
-        const gain = c.createGain();
-        osc.type = type;
-        osc.frequency.setValueAtTime(freq, c.currentTime);
-        gain.gain.setValueAtTime(volume, c.currentTime);
-        if (fadeOut) {
+        if (!c) return;
+        try {
+            const osc = c.createOscillator();
+            const gain = c.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, c.currentTime);
+            gain.gain.setValueAtTime(volume, c.currentTime);
+            if (fadeOut) {
+                gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + duration);
+            }
+            osc.connect(gain);
+            gain.connect(sfxBus);
+            osc.start();
+            osc.stop(c.currentTime + duration);
+        } catch (_) { /* silent */ }
+    }
+
+    function noise(duration, volume) {
+        if (volume === undefined) volume = 0.1;
+        if (!canPlaySfx()) return;
+        const c = getCtx();
+        if (!c) return;
+        try {
+            const bufferSize = c.sampleRate * duration;
+            const buffer = c.createBuffer(1, bufferSize, c.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+                data[i] = Math.random() * 2 - 1;
+            }
+            const source = c.createBufferSource();
+            source.buffer = buffer;
+            const gain = c.createGain();
+            gain.gain.setValueAtTime(volume, c.currentTime);
             gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + duration);
-        }
-        osc.connect(gain);
-        gain.connect(c.destination);
-        osc.start();
-        osc.stop(c.currentTime + duration);
+
+            const filter = c.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.value = 1000;
+
+            source.connect(filter);
+            filter.connect(gain);
+            gain.connect(sfxBus);
+            source.start();
+        } catch (_) { /* silent */ }
     }
 
-    function noise(duration, volume = 0.1) {
+    function gated(kind, fn) {
+        const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+        if (now < (cooldownUntil[kind] || 0)) return;
+        cooldownUntil[kind] = now + (COOLDOWN_MS[kind] || 0);
+        fn();
+    }
+
+    function startRainInternal() {
+        if (rainLoop) {
+            applyGains();
+            return;
+        }
         const c = getCtx();
-        const bufferSize = c.sampleRate * duration;
-        const buffer = c.createBuffer(1, bufferSize, c.sampleRate);
-        const data = buffer.getChannelData(0);
-        for (let i = 0; i < bufferSize; i++) {
-            data[i] = Math.random() * 2 - 1;
-        }
-        const source = c.createBufferSource();
-        source.buffer = buffer;
-        const gain = c.createGain();
-        gain.gain.setValueAtTime(volume, c.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + duration);
+        if (!c || !ambientBus) return;
+        try {
+            const bufferSize = c.sampleRate * 2;
+            const buffer = c.createBuffer(1, bufferSize, c.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+                data[i] = Math.random() * 2 - 1;
+            }
+            const source = c.createBufferSource();
+            source.buffer = buffer;
+            source.loop = true;
 
-        const filter = c.createBiquadFilter();
-        filter.type = 'lowpass';
-        filter.frequency.value = 1000;
+            const filter = c.createBiquadFilter();
+            filter.type = 'bandpass';
+            filter.frequency.value = 3000;
+            filter.Q.value = 0.5;
 
-        source.connect(filter);
-        filter.connect(gain);
-        gain.connect(c.destination);
-        source.start();
+            const gain = c.createGain();
+            const level = (pageHidden || state.muted) ? 0.0001 : 0.06;
+            gain.gain.value = level;
+
+            source.connect(filter);
+            filter.connect(gain);
+            gain.connect(ambientBus);
+            source.start();
+            rainLoop = { source, gain };
+            applyGains();
+        } catch (_) { /* silent */ }
     }
 
-    return {
+    function stopRainInternal(immediate) {
+        if (!rainLoop) return;
+        try {
+            const c = getCtx();
+            const loop = rainLoop;
+            rainLoop = null;
+            if (immediate || !c) {
+                try { loop.source.stop(); } catch (_) {}
+                return;
+            }
+            loop.gain.gain.cancelScheduledValues(c.currentTime);
+            loop.gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 1);
+            setTimeout(() => {
+                try { loop.source.stop(); } catch (_) {}
+            }, 1000);
+        } catch (_) {
+            rainLoop = null;
+        }
+    }
+
+    // Visibility: quiet ambient while hidden; resume if rain still wanted
+    if (typeof document !== 'undefined') {
+        document.addEventListener('visibilitychange', () => {
+            pageHidden = !!document.hidden;
+            if (pageHidden) {
+                applyGains();
+            } else {
+                applyGains();
+                if (rainWanted && !rainLoop) startRainInternal();
+            }
+        });
+    }
+
+    // Load saved volumes once GameState is available (shared.js loads first)
+    if (typeof document !== 'undefined') {
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', loadPersisted);
+        } else {
+            loadPersisted();
+        }
+    }
+
+    const api = {
+        get rainLoop() { return rainLoop; },
+        set rainLoop(v) { rainLoop = v; },
+
+        setMasterVolume(v) {
+            state.master = clamp01(v);
+            applyGains();
+            persistAudio();
+        },
+        setSfxVolume(v) {
+            state.sfx = clamp01(v);
+            applyGains();
+            persistAudio();
+        },
+        setAmbientVolume(v) {
+            state.ambient = clamp01(v);
+            applyGains();
+            persistAudio();
+        },
+        getMasterVolume() { return state.master; },
+        getSfxVolume() { return state.sfx; },
+        getAmbientVolume() { return state.ambient; },
+
+        mute(on) {
+            state.muted = !!on;
+            applyGains();
+            persistAudio();
+        },
+        toggleMute() {
+            state.muted = !state.muted;
+            applyGains();
+            persistAudio();
+            return state.muted;
+        },
+        isMuted() { return state.muted; },
+
+        /** Re-read GameState.flags.audio (e.g. after slot load). */
+        loadSettings() { loadPersisted(); },
+
         // صوت إطلاق السهم
         arrow() {
-            playTone(800, 0.15, 'sine', 0.2);
-            setTimeout(() => playTone(1200, 0.1, 'sine', 0.1), 50);
+            gated('arrow', () => {
+                playTone(800, 0.15, 'sine', 0.2);
+                setTimeout(() => playTone(1200, 0.1, 'sine', 0.1), 50);
+            });
         },
 
         // صوت ضربة السيف
         sword() {
-            const c = getCtx();
-            const osc = c.createOscillator();
-            const gain = c.createGain();
-            osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(200, c.currentTime);
-            osc.frequency.exponentialRampToValueAtTime(80, c.currentTime + 0.2);
-            gain.gain.setValueAtTime(0.25, c.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.2);
-            osc.connect(gain);
-            gain.connect(c.destination);
-            osc.start();
-            osc.stop(c.currentTime + 0.2);
-            noise(0.1, 0.15);
+            gated('sword', () => {
+                if (!canPlaySfx()) return;
+                const c = getCtx();
+                if (!c) return;
+                try {
+                    const osc = c.createOscillator();
+                    const gain = c.createGain();
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(200, c.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(80, c.currentTime + 0.2);
+                    gain.gain.setValueAtTime(0.25, c.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.2);
+                    osc.connect(gain);
+                    gain.connect(sfxBus);
+                    osc.start();
+                    osc.stop(c.currentTime + 0.2);
+                    noise(0.1, 0.15);
+                } catch (_) { /* silent */ }
+            });
         },
 
         // صوت إصابة هدف
@@ -92,66 +333,65 @@ const SFX = (() => {
             setTimeout(() => playTone(784, 0.15, 'sine', 0.12), 200);
         },
 
-        // صوت البرق / الرعد
+        // صوت البرق / الرعد (ambient category via ambient bus when possible)
         thunder() {
-            noise(1.5, 0.3);
-            setTimeout(() => noise(0.8, 0.15), 200);
+            if (state.muted || pageHidden) return;
+            const c = getCtx();
+            if (!c) return;
+            // Route thunder through ambient bus by temporarily using noise → ambient
+            try {
+                const playAmbNoise = (duration, volume) => {
+                    const bufferSize = c.sampleRate * duration;
+                    const buffer = c.createBuffer(1, bufferSize, c.sampleRate);
+                    const data = buffer.getChannelData(0);
+                    for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+                    const source = c.createBufferSource();
+                    source.buffer = buffer;
+                    const gain = c.createGain();
+                    gain.gain.setValueAtTime(volume, c.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + duration);
+                    const filter = c.createBiquadFilter();
+                    filter.type = 'lowpass';
+                    filter.frequency.value = 800;
+                    source.connect(filter);
+                    filter.connect(gain);
+                    gain.connect(ambientBus);
+                    source.start();
+                };
+                playAmbNoise(1.5, 0.3);
+                setTimeout(() => playAmbNoise(0.8, 0.15), 200);
+            } catch (_) { /* silent */ }
         },
 
-        // صوت المطر (يعمل باستمرار)
-        rainLoop: null,
         startRain() {
-            if (this.rainLoop) return;
-            const c = getCtx();
-            const bufferSize = c.sampleRate * 2;
-            const buffer = c.createBuffer(1, bufferSize, c.sampleRate);
-            const data = buffer.getChannelData(0);
-            for (let i = 0; i < bufferSize; i++) {
-                data[i] = Math.random() * 2 - 1;
-            }
-            const source = c.createBufferSource();
-            source.buffer = buffer;
-            source.loop = true;
-
-            const filter = c.createBiquadFilter();
-            filter.type = 'bandpass';
-            filter.frequency.value = 3000;
-            filter.Q.value = 0.5;
-
-            const gain = c.createGain();
-            gain.gain.value = 0.06;
-
-            source.connect(filter);
-            filter.connect(gain);
-            gain.connect(c.destination);
-            source.start();
-            this.rainLoop = { source, gain };
+            rainWanted = true;
+            if (pageHidden) return; // will resume on visibility
+            startRainInternal();
         },
         stopRain() {
-            if (this.rainLoop) {
-                this.rainLoop.gain.gain.exponentialRampToValueAtTime(0.001, getCtx().currentTime + 1);
-                setTimeout(() => {
-                    this.rainLoop.source.stop();
-                    this.rainLoop = null;
-                }, 1000);
-            }
+            rainWanted = false;
+            stopRainInternal(false);
         },
 
         // صوت هجوم ملك الرعب
         bossAttack() {
+            if (!canPlaySfx()) return;
             const c = getCtx();
-            const osc = c.createOscillator();
-            const gain = c.createGain();
-            osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(100, c.currentTime);
-            osc.frequency.exponentialRampToValueAtTime(50, c.currentTime + 0.4);
-            gain.gain.setValueAtTime(0.3, c.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.4);
-            osc.connect(gain);
-            gain.connect(c.destination);
-            osc.start();
-            osc.stop(c.currentTime + 0.4);
-            noise(0.3, 0.2);
+            if (!c) return;
+            try {
+                const osc = c.createOscillator();
+                const gain = c.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(100, c.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(50, c.currentTime + 0.4);
+                gain.gain.setValueAtTime(0.3, c.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.4);
+                osc.connect(gain);
+                gain.connect(sfxBus);
+                osc.start();
+                osc.stop(c.currentTime + 0.4);
+                noise(0.3, 0.2);
+            } catch (_) { /* silent */ }
         },
 
         // صوت تلقي ضربة (اللاعب يتأذى)
@@ -190,19 +430,23 @@ const SFX = (() => {
 
         // صوت ظهور ملك الرعب
         bossAppear() {
+            if (!canPlaySfx()) return;
             const c = getCtx();
-            const osc = c.createOscillator();
-            const gain = c.createGain();
-            osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(60, c.currentTime);
-            osc.frequency.linearRampToValueAtTime(40, c.currentTime + 1.5);
-            gain.gain.setValueAtTime(0.2, c.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 1.5);
-            osc.connect(gain);
-            gain.connect(c.destination);
-            osc.start();
-            osc.stop(c.currentTime + 1.5);
-            noise(1, 0.1);
+            if (!c) return;
+            try {
+                const osc = c.createOscillator();
+                const gain = c.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(60, c.currentTime);
+                osc.frequency.linearRampToValueAtTime(40, c.currentTime + 1.5);
+                gain.gain.setValueAtTime(0.2, c.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 1.5);
+                osc.connect(gain);
+                gain.connect(sfxBus);
+                osc.start();
+                osc.stop(c.currentTime + 1.5);
+                noise(1, 0.1);
+            } catch (_) { /* silent */ }
         },
 
         // صوت ألعاب نارية
@@ -214,4 +458,8 @@ const SFX = (() => {
             }, 100);
         }
     };
+
+    return api;
 })();
+
+window.SFX = SFX;

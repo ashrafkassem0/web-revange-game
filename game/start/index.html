@@ -634,7 +634,11 @@
             SFX.click();
             SFX.stopRain();
             // الانتقال إلى الغابة مباشرة بعد اكتمال المقدمة
-            navigateTo('../forest/index.html');
+            if (typeof navigateToScene === 'function') {
+                navigateToScene('forest', { skipPrereq: true, skipSave: true });
+            } else {
+                navigateTo('../forest/index.html');
+            }
         }
 
         // Initialize

@@ -3,6 +3,66 @@
 //  FOREST HUD — واجهة المستخدم والإشعارات والخريطة
 // =========================================================
 
+// ===== AUDIO SETTINGS PANEL =====
+let audioPanelOpen = false;
+
+function syncAudioPanelUI() {
+    if (typeof SFX === 'undefined') return;
+    const master = document.getElementById('audioMaster');
+    const sfx = document.getElementById('audioSfx');
+    const ambient = document.getElementById('audioAmbient');
+    const mute = document.getElementById('audioMute');
+    const btn = document.getElementById('audioBtn');
+    if (master) master.value = Math.round((SFX.getMasterVolume ? SFX.getMasterVolume() : 1) * 100);
+    if (sfx) sfx.value = Math.round((SFX.getSfxVolume ? SFX.getSfxVolume() : 1) * 100);
+    if (ambient) ambient.value = Math.round((SFX.getAmbientVolume ? SFX.getAmbientVolume() : 1) * 100);
+    if (mute) mute.checked = !!(SFX.isMuted && SFX.isMuted());
+    if (btn) btn.textContent = (SFX.isMuted && SFX.isMuted()) ? '🔇 الصوت' : '🔊 الصوت';
+}
+
+function toggleAudioPanel() {
+    const panel = document.getElementById('audioPanel');
+    if (!panel) return;
+    audioPanelOpen = !audioPanelOpen;
+    panel.classList.toggle('open', audioPanelOpen);
+    if (audioPanelOpen) {
+        if (typeof SFX !== 'undefined' && SFX.loadSettings) SFX.loadSettings();
+        syncAudioPanelUI();
+        if (typeof SFX !== 'undefined' && SFX.click) SFX.click();
+    }
+}
+
+function closeAudioPanel() {
+    const panel = document.getElementById('audioPanel');
+    if (!panel) return;
+    audioPanelOpen = false;
+    panel.classList.remove('open');
+}
+
+function onAudioSlider(kind, value) {
+    if (typeof SFX === 'undefined') return;
+    const v = Math.max(0, Math.min(100, Number(value) || 0)) / 100;
+    if (kind === 'master' && SFX.setMasterVolume) SFX.setMasterVolume(v);
+    else if (kind === 'sfx' && SFX.setSfxVolume) SFX.setSfxVolume(v);
+    else if (kind === 'ambient' && SFX.setAmbientVolume) SFX.setAmbientVolume(v);
+    syncAudioPanelUI();
+}
+
+function onAudioMuteToggle(checked) {
+    if (typeof SFX === 'undefined' || !SFX.mute) return;
+    SFX.mute(!!checked);
+    syncAudioPanelUI();
+}
+
+function toggleMuteKey() {
+    if (typeof SFX === 'undefined' || !SFX.toggleMute) return;
+    const muted = SFX.toggleMute();
+    syncAudioPanelUI();
+    if (typeof notify === 'function') {
+        notify(muted ? '🔇 تم كتم الصوت' : '🔊 الصوت مفعّل', muted ? '#aaa' : '#ffd060');
+    }
+}
+
 // ===== HUD UPDATE =====
 function updateHUD() {
     const p = player;
@@ -154,7 +214,9 @@ function doCraft(recipeId) {
         player.attack = CharacterRules.playerSwordDamage(player.skills, player.absorbedAttack);
         updateHUD();
         checkCompletion();
-        saveForestProgress();
+        // Unique crafts force an immediate save (TASK_001 trigger)
+        const unique = !!(result.recipe && result.recipe.isUnique);
+        saveForestProgress({ force: unique, manual: unique });
         openCraftingMenu();
     } else {
         SFX.playerHurt();
@@ -196,9 +258,15 @@ function renderBackpack() {
     if (!grid) return;
     grid.innerHTML = '';
     const inv = player.inventory;
-    const order = ['cookedMeat', 'rawMeat', 'cookedFish', 'rawFish', 'meat', 'fish',
-                   'stick', 'stone', 'horn', 'teeth', 'leather', 'arrows',
-                   'beastHide', 'nightCrystal', 'venomSac', 'shadowEssence'];
+    const order = [
+        'cookedMeat', 'rawMeat', 'cookedFish', 'rawFish', 'meat', 'fish',
+        'stick', 'stone', 'horn', 'teeth', 'leather', 'arrows',
+        'beastHide', 'nightCrystal', 'venomSac', 'shadowEssence'
+    ];
+    // Include any extra keys present on the bag (future-proof)
+    for (const k of Object.keys(inv)) {
+        if (!order.includes(k) && (inv[k] || 0) > 0) order.push(k);
+    }
     let any = false;
     for (const key of order) {
         const amt = inv[key] || 0;

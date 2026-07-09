@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>المدينة — ريفنج</title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/shared.css">
 <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { background: #1a1a2e; font-family: 'Cairo', sans-serif; overflow: hidden; }
@@ -109,6 +110,8 @@
     </div>
 </div>
 
+<div class="fade-overlay"></div>
+
 <script src="../js/shared.js"></script>
 <script>
 // ─────────────── CONFIG ───────────────
@@ -163,9 +166,33 @@ const player = {
     y: H - CFG.TILE * 2.5,
     hp: Math.min(stats.hp || 100, stats.maxHp || 100),
     maxHp: stats.maxHp || 100,
-    inventory: { stick:0, stone:0, meat:0, horn:0, teeth:0, leather:0, fish:0, arrows:15, ...inv },
+    inventory: (typeof GameState.normalizeInventory === 'function')
+        ? GameState.normalizeInventory(inv)
+        : Object.assign({
+            stick:0, stone:0, meat:0, horn:0, teeth:0, leather:0, fish:0, arrows:15,
+            rawMeat:0, cookedMeat:0, rawFish:0, cookedFish:0,
+            beastHide:0, nightCrystal:0, venomSac:0, shadowEssence:0
+        }, inv),
     walkTimer: 0, isMoving: false, facing: 'down',
 };
+
+function foodCount(kind) {
+    if (typeof GameState !== 'undefined' && GameState.countFood) {
+        return GameState.countFood(player.inventory, kind);
+    }
+    if (kind === 'fish') {
+        return (player.inventory.fish || 0) + (player.inventory.rawFish || 0) + (player.inventory.cookedFish || 0);
+    }
+    return (player.inventory.meat || 0) + (player.inventory.rawMeat || 0) + (player.inventory.cookedMeat || 0);
+}
+
+function persistCityInventory() {
+    GameState.save('inventory', player.inventory);
+    const st = GameState.getHeroStats();
+    st.hp = player.hp;
+    st.maxHp = player.maxHp;
+    GameState.save('heroStats', st);
+}
 
 // ─────────────── NPCs ───────────────
 const NPCS = [
@@ -364,18 +391,36 @@ function notify(msg, color = '#ffd060', duration = 2200) {
 function updateHUD() {
     document.getElementById('hpBar').style.width = (player.hp / player.maxHp * 100) + '%';
     document.getElementById('hpVal').textContent = `${Math.ceil(player.hp)}/${player.maxHp}`;
-    for (const k of ['stick','stone','meat','horn','teeth','leather','fish','arrows'])
-        document.getElementById('inv-' + k).textContent = player.inventory[k] || 0;
+    const inv = player.inventory;
+    document.getElementById('inv-stick').textContent = inv.stick || 0;
+    document.getElementById('inv-stone').textContent = inv.stone || 0;
+    document.getElementById('inv-meat').textContent = foodCount('meat');
+    document.getElementById('inv-horn').textContent = inv.horn || 0;
+    document.getElementById('inv-teeth').textContent = inv.teeth || 0;
+    document.getElementById('inv-leather').textContent = inv.leather || 0;
+    document.getElementById('inv-fish').textContent = foodCount('fish');
+    document.getElementById('inv-arrows').textContent = inv.arrows || 0;
 }
 
 function saveAndExit() {
-    // Save current inventory back to GameState
-    GameState.save('inventory', player.inventory);
-    const stats = GameState.getHeroStats();
-    stats.hp = player.hp;
-    GameState.save('heroStats', stats);
+    // Zone transition save — inventory + hero + crafted stay canonical in GameState
+    persistCityInventory();
+    if (typeof GameState.getCraftedItems === 'function') {
+        // ensure crafted flags remain (city does not mutate them, but re-persist)
+        GameState.save('craftedItems', GameState.getCraftedItems());
+    }
     GameState.save('fromCity', true);
-    window.location.href = '../forest/index.html';
+    if (typeof navigateToScene === 'function') {
+        navigateToScene('forest', {
+            skipPrereq: true,
+            save: () => GameState.autoSave(true)
+        });
+    } else if (typeof navigateTo === 'function') {
+        if (typeof GameState.setCurrentMap === 'function') GameState.setCurrentMap('forest');
+        navigateTo('../forest/index.html');
+    } else {
+        window.location.href = '../forest/index.html';
+    }
 }
 
 // ─────────────── INTERACTION ───────────────
@@ -410,11 +455,13 @@ function tradeRow(label, cost, costIcon, give, giveIcon, action) {
 }
 
 function openMerchant() {
+    const meatN = foodCount('meat');
+    const fishN = foodCount('fish');
     openModal('🧑‍💼 التاجر', `
         <p style="margin-bottom:12px;color:#ccc">بادل مواردك بالسهام:</p>
         ${tradeRow('جلد', 2, '🧥', 8, '🏹', 'trade("leather",2,"arrows",8)')}
-        ${tradeRow('لحم', 3, '🥩', 6, '🏹', 'trade("meat",3,"arrows",6)')}
-        ${tradeRow('سمكة', 2, '🐟', 5, '🏹', 'trade("fish",2,"arrows",5)')}
+        ${tradeRow('لحم (' + meatN + ')', 3, '🥩', 6, '🏹', 'tradeFood("meat",3,"arrows",6)')}
+        ${tradeRow('سمكة (' + fishN + ')', 2, '🐟', 5, '🏹', 'tradeFood("fish",2,"arrows",5)')}
         ${tradeRow('أسنان', 1, '🦷', 10, '🏹', 'trade("teeth",1,"arrows",10)')}
         <hr style="border-color:#555;margin:14px 0">
         <p style="color:#ccc;margin-bottom:10px">بيع موارد مقابل سهام:</p>
@@ -424,14 +471,16 @@ function openMerchant() {
 
 function openHealer() {
     const healCost = 2;
+    const meatN = foodCount('meat');
+    const fishN = foodCount('fish');
     openModal('🧑‍⚕️ المعالج', `
         <p style="margin-bottom:12px;color:#ccc">الصحة الحالية: ❤️ ${Math.ceil(player.hp)}/${player.maxHp}</p>
         <div class="trade-row">
-            <span>🥩 ${healCost} لحم → استعادة كاملة للصحة</span>
+            <span>🥩 ${healCost} لحم (لديك ${meatN}) → استعادة كاملة للصحة</span>
             <button class="trade-btn" onclick="heal()">علاج</button>
         </div>
         <div class="trade-row" style="margin-top:8px">
-            <span>🐟 ${healCost} سمكة → استعادة نصف الصحة</span>
+            <span>🐟 ${healCost} سمكة (لديك ${fishN}) → استعادة نصف الصحة</span>
             <button class="trade-btn" onclick="healFish()">علاج جزئي</button>
         </div>
         <div class="trade-row" style="margin-top:8px">
@@ -450,6 +499,7 @@ function openBlacksmith() {
             ${craftItem('🗡️','الرمح','hornSpear')}
             ${craftItem('⚔️','السيف','hornSword')}
             ${craftItem('🛡️','الدرع الجلدي','leatherArmor')}
+            ${craftItem('🌑','درع الظلال','shadowArmor')}
         </div>
         <p style="margin-top:14px;color:#888;font-size:0.8rem">اضغط F في الغابة لفتح قائمة الصناعة</p>
     `);
@@ -472,23 +522,51 @@ window.trade = function(fromItem, fromAmt, toItem, toAmt) {
     player.inventory[fromItem] -= fromAmt;
     player.inventory[toItem] = (player.inventory[toItem] || 0) + toAmt;
     notify(`✅ حصلت على ${toAmt} 🏹`, '#6ddc6d');
-    GameState.save('inventory', player.inventory);
+    persistCityInventory();
     updateHUD();
     openMerchant(); // refresh
 };
 
+/** Trade food using cooked/raw/legacy totals (same keys as forest). */
+window.tradeFood = function(kind, fromAmt, toItem, toAmt) {
+    if (foodCount(kind) < fromAmt) {
+        notify(kind === 'fish' ? '❌ تحتاج سمكاً أكثر' : '❌ تحتاج لحماً أكثر', '#e74c3c');
+        return;
+    }
+    if (typeof GameState !== 'undefined' && GameState.takeFood) {
+        GameState.takeFood(player.inventory, kind, fromAmt);
+    } else {
+        player.inventory[kind] = (player.inventory[kind] || 0) - fromAmt;
+    }
+    player.inventory[toItem] = (player.inventory[toItem] || 0) + toAmt;
+    notify(`✅ حصلت على ${toAmt} 🏹`, '#6ddc6d');
+    persistCityInventory();
+    updateHUD();
+    openMerchant();
+};
+
 window.heal = function() {
-    if ((player.inventory.meat || 0) < 2) { notify('❌ تحتاج 2 لحمة', '#e74c3c'); return; }
-    player.inventory.meat -= 2;
+    if (foodCount('meat') < 2) { notify('❌ تحتاج 2 لحمة', '#e74c3c'); return; }
+    if (typeof GameState !== 'undefined' && GameState.takeFood) {
+        GameState.takeFood(player.inventory, 'meat', 2);
+    } else {
+        player.inventory.meat -= 2;
+    }
     player.hp = player.maxHp;
+    persistCityInventory();
     notify('❤️ استعدت صحتك كاملة!', '#e74c3c');
     closeModal();
 };
 
 window.healFish = function() {
-    if ((player.inventory.fish || 0) < 2) { notify('❌ تحتاج 2 سمكة', '#e74c3c'); return; }
-    player.inventory.fish -= 2;
+    if (foodCount('fish') < 2) { notify('❌ تحتاج 2 سمكة', '#e74c3c'); return; }
+    if (typeof GameState !== 'undefined' && GameState.takeFood) {
+        GameState.takeFood(player.inventory, 'fish', 2);
+    } else {
+        player.inventory.fish -= 2;
+    }
     player.hp = Math.min(player.maxHp, player.hp + Math.floor(player.maxHp / 2));
+    persistCityInventory();
     notify('❤️ تعافيت جزئياً!', '#5dade2');
     closeModal();
 };
@@ -496,6 +574,7 @@ window.healFish = function() {
 window.rest = function() {
     const before = player.hp;
     player.hp = Math.min(player.maxHp, player.hp + 20);
+    persistCityInventory();
     notify(`💤 استرحت! +${Math.round(player.hp - before)}❤️`, '#aaddff');
     closeModal();
 };
@@ -716,7 +795,13 @@ function drawWell() {
 }
 
 // ─────────────── GAME LOOP ───────────────
+let cityPaused = false;
+let _cityRafId = 0;
+
 function gameLoop(ts) {
+    _cityRafId = requestAnimationFrame(gameLoop);
+    if (cityPaused) return;
+
     const dt = Math.min(ts - lastTime, 50);
     lastTime = ts;
 
@@ -729,23 +814,43 @@ function gameLoop(ts) {
     drawPortal();
     drawNPCs();
     drawPlayer();
-
-    requestAnimationFrame(gameLoop);
 }
 
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+        cityPaused = true;
+        try {
+            persistCityInventory();
+            GameState.autoSave(true);
+        } catch (_) { /* ignore */ }
+    } else {
+        cityPaused = false;
+        lastTime = performance.now();
+    }
+});
+
 // ─────────────── INIT ───────────────
+if (typeof guardSceneAccess === 'function' && !guardSceneAccess('city')) {
+    /* lock modal + redirect — do not boot city */
+} else {
 updateHUD();
-const _cityLoadLabel = document.createElement('div');
-_cityLoadLabel.style.cssText = 'position:fixed;inset:0;z-index:200;display:flex;align-items:center;' +
-    'justify-content:center;background:#1a1a2e;color:#ffd060;font-family:Cairo,sans-serif;' +
-    'font-size:1.4rem;font-weight:700;letter-spacing:2px;';
-_cityLoadLabel.textContent = 'جاري تحميل الخريطة…';
+const _cityLoadLabel = (typeof createLoadingScreen === 'function')
+    ? createLoadingScreen('جاري تحميل الخريطة…')
+    : (() => {
+        const el = document.createElement('div');
+        el.style.cssText = 'position:fixed;inset:0;z-index:200;display:flex;align-items:center;' +
+            'justify-content:center;background:#1a1a2e;color:#ffd060;font-family:Cairo,sans-serif;' +
+            'font-size:1.4rem;font-weight:700;letter-spacing:2px;';
+        el.textContent = 'جاري تحميل الخريطة…';
+        return el;
+    })();
 document.body.appendChild(_cityLoadLabel);
 loadTerrainTextures(tex => {
     prerenderTerrain(tex);
     _cityLoadLabel.remove();
-    requestAnimationFrame(ts => { lastTime = ts; gameLoop(ts); });
+    _cityRafId = requestAnimationFrame(ts => { lastTime = ts; gameLoop(ts); });
 });
+}
 </script>
 </body>
 </html>

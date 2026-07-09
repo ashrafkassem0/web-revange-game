@@ -59,14 +59,24 @@ function restoreDroppedItems(arr) {
     }
 }
 
+/** Closest lit campfire (or any campfire) for combat-load respawn. */
+function getLastCampfirePos() {
+    if (typeof structures === 'undefined' || !structures.length || !player) return null;
+    const fires = structures.filter(s => s && s.type === 'campfire');
+    if (!fires.length) return null;
+    const lit = fires.filter(f => f.lit);
+    const pool = lit.length ? lit : fires;
+    let best = pool[0], bestD = Infinity;
+    for (const f of pool) {
+        const d = Math.hypot(f.x - player.x, f.y - player.y);
+        if (d < bestD) { best = f; bestD = d; }
+    }
+    return { x: Math.round(best.x), y: Math.round(best.y) };
+}
+
 /** يحفظ كل بيانات الغابة + البطل + المخزون + المباني + الحيوانات */
 function saveForestProgress(opts) {
     opts = opts || {};
-    // الحفظ اليدوي يعمل دائماً؛ التلقائي يتخطى بعد إكمال التدريب إن رُغب
-    if (!opts.force && gameCompleted && !opts.manual) {
-        // ما زلنا نحفظ حتى بعد الإكمال حتى لا يضيع التقدم
-    }
-
     if (typeof player === 'undefined' || !player) return false;
 
     const collectedRes = (typeof resources !== 'undefined')
@@ -74,7 +84,12 @@ function saveForestProgress(opts) {
     const choppedTrees = (typeof trees !== 'undefined')
         ? trees.map((t, i) => t.chopped ? i : -1).filter(i => i >= 0) : [];
 
-    GameState.saveForestState({
+    const structuresData = (typeof serializeStructures === 'function') ? serializeStructures() : undefined;
+    const camp = getLastCampfirePos();
+
+    // Batch into one document write (avoids 5× localStorage thrash)
+    const doc = GameState._ensure();
+    const forestSnap = {
         x: Math.round(player.x),
         y: Math.round(player.y),
         hp: player.hp,
@@ -84,6 +99,7 @@ function saveForestProgress(opts) {
         killCount: player.killCount,
         distanceTraveled: player.distanceTraveled,
         xp: player.xp,
+        level: player.level || 1,
         facing: player.facing,
         poisoned: !!player.poisoned,
         poisonTimer: player.poisonTimer || 0,
@@ -96,7 +112,7 @@ function saveForestProgress(opts) {
         choppedTrees: choppedTrees,
         clockMinutes: (typeof gameClock !== 'undefined') ? gameClock.minutes : undefined,
         dayCount: (typeof dayCount !== 'undefined') ? dayCount : undefined,
-        structures: (typeof serializeStructures === 'function') ? serializeStructures() : undefined,
+        structures: structuresData,
         enemies: serializeEnemies(),
         droppedItems: serializeDroppedItems(),
         inventory: Object.assign({}, player.inventory),
@@ -106,20 +122,33 @@ function saveForestProgress(opts) {
         absorbedDefense: player.absorbedDefense || 0,
         attack: player.attack,
         defense: player.defense,
+        lastCampfire: camp,
         savedAt: Date.now()
-    });
+    };
 
-    GameState.saveHeroStats({
+    GameState._writeForestMap(forestSnap);
+    doc.heroStats = Object.assign({}, doc.heroStats || {}, {
         hp: player.hp, maxHp: player.maxHp,
         attack: player.attack, defense: player.defense,
         skills: player.skills,
         absorbedAttack: player.absorbedAttack,
-        absorbedDefense: player.absorbedDefense
+        absorbedDefense: player.absorbedDefense,
+        xp: player.xp || 0,
+        level: player.level || (doc.heroStats && doc.heroStats.level) || 1
     });
-    GameState.saveInventory(player.inventory);
-    GameState.saveCraftedItems(player.craftedItems);
-    GameState.save('completedForest', !!gameCompleted);
-    return true;
+    doc.inventory = (typeof GameState.normalizeInventory === 'function')
+        ? GameState.normalizeInventory(player.inventory)
+        : Object.assign({}, player.inventory);
+    doc.craftedItems = Object.assign({}, player.craftedItems);
+    doc.progress.completedForest = !!gameCompleted;
+    doc.meta.currentMap = 'forest';
+    if (camp) doc.meta.lastCampfire = camp;
+
+    const force = !!(opts.force || opts.manual);
+    if (opts.debounce && !force) {
+        return GameState.autoSave(false);
+    }
+    return GameState._persist({ force: force });
 }
 
 function saveProgress() { return saveForestProgress({ manual: true }); }
@@ -159,9 +188,15 @@ function showSaveToast(text) {
     setTimeout(() => el.remove(), 3100);
 }
 
-function resumeGame(savedState) {
+function resumeGame(savedState, opts) {
+    opts = opts || {};
     if (typingInterval) clearInterval(typingInterval);
     document.getElementById('introOverlay').style.display = 'none';
+
+    // Save-scum warning (reload within 10s)
+    if (typeof SaveManager !== 'undefined' && SaveManager.markLoadTime) {
+        SaveManager.markLoadTime();
+    }
 
     player.x = savedState.x || player.x;
     player.y = savedState.y || player.y;
@@ -173,14 +208,30 @@ function resumeGame(savedState) {
     player.killCount      = savedState.killCount || 0;
     player.distanceTraveled = savedState.distanceTraveled || 0;
     player.xp             = savedState.xp || 0;
+    player.level          = savedState.level || (1 + Math.floor((player.xp || 0) / 100));
     if (savedState.weapon) player.weapon = savedState.weapon;
     if (savedState.facing != null) player.facing = savedState.facing;
 
-    if (savedState.inventory) {
+    // Canonical inventory / crafted live in GameState (city trades must win over forest snapshot)
+    if (typeof GameState !== 'undefined' && GameState.getInventory) {
+        player.inventory = GameState.normalizeInventory
+            ? GameState.normalizeInventory(GameState.getInventory())
+            : Object.assign({}, player.inventory, GameState.getInventory());
+    } else if (savedState.inventory) {
         player.inventory = Object.assign({}, player.inventory, savedState.inventory);
     }
-    if (savedState.craftedItems) {
+    if (typeof GameState !== 'undefined' && GameState.getCraftedItems) {
+        player.craftedItems = Object.assign(
+            { axe: false, fishingRod: false, hornSpear: false, hornSword: false, leatherArmor: false, shadowArmor: false },
+            GameState.getCraftedItems()
+        );
+    } else if (savedState.craftedItems) {
         player.craftedItems = Object.assign({}, player.craftedItems, savedState.craftedItems);
+    }
+    if (opts.fromCity && typeof GameState !== 'undefined' && GameState.getHeroStats) {
+        const st = GameState.getHeroStats();
+        if (st.maxHp != null) player.maxHp = st.maxHp;
+        if (st.hp != null) player.hp = Math.min(st.hp, player.maxHp);
     }
     if (savedState.skills) player.skills = Object.assign({}, player.skills, savedState.skills);
     if (savedState.absorbedAttack != null) player.absorbedAttack = savedState.absorbedAttack;
@@ -233,11 +284,11 @@ function resumeGame(savedState) {
     gameLoop(lastTime);
 }
 
-// Auto-save every 30 seconds
+// Auto-save every 30 seconds (debounced to max once per 5s inside SaveManager)
 setInterval(() => {
     if (gameRunning) {
-        saveForestProgress();
-        showAutoSaveToast();
+        const ok = saveForestProgress({ debounce: true });
+        if (ok) showAutoSaveToast();
     }
 }, 30000);
 

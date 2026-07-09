@@ -217,14 +217,21 @@ class Enemy {
         player.absorbedAttack  = ab.absorbedAttack;
         player.absorbedDefense = ab.absorbedDefense;
         player.attack = CharacterRules.playerSwordDamage(player.skills, player.absorbedAttack);
+        const prevLevel = player.level || 1;
         player.xp += this.xp || 10;
+        player.level = 1 + Math.floor((player.xp || 0) / 100);
         player.killCount++;
 
         if (ab.hpGain > 0) notify(`⚡ +${ab.hpGain} مهارة`, '#f0c040', this.x, this.y + 18);
         SFX.xp();
         updateHUD();
         checkCompletion();
-        if (player.killCount % 5 === 0) saveForestProgress();
+        if (player.level > prevLevel) {
+            notify(`⭐ ارتقيت للمستوى ${player.level}!`, '#f0c040');
+            if (typeof saveForestProgress === 'function') saveForestProgress({ force: true });
+        } else if (player.killCount % 5 === 0) {
+            saveForestProgress({ debounce: true });
+        }
     }
 
     draw(cx, cy) {

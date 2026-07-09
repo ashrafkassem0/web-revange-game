@@ -91,6 +91,7 @@ function cookFood(type) {
     notify(`🔥 طهوت ${name}!`, '#ff8040');
     if (typeof SFX !== 'undefined' && SFX.xp) SFX.xp();
     updateHUD();
+    if (typeof saveForestProgress === 'function') saveForestProgress({ debounce: true });
     return true;
 }
 

@@ -12,15 +12,19 @@ const player = {
     attack: 30, defense: 5,
     skills: { sword: 1, bow: 1, swimming: 1, woodcutting: 0, fishing: 0 },
     absorbedAttack: 0, absorbedDefense: 0,
-    inventory: { stick: 0, stone: 0, meat: 0, horn: 0, teeth: 0, leather: 0, fish: 0, arrows: 15 },
-    craftedItems: { axe: false, fishingRod: false, hornSpear: false, hornSword: false, leatherArmor: false },
+    inventory: {
+        stick: 0, stone: 0, meat: 0, horn: 0, teeth: 0, leather: 0, fish: 0, arrows: 15,
+        rawMeat: 0, cookedMeat: 0, rawFish: 0, cookedFish: 0,
+        beastHide: 0, nightCrystal: 0, venomSac: 0, shadowEssence: 0
+    },
+    craftedItems: { axe: false, fishingRod: false, hornSpear: false, hornSword: false, leatherArmor: false, shadowArmor: false },
     attackCd: 0, hurtTimer: 0, chopCd: 0, repairCd: 0,
     walkTimer: 0, isMoving: false,
     isFishing: false, fishingTimer: 0, fishingBite: false, fishingBiteTimer: 0,
     poisoned: false, poisonTimer: 0, poisonDmg: 0,
     nauseous: false, nauseaTimer: 0, nauseaTick: 0,
     distanceTraveled: 0, lastX: 1600, lastY: 2800,
-    killCount: 0, xp: 0,
+    killCount: 0, xp: 0, level: 1,
     isSprinting: false, facing: Math.PI / 2,
 };
 

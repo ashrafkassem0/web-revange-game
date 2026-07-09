@@ -20,11 +20,72 @@
             top: 0; left: 0; right: 0;
             z-index: 50;
             pointer-events: none;
-            padding: 12px 16px;
+            padding: 12px 14px;
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
-            gap: 10px;
+            gap: 12px;
+            direction: ltr; /* يسار/يمين فيزيائي: حالة+موارد يسار، خريطة يمين */
+        }
+
+        #hudLeft,
+        #hudCenter,
+        #hudRight,
+        .hud-panel {
+            direction: rtl;
+        }
+
+        /* أقصى الشمال (يسار الشاشة): حالة البطل ثم الموارد */
+        #hudLeft {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 8px;
+            max-width: min(340px, 42vw);
+        }
+
+        /* الوسط: التوقيت فقط */
+        #hudCenter {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            flex: 1;
+            min-width: 0;
+            padding-top: 2px;
+        }
+
+        /* أقصى اليمين: صف (خريطة + حفظ/صوت) ثم التحديات */
+        #hudRight {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 8px;
+            position: relative;
+            flex-shrink: 0;
+        }
+
+        #hudRightTop {
+            display: flex;
+            flex-direction: row;
+            align-items: flex-start;
+            gap: 8px;
+            direction: ltr; /* خريطة يمين الشاشة، أزرار بجانبها للداخل */
+        }
+
+        #hudProgress {
+            width: 100%;
+            max-width: 220px;
+            box-sizing: border-box;
+            padding: 8px 10px;
+        }
+        #hudProgress .prog-item {
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+        #hudProgress .prog-bar-bg {
+            width: 100%;
+            display: block;
         }
 
         .hud-panel {
@@ -68,15 +129,14 @@
         .prog-bar-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, #27ae60, #2ecc71); }
         .prog-done { color: #2ecc71; }
 
-        /* ===== MINIMAP ===== */
+        /* ===== MINIMAP (أعلى اليمين داخل #hudRight) ===== */
         #minimap {
-            position: absolute;
-            bottom: 14px;
-            left: 14px;
-            z-index: 50;
+            display: block;
             border-radius: 8px;
             border: 2px solid rgba(255,255,255,0.15);
             background: rgba(0,0,0,0.7);
+            width: 140px;
+            height: 140px;
         }
 
         /* ===== NOTIFICATIONS ===== */
@@ -489,13 +549,11 @@
         }
         .cpp-stay:hover { background: rgba(255,255,255,0.13); color: #eee; }
 
-        /* ===== CLOCK WIDGET ===== */
+        /* ===== CLOCK WIDGET (منتصف الشاشة أعلى) ===== */
         #clockWidget {
-            position: absolute;
-            top: 12px; left: 50%;
-            transform: translateX(-50%);
-            z-index: 52;
-            display: flex; align-items: center; gap: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
             background: rgba(0,0,0,0.68);
             border: 1px solid rgba(255,255,255,0.12);
             border-radius: 20px;
@@ -666,24 +724,29 @@
         }
         #sleepPanel .sleep-cancel:hover { color: #eee; background: rgba(255,255,255,0.12); }
 
-        /* ===== SAVE BUTTON ===== */
+        /* ===== SAVE / AUDIO — بجانب الخريطة المصغّرة (أعلى اليمين) ===== */
+        #hudTools {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            position: relative;
+            pointer-events: auto;
+            width: 72px;
+        }
         #saveBtn {
-            position: absolute;
-            top: 12px;
-            left: 14px;
-            z-index: 70;
-            padding: 8px 14px;
+            padding: 8px 6px;
             border: 1px solid rgba(46, 204, 113, 0.45);
             border-radius: 10px;
             background: rgba(8, 20, 12, 0.88);
             color: #2ecc71;
             font-family: 'Cairo', sans-serif;
-            font-size: 0.85rem;
+            font-size: 0.75rem;
             font-weight: 700;
             cursor: pointer;
             backdrop-filter: blur(6px);
             transition: all 0.15s;
-            pointer-events: auto;
+            white-space: nowrap;
+            width: 100%;
         }
         #saveBtn:hover {
             background: rgba(46, 204, 113, 0.22);
@@ -691,6 +754,73 @@
             box-shadow: 0 0 14px rgba(46, 204, 113, 0.35);
         }
         #saveBtn:active { transform: scale(0.97); }
+
+        #audioBtn {
+            padding: 8px 6px;
+            border: 1px solid rgba(255, 208, 96, 0.4);
+            border-radius: 10px;
+            background: rgba(8, 20, 12, 0.88);
+            color: #ffd060;
+            font-family: 'Cairo', sans-serif;
+            font-size: 0.75rem;
+            font-weight: 700;
+            cursor: pointer;
+            backdrop-filter: blur(6px);
+            transition: all 0.15s;
+            white-space: nowrap;
+            width: 100%;
+        }
+        #audioBtn:hover {
+            background: rgba(255, 208, 96, 0.15);
+            transform: scale(1.04);
+        }
+        #audioPanel {
+            display: none;
+            position: absolute;
+            top: 0;
+            right: calc(100% + 8px);
+            z-index: 80;
+            min-width: 240px;
+            padding: 16px 18px;
+            background: linear-gradient(135deg, #1e2a1a, #2a3020);
+            border: 2px solid #6a8040;
+            border-radius: 14px;
+            color: #e8e0c0;
+            font-family: 'Cairo', sans-serif;
+            direction: rtl;
+            box-shadow: 0 10px 32px rgba(0,0,0,0.45);
+        }
+        #audioPanel.open { display: block; }
+        #audioPanel h3 {
+            margin: 0 0 12px;
+            font-size: 1.05rem;
+            color: #ffd060;
+            font-weight: 900;
+        }
+        .audio-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 10px;
+            font-size: 0.82rem;
+        }
+        .audio-row label { flex: 0 0 auto; color: #ccc; min-width: 72px; }
+        .audio-row input[type="range"] {
+            flex: 1;
+            accent-color: #ffd060;
+            cursor: pointer;
+        }
+        .audio-row input[type="checkbox"] {
+            width: 16px; height: 16px;
+            accent-color: #ffd060;
+            cursor: pointer;
+        }
+        #audioPanel .audio-hint {
+            margin-top: 8px;
+            font-size: 0.72rem;
+            color: #888;
+        }
     </style>
 </head>
 <body>
@@ -708,70 +838,99 @@
     <!-- Nausea indicator -->
     <div id="nauseaIndicator">🤢 غثيان</div>
 
-    <!-- Manual Save -->
-    <button id="saveBtn" type="button" onclick="manualSaveGame()" title="حفظ كل التقدم">💾 حفظ</button>
-
-    <!-- Clock / day-night widget -->
-    <div id="clockWidget">
-        <span id="clockIcon">☀️</span>
-        <span id="clockTime">08:00</span>
-        <span id="clockPhase">نهار</span>
-    </div>
-
     <!-- HUD -->
     <div id="hud">
-        <!-- Left: Stats -->
-        <div class="hud-panel" id="hudStats">
-            <div class="stat-row">
-                <span class="stat-label">❤️</span>
-                <div class="bar-bg"><div class="bar-fill bar-hp" id="hpBar" style="width:100%"></div></div>
-                <span class="stat-val" id="hpVal">100/100</span>
+        <!-- أقصى الشمال (يسار): حالة البطل ثم الموارد -->
+        <div id="hudLeft">
+            <div class="hud-panel" id="hudStats">
+                <div class="stat-row">
+                    <span class="stat-label">❤️</span>
+                    <div class="bar-bg"><div class="bar-fill bar-hp" id="hpBar" style="width:100%"></div></div>
+                    <span class="stat-val" id="hpVal">100/100</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">⚡</span>
+                    <div class="bar-bg"><div class="bar-fill bar-stamina" id="staminaBar" style="width:100%"></div></div>
+                    <span class="stat-val" id="staminaVal">100%</span>
+                </div>
+                <div class="stat-row" style="margin-top:5px;">
+                    <span class="stat-label" style="font-size:0.65rem;">⚔️</span>
+                    <span style="font-size:0.7rem;color:#f0c040;" id="weaponLabel2">السيف</span>
+                    <span style="font-size:0.65rem;color:#666;margin-right:auto;">🗡️<span id="atkVal">30</span></span>
+                </div>
             </div>
-            <div class="stat-row">
-                <span class="stat-label">⚡</span>
-                <div class="bar-bg"><div class="bar-fill bar-stamina" id="staminaBar" style="width:100%"></div></div>
-                <span class="stat-val" id="staminaVal">100%</span>
-            </div>
-            <div class="stat-row" style="margin-top:5px;">
-                <span class="stat-label" style="font-size:0.65rem;">⚔️</span>
-                <span style="font-size:0.7rem;color:#f0c040;" id="weaponLabel2">السيف</span>
-                <span style="font-size:0.65rem;color:#666;margin-right:auto;">🗡️<span id="atkVal">30</span></span>
+
+            <div class="hud-panel" id="hudInventory">
+                <div class="inv-grid">
+                    <div class="inv-item"><span class="inv-icon">🪵</span><span class="inv-count" id="inv-stick">0</span></div>
+                    <div class="inv-item"><span class="inv-icon">🪨</span><span class="inv-count" id="inv-stone">0</span></div>
+                    <div class="inv-item"><span class="inv-icon">🥩</span><span class="inv-count" id="inv-meat">0</span></div>
+                    <div class="inv-item"><span class="inv-icon">🦷</span><span class="inv-count" id="inv-horn">0</span></div>
+                    <div class="inv-item"><span class="inv-icon">🦴</span><span class="inv-count" id="inv-teeth">0</span></div>
+                    <div class="inv-item"><span class="inv-icon">🧥</span><span class="inv-count" id="inv-leather">0</span></div>
+                    <div class="inv-item"><span class="inv-icon">🐟</span><span class="inv-count" id="inv-fish">0</span></div>
+                    <div class="inv-item"><span class="inv-icon">🏹</span><span class="inv-count" id="inv-arrows">∞</span></div>
+                </div>
             </div>
         </div>
 
-        <!-- Center: Progress -->
-        <div class="hud-panel" id="hudProgress">
-            <div class="prog-item">
-                🎯 <span id="killProg">0 / 10 قتلى</span>
-                <div class="prog-bar-bg"><div class="prog-bar-fill" id="killBar" style="width:0%"></div></div>
-            </div>
-            <div class="prog-item">
-                🏃 <span id="distProg">0 / 3 كم</span>
-                <div class="prog-bar-bg"><div class="prog-bar-fill" id="distBar" style="width:0%"></div></div>
-            </div>
-            <div class="prog-item">
-                🔨 <span id="chalProg">0 / 2 تحديات</span>
-                <div class="prog-bar-bg"><div class="prog-bar-fill" id="chalBar" style="width:0%"></div></div>
+        <!-- الوسط: التوقيت فقط -->
+        <div id="hudCenter">
+            <div id="clockWidget">
+                <span id="clockIcon">☀️</span>
+                <span id="clockTime">08:00</span>
+                <span id="clockPhase">نهار</span>
             </div>
         </div>
 
-        <!-- Right: Inventory -->
-        <div class="hud-panel" id="hudInventory">
-            <div class="inv-grid">
-                <div class="inv-item"><span class="inv-icon">🪵</span><span class="inv-count" id="inv-stick">0</span></div>
-                <div class="inv-item"><span class="inv-icon">🪨</span><span class="inv-count" id="inv-stone">0</span></div>
-                <div class="inv-item"><span class="inv-icon">🥩</span><span class="inv-count" id="inv-meat">0</span></div>
-                <div class="inv-item"><span class="inv-icon">🦷</span><span class="inv-count" id="inv-horn">0</span></div>
-                <div class="inv-item"><span class="inv-icon">🦴</span><span class="inv-count" id="inv-teeth">0</span></div>
-                <div class="inv-item"><span class="inv-icon">🧥</span><span class="inv-count" id="inv-leather">0</span></div>
-                <div class="inv-item"><span class="inv-icon">🐟</span><span class="inv-count" id="inv-fish">0</span></div>
-                <div class="inv-item"><span class="inv-icon">🏹</span><span class="inv-count" id="inv-arrows">∞</span></div>
+        <!-- أقصى اليمين: (خريطة + حفظ/صوت بجانبها) ثم التحديات -->
+        <div id="hudRight">
+            <div id="hudRightTop">
+                <div id="hudTools">
+                    <button id="saveBtn" type="button" onclick="manualSaveGame()" title="حفظ كل التقدم">💾 حفظ</button>
+                    <button id="audioBtn" type="button" onclick="toggleAudioPanel()" title="إعدادات الصوت (M)">🔊 الصوت</button>
+                    <div id="audioPanel" dir="rtl">
+                        <h3>الصوت</h3>
+                        <div class="audio-row">
+                            <label for="audioMaster">الرئيسي</label>
+                            <input type="range" id="audioMaster" min="0" max="100" value="100"
+                                   oninput="onAudioSlider('master', this.value)">
+                        </div>
+                        <div class="audio-row">
+                            <label for="audioSfx">المؤثرات</label>
+                            <input type="range" id="audioSfx" min="0" max="100" value="100"
+                                   oninput="onAudioSlider('sfx', this.value)">
+                        </div>
+                        <div class="audio-row">
+                            <label for="audioAmbient">الأجواء</label>
+                            <input type="range" id="audioAmbient" min="0" max="100" value="100"
+                                   oninput="onAudioSlider('ambient', this.value)">
+                        </div>
+                        <div class="audio-row">
+                            <label for="audioMute">كتم الصوت</label>
+                            <input type="checkbox" id="audioMute" onchange="onAudioMuteToggle(this.checked)">
+                        </div>
+                        <div class="audio-hint">اختصار: M لكتم / إلغاء الكتم</div>
+                    </div>
+                </div>
+                <canvas id="minimap" width="140" height="140"></canvas>
+            </div>
+            <div class="hud-panel" id="hudProgress">
+                <div class="prog-item">
+                    🎯 <span id="killProg">0 / 10 قتلى</span>
+                    <div class="prog-bar-bg"><div class="prog-bar-fill" id="killBar" style="width:0%"></div></div>
+                </div>
+                <div class="prog-item">
+                    🏃 <span id="distProg">0 / 3 كم</span>
+                    <div class="prog-bar-bg"><div class="prog-bar-fill" id="distBar" style="width:0%"></div></div>
+                </div>
+                <div class="prog-item">
+                    🔨 <span id="chalProg">0 / 2 تحديات</span>
+                    <div class="prog-bar-bg"><div class="prog-bar-fill" id="chalBar" style="width:0%"></div></div>
+                </div>
             </div>
         </div>
     </div>
-
-    <!-- Minimap -->
-    <canvas id="minimap" width="140" height="140"></canvas>
 
     <!-- Notifications -->
     <div id="notifications"></div>
