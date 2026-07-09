@@ -12,7 +12,58 @@
             display: block;
             position: absolute;
             top: 0; left: 0;
+            z-index: 10;
+            background: transparent;
         }
+
+        /* ===== طبقات الخريطة (DOM/SVG) — تحت الـ canvas ===== */
+        #world-layers {
+            position: absolute;
+            top: 0; left: 0;
+            width: 3200px;
+            height: 3200px;
+            z-index: 1;
+            pointer-events: none;
+            transform-origin: 0 0;
+            will-change: transform;
+        }
+        .world-layer {
+            position: absolute;
+            overflow: hidden;
+            pointer-events: none;
+        }
+        .world-layer > svg.clip-defs {
+            position: absolute;
+            width: 0;
+            height: 0;
+            overflow: hidden;
+        }
+        .region-fill {
+            position: absolute;
+            inset: 0;
+            background-repeat: repeat;
+            background-size: 256px 256px;
+            background-position: 0 0;
+        }
+        .region-roads {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            overflow: visible;
+        }
+        #layer-grass {
+            inset: 0;
+            z-index: 0;
+            background: url('../textures/grass.png') repeat;
+            background-size: 256px 256px;
+        }
+        /* ترتيب بصري: رمال تحت الجبال → الجبال فوقها للتناغم */
+        #layer-west-forest { z-index: 2; }
+        #layer-north-sand { z-index: 3; }
+        #layer-mountains { z-index: 4; }
+        #layer-center-meadows { z-index: 2; }
+        #layer-south-gate { z-index: 5; }
 
         /* ===== HUD ===== */
         #hud {
@@ -974,6 +1025,16 @@
 <body>
     <div class="fade-overlay"></div>
 
+    <!-- طبقات الأرض (تحت الـ canvas) -->
+    <div id="world-layers">
+        <div id="layer-grass" class="world-layer"></div>
+        <div id="layer-west-forest" class="world-layer"></div>
+        <div id="layer-center-meadows" class="world-layer"></div>
+        <div id="layer-north-sand" class="world-layer"></div>
+        <div id="layer-mountains" class="world-layer"></div>
+        <div id="layer-south-gate" class="world-layer"></div>
+    </div>
+
     <!-- Game Canvas -->
     <canvas id="gameCanvas"></canvas>
 
@@ -1247,7 +1308,7 @@
 
     <!-- Forest-specific modules (load order matters) -->
     <script src="../js/forest-config.js"></script>
-    <script src="../js/forest-world.js"></script>
+    <script src="../js/forest-world.js?v=layers4"></script>
     <script src="../js/forest-entities.js"></script>
     <script src="../js/forest-time.js"></script>
     <script src="../js/forest-weather.js"></script>

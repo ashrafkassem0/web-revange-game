@@ -64,54 +64,212 @@ function setBlob(cx, cy, rad, t, wobble) {
     }
 }
 
-// ===== WORLD GENERATION — حدود مناطق منحنية عبر الضجيج =====
+// ===== مناطق إقليمية — كل منطقة = طبقة DOM/SVG واحدة (شكل متموج) =====
+const WAVY_CLIP_PATHS = {
+    organic1: 'M0.207,0.288 C0.187,0.312,0.149,0.347,0.1,0.364 C0.033,0.387,0,0.449,0,0.518 C0,0.57,0.024,0.613,0.05,0.643 C0.038,0.702,0.051,0.75,0.091,0.781 C0.119,0.803,0.158,0.814,0.21,0.811 C0.211,0.857,0.236,0.92,0.301,0.96 C0.386,1,0.551,1,0.627,0.992 C0.686,0.986,0.73,0.96,0.74,0.906 C0.778,0.914,0.824,0.913,0.865,0.884 C0.919,0.846,0.923,0.781,0.912,0.738 C0.967,0.71,1,0.665,1,0.602 C1,0.54,0.967,0.495,0.913,0.468 C0.923,0.426,0.92,0.361,0.866,0.323 C0.835,0.3,0.793,0.297,0.752,0.304 C0.747,0.244,0.71,0.161,0.63,0.113 C0.528,0.053,0.42,0.09,0.36,0.134 C0.328,0.113,0.28,0.096,0.228,0.117 C0.188,0.133,0.16,0.174,0.15,0.218 C0.15,0.241,0.16,0.273,0.178,0.296 L0.207,0.288 Z',
+    organic2: 'M0.25,0.15 C0.15,0.2,0.05,0.35,0.08,0.5 C0.1,0.62,0.02,0.75,0.15,0.85 C0.28,0.95,0.45,0.88,0.6,0.92 C0.75,0.95,0.9,0.85,0.92,0.7 C0.95,0.55,0.85,0.45,0.88,0.3 C0.9,0.15,0.75,0.05,0.6,0.08 C0.45,0.1,0.35,0.05,0.25,0.15 Z',
+    organic3: 'M0.3,0.05 C0.15,0.08,0.05,0.25,0.1,0.4 C0.15,0.55,0.05,0.65,0.15,0.78 C0.25,0.9,0.45,0.82,0.55,0.88 C0.65,0.95,0.85,0.9,0.9,0.75 C0.95,0.6,0.82,0.5,0.88,0.35 C0.95,0.2,0.8,0.1,0.65,0.05 C0.5,0,0.45,0.02,0.3,0.05 Z',
+};
+
+/** تعريفات الطبقات الإقليمية (إحداثيات عالم 3200×3200)
+ *  كل طبقة = خلفية صورة متكررة من game/textures/*.png داخل شكل متموج واحد */
+const REGION_DEFS = {
+    // رمال الشمال تمتد شرقاً تحت سفوح الجبال للتناغم البصري
+    northSand: {
+        el: 'layer-north-sand',
+        x: 700, y: 20, w: 2400, h: 900,
+        pathKey: 'organic2',
+        tile: T.SAND,
+        layers: [
+            { scale: 1.00, texture: 'sand' },
+            { scale: 0.42, texture: 'water', tile: T.WATER },
+        ],
+    },
+    // الجبال فوق الرمال (z-index أعلى) — سفح رملي خفيف ثم صخر
+    mountains: {
+        el: 'layer-mountains',
+        x: 2180, y: 200, w: 1080, h: 2300,
+        pathKey: 'organic3',
+        tile: T.ROCK,
+        layers: [
+            { scale: 1.00, texture: 'sand', opacity: 0.55 },
+            { scale: 0.82, texture: 'rock' },
+        ],
+    },
+    westForest: {
+        el: 'layer-west-forest',
+        x: 20, y: 80, w: 980, h: 2800,
+        pathKey: 'organic1',
+        tile: T.DARK,
+        layers: [
+            { scale: 1.00, texture: 'deep' },
+            { scale: 0.72, texture: 'dark' },
+        ],
+    },
+    centerMeadows: {
+        el: 'layer-center-meadows',
+        x: 900, y: 1000, w: 1400, h: 1200,
+        pathKey: 'organic2',
+        tile: T.GRASS,
+        layers: [
+            { scale: 1.00, texture: 'grass' },
+        ],
+    },
+    southGate: {
+        el: 'layer-south-gate',
+        x: 1180, y: 2680, w: 840, h: 520,
+        pathKey: 'organic3',
+        tile: T.SAND,
+        layers: [
+            { scale: 1.00, texture: 'sand' },
+        ],
+        roads: true,
+    },
+};
+
+/**
+ * Animal Zones — كل منطقة إقليمية تتميز بحيواناتها
+ * التوليد يتم داخل حدود REGION_DEFS (شكل متموج) وليس مستطيلات عشوائية فقط
+ */
+const ANIMAL_ZONES = {
+    mountains: {
+        label: 'جبال الشرق',
+        animals: [
+            { type: 'wolf',     count: 8, leash: 450, prefer: T.ROCK },
+            { type: 'direWolf', count: 4, leash: 500, prefer: T.ROCK },
+            { type: 'bear',     count: 3, leash: 480 },
+            { type: 'eagle',    count: 2, leash: 550 },
+        ],
+    },
+    westForest: {
+        label: 'غابة الغرب المظلمة',
+        animals: [
+            { type: 'snake',        count: 10, leash: 320, prefer: T.DARK },
+            { type: 'gorilla',      count: 4,  leash: 360, prefer: T.DARK },
+            { type: 'bear',         count: 2,  leash: 480 },
+            { type: 'nightPanther', count: 3,  leash: 480, prefer: T.DARK },
+            { type: 'giantSpider',  count: 3,  leash: 400, prefer: T.DARK },
+            { type: 'shadowBeast',  count: 1,  leash: 520, prefer: T.DARK },
+        ],
+    },
+    northSand: {
+        label: 'رمال الشمال والبحيرة',
+        animals: [
+            { type: 'crocodile', count: 8, leash: 500, prefer: T.WATER },
+            { type: 'eagle',     count: 1, leash: 550 },
+        ],
+    },
+    centerMeadows: {
+        label: 'مراعي الوسط',
+        animals: [
+            { type: 'wildRabbit', count: 10, leash: 380 },
+            { type: 'deer',       count: 5,  leash: 420, prefer: T.GRASS },
+            { type: 'fox',        count: 5,  leash: 400 },
+            { type: 'wildBoar',   count: 6,  leash: 400 },
+        ],
+    },
+    southGate: {
+        label: 'مدخل المدينة',
+        animals: [
+            { type: 'wildRabbit', count: 3, leash: 300 },
+            { type: 'fox',        count: 1, leash: 350 },
+        ],
+    },
+};
+
+const _zoneProbeCtx = (typeof document !== 'undefined')
+    ? document.createElement('canvas').getContext('2d')
+    : null;
+
+/** يحوّل مسار SVG (0..1) إلى Path2D بإحداثيات العالم */
+function buildRegionPath(region, scale) {
+    scale = scale == null ? 1 : scale;
+    const d = WAVY_CLIP_PATHS[region.pathKey];
+    if (!d) return null;
+    const s = Math.max(0.05, scale);
+    const ox = region.x + region.w * (1 - s) * 0.5;
+    const oy = region.y + region.h * (1 - s) * 0.5;
+    const sx = region.w * s;
+    const sy = region.h * s;
+
+    const path = new Path2D();
+    const tokens = d.match(/[MLCZ]|-?\d*\.?\d+(?:e[-+]?\d+)?/gi);
+    if (!tokens || !tokens.length) return null;
+
+    let i = 0;
+    let cmd = 'M';
+    const num = () => parseFloat(tokens[i++]);
+    const X = (u) => ox + u * sx;
+    const Y = (v) => oy + v * sy;
+
+    while (i < tokens.length) {
+        const t = tokens[i];
+        if (/^[MLCZ]$/i.test(t)) {
+            cmd = t.toUpperCase();
+            i++;
+        }
+        if (cmd === 'M') {
+            path.moveTo(X(num()), Y(num()));
+            cmd = 'L';
+        } else if (cmd === 'L') {
+            path.lineTo(X(num()), Y(num()));
+        } else if (cmd === 'C') {
+            const x1 = X(num()), y1 = Y(num());
+            const x2 = X(num()), y2 = Y(num());
+            const x  = X(num()), y  = Y(num());
+            path.bezierCurveTo(x1, y1, x2, y2, x, y);
+        } else if (cmd === 'Z') {
+            path.closePath();
+        } else {
+            break;
+        }
+    }
+    return path;
+}
+
+function pointInRegionPath(path, wx, wy) {
+    if (!path || !_zoneProbeCtx) return false;
+    return _zoneProbeCtx.isPointInPath(path, wx, wy);
+}
+
+function pointInRegion(regionKey, wx, wy, scale) {
+    const region = REGION_DEFS[regionKey];
+    if (!region) return false;
+    return pointInRegionPath(buildRegionPath(region, scale == null ? 1 : scale), wx, wy);
+}
+
+/** يملأ tileMap من الطبقات للاستعلام (توليد/خريطة مصغّرة) */
+function stampRegionToTiles(region) {
+    const cs = CFG.TILE_SIZE;
+    for (const layer of region.layers) {
+        const path = buildRegionPath(region, layer.scale);
+        if (!path) continue;
+        const tile = layer.tile != null ? layer.tile : region.tile;
+        const c0 = Math.max(0, Math.floor(region.x / cs));
+        const r0 = Math.max(0, Math.floor(region.y / cs));
+        const c1 = Math.min(CFG.WORLD_COLS - 1, Math.ceil((region.x + region.w) / cs));
+        const r1 = Math.min(CFG.WORLD_ROWS - 1, Math.ceil((region.y + region.h) / cs));
+        for (let r = r0; r <= r1; r++) {
+            for (let c = c0; c <= c1; c++) {
+                if (pointInRegionPath(path, c * cs + cs * 0.5, r * cs + cs * 0.5)) {
+                    setTile(c, r, tile);
+                }
+            }
+        }
+    }
+}
+
+function stampAllRegions() {
+    // رمال أولاً ثم جبال فوقها (tileMap + بصرياً)، ثم باقي المناطق
+    for (const key of ['westForest', 'northSand', 'mountains', 'centerMeadows', 'southGate']) {
+        stampRegionToTiles(REGION_DEFS[key]);
+    }
+}
+
+// ===== WORLD GENERATION =====
 function generateWorld() {
     tileMap.fill(T.GRASS);
-    const COLS = CFG.WORLD_COLS, ROWS = CFG.WORLD_ROWS;
-
-    // ——— غابة مظلمة (DARK) بحواف متعرّجة على اليسار والأعلى ———
-    for (let r = 0; r < ROWS; r++) {
-        for (let c = 0; c < COLS; c++) {
-            const nL = fbm(c * 0.14, r * 0.14);
-            const nT = fbm(c * 0.12 + 20, r * 0.12 + 5);
-            const leftEdge = 7 + nL * 8;                 // حافة يسرى تتموّج ~7..15
-            const topEdge  = 5 + nT * 8;                 // حافة عليا تتموّج ~5..13
-            let dark = c < leftEdge;
-            // زوايا علوية أعمق (يسار وأعلى-يمين)
-            if (r < topEdge + 6 && (c < 22 + nT * 7 || c > 56 - nT * 7)) dark = true;
-            if (dark) setTile(c, r, T.DARK);
-        }
-    }
-
-    // ——— كتلة جبلية (ROCK) يمين بساحل مموّج ———
-    for (let r = 0; r < ROWS; r++) {
-        for (let c = 0; c < COLS; c++) {
-            const n = fbm(c * 0.11 + 50, r * 0.11 + 50);
-            const rockEdge = 60 + n * 9;                 // حدّ يتموّج ~60..69
-            if (c > rockEdge && r > 15 + n * 9 && r < 66 - n * 7) setTile(c, r, T.ROCK);
-        }
-    }
-
-    // ——— بقع غابة كثيفة (DEEP) عضوية داخل العشب ———
-    for (let i = 0; i < 70; i++) {
-        const c = 10 + Math.floor(seededRand(i * 7) * 58);
-        const r = 14 + Math.floor(seededRand(i * 13) * 52);
-        if (getTile(c, r) === T.GRASS) setBlob(c, r, 2 + seededRand(i) * 3.2, T.DEEP, 0.55);
-    }
-
-    // ——— بحيرات بحواف مموّجة (شاطئ رملي ثم ماء) ———
-    setBlob(12, 12, 10, T.SAND, 0.4); setBlob(12, 12, 8, T.WATER, 0.4);
-    setBlob(68, 12, 9,  T.SAND, 0.4); setBlob(68, 12, 7, T.WATER, 0.4);
-    setBlob(40, 38, 6,  T.SAND, 0.35); setBlob(40, 38, 4, T.WATER, 0.35);
-
-    // ——— شريط رملي جنوبي متموّج نحو بوابة المدينة ———
-    for (let r = 57; r < ROWS; r++) {
-        for (let c = 0; c < COLS; c++) {
-            const n = fbm(c * 0.22, r * 0.22 + 30);
-            if (c > 35 + n * 5 && c < 45 - n * 5) setTile(c, r, T.SAND);
-        }
-    }
-
+    stampAllRegions();
     generateTrees();
 }
 
@@ -120,7 +278,6 @@ function seededRand(seed) {
     return x - Math.floor(x);
 }
 
-// rgba من لون hex بألفا مخصص (لتنعيم حواف المناطق)
 function _hexA(hex, a) {
     const n = parseInt(hex.slice(1), 16);
     return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
@@ -156,71 +313,41 @@ function generateTrees() {
     }
 }
 
-// ===== HABITAT ZONES — منطقة مفضّلة لكل حيوان =====
-// يُولَّد الحيوان داخل منطقته، ويمكنه الخروج قليلاً لكن يعود غالباً إليها
-// مرجع الخريطة (بالبكسل، الخلية = 40px):
-//   DARK  : يسار / أعلى-يسار / أعلى-يمين
-//   ROCK  : يمين (جبل)
-//   WATER : بحيرات ش-غ، ش-ش، وسط + شريط رملي جنوبي
-const ANIMAL_HABITATS = {
-    wildRabbit: {
-        zones: [[850, 1600, 2350, 2900], [1000, 2200, 2200, 3050]],
-        count: 10, leash: 380
-    },
-    deer: {
-        zones: [[900, 1800, 2300, 3000], [1000, 1100, 2100, 1900]],
-        count: 5, leash: 420
-    },
-    fox: {
-        zones: [[800, 1200, 2200, 2400], [600, 1600, 1800, 2500]],
-        count: 5, leash: 400
-    },
-    wolf: {
-        zones: [[2560, 850, 3150, 2000], [2560, 2000, 3150, 2450]],
-        prefer: T.ROCK, count: 8, leash: 450
-    },
-    snake: {
-        zones: [[30, 100, 310, 3100], [30, 30, 870, 970], [2290, 30, 3150, 970]],
-        prefer: T.DARK, count: 13, leash: 320
-    },
-    wildBoar: {
-        zones: [[350, 300, 1800, 1300], [1800, 100, 3000, 900]],
-        count: 6, leash: 400
-    },
-    bear: {
-        zones: [[150, 150, 880, 880], [2200, 150, 3100, 880], [1200, 1250, 2050, 1850]],
-        count: 6, leash: 480
-    },
-    gorilla: {
-        zones: [[30, 30, 700, 900], [2290, 30, 3100, 800]],
-        prefer: T.DARK, count: 4, leash: 360
-    },
-    crocodile: {
-        zones: [[150, 150, 800, 800], [2380, 150, 3100, 800], [1440, 1360, 1820, 1760], [1460, 2360, 1700, 3100]],
-        prefer: T.WATER, count: 10, leash: 500
-    },
-    eagle: {
-        zones: [[600, 200, 2600, 1600]],
-        count: 3, leash: 550
-    },
-    // مفترسات ليلية — مناطق مظلمة/صخرية بعيدة عن الجنوب
-    direWolf: {
-        zones: [[2560, 850, 3150, 2200], [30, 100, 500, 2000]],
-        prefer: T.ROCK, count: 4, leash: 500
-    },
-    nightPanther: {
-        zones: [[30, 30, 870, 1200], [2290, 30, 3150, 1100]],
-        prefer: T.DARK, count: 3, leash: 480
-    },
-    giantSpider: {
-        zones: [[30, 800, 400, 2800], [2400, 200, 3150, 1400]],
-        prefer: T.DARK, count: 3, leash: 400
-    },
-    shadowBeast: {
-        zones: [[80, 80, 700, 900], [2400, 80, 3100, 900]],
-        prefer: T.DARK, count: 1, leash: 520
-    },
-};
+/** يبني ANIMAL_HABITATS من ANIMAL_ZONES + حدود REGION_DEFS */
+function _buildHabitatsFromAnimalZones() {
+    const out = {};
+    for (const [regionKey, zone] of Object.entries(ANIMAL_ZONES)) {
+        const region = REGION_DEFS[regionKey];
+        if (!region || !zone.animals) continue;
+        const bbox = [
+            region.x + 40,
+            region.y + 40,
+            region.x + region.w - 40,
+            region.y + region.h - 40,
+        ];
+        for (const a of zone.animals) {
+            const prefer = a.prefer;
+            if (!out[a.type]) {
+                out[a.type] = {
+                    zones: [bbox],
+                    regionKeys: [regionKey],
+                    prefer: prefer,
+                    count: a.count || 0,
+                    leash: a.leash || 400,
+                };
+            } else {
+                out[a.type].zones.push(bbox);
+                out[a.type].regionKeys.push(regionKey);
+                out[a.type].count += a.count || 0;
+                if (prefer !== out[a.type].prefer) out[a.type].prefer = undefined;
+            }
+        }
+    }
+    return out;
+}
+
+// ===== HABITAT ZONES — مشتقّة من Animal Zones الإقليمية =====
+const ANIMAL_HABITATS = _buildHabitatsFromAnimalZones();
 
 function _isBlockedByStructure(x, y, radius) {
     if (typeof structures === 'undefined' || !structures.length) return false;
@@ -247,33 +374,46 @@ function _tileOkForPrefer(tile, prefer, tries) {
         return tries > 18 && tile !== T.WATER;
     }
     if (prefer === T.DARK) {
-        if (tile === T.DARK) return true;
+        if (tile === T.DARK || tile === T.DEEP) return true;
+        return tries > 18 && tile !== T.WATER;
+    }
+    if (prefer === T.DEEP) {
+        if (tile === T.DEEP || tile === T.GRASS) return true;
         return tries > 18 && tile !== T.WATER;
     }
     return tile !== T.WATER;
 }
 
-/** يختار نقطة توليد داخل مناطق الحيوان المفضّلة (يتجنب الماء/السياج) */
+/** يختار نقطة توليد داخل Animal Zone الإقليمية (شكل متموج) */
 function pickHabitatSpawn(type, opts) {
     opts = opts || {};
     const hab = ANIMAL_HABITATS[type];
     const zones = hab && hab.zones && hab.zones.length
         ? hab.zones
         : [[220, 220, CFG.WORLD_W - 220, CFG.WORLD_H - 220]];
+    const regionKeys = (hab && hab.regionKeys) || [];
     const prefer = hab ? hab.prefer : undefined;
     const minDist = opts.minDistFromPlayer || 0;
     const radius = opts.radius || 16;
 
-    for (let tries = 0; tries < 50; tries++) {
-        const zone = zones[Math.floor(Math.random() * zones.length)];
+    for (let tries = 0; tries < 60; tries++) {
+        const zi = Math.floor(Math.random() * zones.length);
+        const zone = zones[zi];
+        const regionKey = regionKeys[zi];
         const x = zone[0] + Math.random() * (zone[2] - zone[0]);
         const y = zone[1] + Math.random() * (zone[3] - zone[1]);
+
+        // التزم بحدود الشكل المتموج للمنطقة إن وُجدت
+        if (regionKey && !pointInRegion(regionKey, x, y, 1)) {
+            if (tries < 40) continue;
+        }
+
         const tile = getTile(Math.floor(x / CFG.TILE_SIZE), Math.floor(y / CFG.TILE_SIZE));
         if (!_tileOkForPrefer(tile, prefer, tries)) continue;
         if (minDist > 0 && typeof player !== 'undefined' &&
             Math.hypot(x - player.x, y - player.y) < minDist) continue;
         if (_isBlockedByStructure(x, y, radius)) continue;
-        return { x, y, leash: (hab && hab.leash) || 400 };
+        return { x, y, leash: (hab && hab.leash) || 400, regionKey: regionKey || null };
     }
     return null;
 }
@@ -341,168 +481,143 @@ function spawnResources() {
     }
 }
 
-// ===== PRE-RENDERED TERRAIN =====
-let terrainCanvas = null;
+// ===== DOM/SVG WORLD LAYERS =====
+let _worldLayersEl = null;
 
-function th(c, r, salt) {
-    return Math.abs(Math.sin(c * 127.1 * (salt || 1) + r * 311.7)) % 1;
-}
-function rh(a, b) {
-    return Math.abs(Math.sin(a * 127.1 + b * 311.7 + a * b * 0.0013)) % 1;
+function _scaledPathD(pathKey, scale) {
+    const d = WAVY_CLIP_PATHS[pathKey];
+    if (!d) return '';
+    const s = Math.max(0.05, scale);
+    const ox = (1 - s) * 0.5;
+    const oy = (1 - s) * 0.5;
+    const tokens = d.match(/[MLCZ]|-?\d*\.?\d+(?:e[-+]?\d+)?/gi);
+    if (!tokens) return '';
+    let i = 0;
+    let cmd = 'M';
+    let out = '';
+    const num = () => parseFloat(tokens[i++]);
+    const X = (u) => (ox + u * s).toFixed(4);
+    const Y = (v) => (oy + v * s).toFixed(4);
+    while (i < tokens.length) {
+        const t = tokens[i];
+        if (/^[MLCZ]$/i.test(t)) {
+            cmd = t.toUpperCase();
+            i++;
+        }
+        if (cmd === 'M') {
+            out += `M${X(num())},${Y(num())} `;
+            cmd = 'L';
+        } else if (cmd === 'L') {
+            out += `L${X(num())},${Y(num())} `;
+        } else if (cmd === 'C') {
+            out += `C${X(num())},${Y(num())} ${X(num())},${Y(num())} ${X(num())},${Y(num())} `;
+        } else if (cmd === 'Z') {
+            out += 'Z';
+        } else {
+            break;
+        }
+    }
+    return out.trim();
 }
 
-function loadTerrainTextures(onReady) {
-    const names = ['grass', 'deep', 'water', 'rock', 'dark', 'sand'];
-    const textures = {};
-    let pending = names.length;
-    names.forEach(name => {
-        const img = new Image();
-        img.onload  = () => { textures[name] = img; if (--pending === 0) onReady(textures); };
-        img.onerror = () => {                        if (--pending === 0) onReady(textures); };
-        img.src = '../textures/' + name + '.png';
+function _buildRegionHtml(region, key) {
+    const uid = 'rg_' + key;
+    let defs = '';
+    let fills = '';
+
+    region.layers.forEach((layer, li) => {
+        const clipId = `${uid}_clip${li}`;
+        const d = _scaledPathD(region.pathKey, layer.scale);
+        const opacity = layer.opacity != null ? layer.opacity : 1;
+        const tex = `../textures/${layer.texture}.png`;
+        defs += `
+            <clipPath id="${clipId}" clipPathUnits="objectBoundingBox">
+                <path d="${d}"></path>
+            </clipPath>`;
+        fills += `
+            <div class="region-fill" style="
+                background-image: url('${tex}');
+                opacity: ${opacity};
+                clip-path: url(#${clipId});
+                -webkit-clip-path: url(#${clipId});
+                z-index: ${li + 1};
+            "></div>`;
     });
+
+    let roads = '';
+    if (region.roads) {
+        roads = `
+            <svg class="region-roads" viewBox="0 0 1 1" preserveAspectRatio="none"
+                 xmlns="http://www.w3.org/2000/svg" style="z-index:20">
+                <g fill="none" stroke="#8a7040" stroke-width="0.035" stroke-linecap="round" opacity="0.9">
+                    <path d="M0.50,0.08 C0.48,0.35 0.52,0.55 0.50,0.92"></path>
+                    <path d="M0.50,0.55 C0.30,0.58 0.18,0.70 0.12,0.85" stroke-width="0.022"></path>
+                    <path d="M0.50,0.55 C0.70,0.58 0.82,0.70 0.88,0.85" stroke-width="0.022"></path>
+                </g>
+                <g fill="#c8a050" stroke="#5a4020" stroke-width="0.006">
+                    <rect x="0.44" y="0.18" width="0.12" height="0.08" rx="0.01"></rect>
+                    <text x="0.50" y="0.235" text-anchor="middle" font-size="0.045"
+                          fill="#2a1a08" stroke="none" font-family="Cairo,sans-serif">مدينة</text>
+                    <rect x="0.20" y="0.62" width="0.10" height="0.07" rx="0.01"></rect>
+                    <text x="0.25" y="0.67" text-anchor="middle" font-size="0.035"
+                          fill="#2a1a08" stroke="none" font-family="Cairo,sans-serif">←</text>
+                    <rect x="0.70" y="0.62" width="0.10" height="0.07" rx="0.01"></rect>
+                    <text x="0.75" y="0.67" text-anchor="middle" font-size="0.035"
+                          fill="#2a1a08" stroke="none" font-family="Cairo,sans-serif">→</text>
+                </g>
+            </svg>`;
+    }
+
+    return `
+        <svg class="clip-defs" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+            <defs>${defs}</defs>
+        </svg>
+        ${fills}
+        ${roads}`;
 }
 
-function prerenderTerrain(textures) {
-    terrainCanvas = document.createElement('canvas');
-    terrainCanvas.width  = CFG.WORLD_W;
-    terrainCanvas.height = CFG.WORLD_H;
-    const tc = terrainCanvas.getContext('2d');
-    const cs = CFG.TILE_SIZE;
+/** يبني طبقات DOM الإقليمية: خلفية صورة متكررة + clip-path متموج */
+function initWorldLayers() {
+    _worldLayersEl = document.getElementById('world-layers');
+    if (!_worldLayersEl) return;
 
-    const TYPES = [
-        { id: T.GRASS, key: 'grass', base: '#3a8228', tint: null },
-        { id: T.DEEP,  key: 'deep',  base: '#1b5016', tint: 'rgba(0,12,0,0.12)' },
-        { id: T.WATER, key: 'water', base: '#0e5ab5', tint: 'rgba(0,15,50,0.18)' },
-        { id: T.ROCK,  key: 'rock',  base: '#5a5248', tint: null },
-        { id: T.DARK,  key: 'dark',  base: '#0a1206', tint: 'rgba(0,4,0,0.20)' },
-        { id: T.SAND,  key: 'sand',  base: '#c09030', tint: null },
-    ];
+    _worldLayersEl.style.width = CFG.WORLD_W + 'px';
+    _worldLayersEl.style.height = CFG.WORLD_H + 'px';
 
-    // PASS 1 — solid base colours
-    for (let r = 0; r < CFG.WORLD_ROWS; r++) {
-        for (let c = 0; c < CFG.WORLD_COLS; c++) {
-            const t   = getTile(c, r);
-            const cfg = TYPES.find(x => x.id === t);
-            tc.fillStyle = cfg ? cfg.base : '#3a8228';
-            tc.fillRect(c * cs, r * cs, cs + 1, cs + 1);
-        }
-    }
-
-    // PASS 2 — stochastic texture bombing
-    for (const { id, key, tint } of TYPES) {
-        const img = textures && textures[key];
-        if (!img || !img.complete || img.naturalWidth === 0) continue;
-
-        const iW = img.naturalWidth;
-        const iH = img.naturalHeight;
-        const sampleSize = Math.min(190, Math.min(iW, iH) * 0.58);
-        const patchR = Math.min(130, sampleSize * 0.72 + 20);
-        const step   = Math.round(patchR * 1.1);
-
-        tc.save();
-        tc.beginPath();
-        for (let r = 0; r < CFG.WORLD_ROWS; r++) {
-            for (let c = 0; c < CFG.WORLD_COLS; c++) {
-                if (getTile(c, r) === id) tc.rect(c * cs - 1, r * cs - 1, cs + 2, cs + 2);
-            }
-        }
-        tc.clip();
-
-        let gi = 0;
-        const pad = patchR + step;
-        for (let gy = -pad; gy < CFG.WORLD_H + pad; gy += step) {
-            for (let gx = -pad; gx < CFG.WORLD_W + pad; gx += step) {
-                const h0 = rh(gi, id * 17 + 1);
-                const h1 = rh(gi, id * 17 + 2);
-                const h2 = rh(gi, id * 17 + 3);
-                const h3 = rh(gi, id * 17 + 4);
-                const h4 = rh(gi, id * 17 + 5);
-                const h5 = rh(gi, id * 17 + 6);
-                gi++;
-
-                const wx = gx + h0 * step;
-                const wy = gy + h1 * step;
-                const srcX = h2 * Math.max(1, iW - sampleSize);
-                const srcY = h3 * Math.max(1, iH - sampleSize);
-                const sw   = Math.min(sampleSize, iW  - srcX);
-                const sh   = Math.min(sampleSize, iH  - srcY);
-                const rot  = h4 * Math.PI * 2;
-                const pr   = patchR * (0.82 + h5 * 0.36);
-
-                tc.save();
-                tc.translate(wx, wy);
-                tc.rotate(rot);
-                tc.beginPath();
-                tc.arc(0, 0, pr, 0, Math.PI * 2);
-                tc.clip();
-                tc.globalAlpha = id === T.WATER ? 0.55 : (0.72 + h5 * 0.24);
-                tc.drawImage(img, srcX, srcY, sw, sh, -pr, -pr, pr * 2, pr * 2);
-                tc.restore();
-            }
-        }
-
-        if (tint) {
-            tc.fillStyle = tint;
-            tc.fillRect(0, 0, CFG.WORLD_W, CFG.WORLD_H);
-        }
-        tc.restore();
-    }
-
-    // PASS 2.5 — تنعيم حواف المناطق: كل خلية حدودية تنشر لونها قليلاً على الجيران
-    // فيتحوّل الحدّ المتدرّج (السلالم) إلى انتقال ناعم ويختفي مظهر المربعات
-    for (let r = 0; r < CFG.WORLD_ROWS; r++) {
-        for (let c = 0; c < CFG.WORLD_COLS; c++) {
-            const t = getTile(c, r);
-            if (t !== getTile(c - 1, r) || t !== getTile(c + 1, r) ||
-                t !== getTile(c, r - 1) || t !== getTile(c, r + 1) ||
-                t !== getTile(c - 1, r - 1) || t !== getTile(c + 1, r + 1) ||
-                t !== getTile(c - 1, r + 1) || t !== getTile(c + 1, r - 1)) {
-                const cfg = TYPES.find(x => x.id === t);
-                const base = cfg ? cfg.base : '#3a8228';
-                const cx2 = c * cs + cs / 2, cy2 = r * cs + cs / 2;
-                const grd = tc.createRadialGradient(cx2, cy2, cs * 0.15, cx2, cy2, cs * 1.05);
-                grd.addColorStop(0, _hexA(base, 0.0));
-                grd.addColorStop(0.55, _hexA(base, 0.28));
-                grd.addColorStop(1, _hexA(base, 0.62));
-                tc.fillStyle = grd;
-                tc.beginPath(); tc.arc(cx2, cy2, cs * 1.05, 0, Math.PI * 2); tc.fill();
-            }
-        }
-    }
-
-    // PASS 3 — sparse detail accents
-    for (let r = 0; r < CFG.WORLD_ROWS; r++) {
-        for (let c = 0; c < CFG.WORLD_COLS; c++) {
-            const t  = getTile(c, r);
-            const tx = c * cs, ty = r * cs;
-            const s1 = th(c, r, 1), s2 = th(c, r, 2), s3 = th(c, r, 3);
-
-            if (t === T.GRASS && s1 > 0.88) {
-                tc.fillStyle = s2 > 0.5 ? 'rgba(255,230,50,0.72)' : 'rgba(255,120,160,0.65)';
-                tc.beginPath(); tc.arc(tx + s2 * cs, ty + s3 * cs, 1.3, 0, Math.PI * 2); tc.fill();
-            }
-            if (t === T.DEEP && s2 > 0.90) {
-                tc.fillStyle = 'rgba(175,55,30,0.80)';
-                tc.beginPath(); tc.arc(tx + s1 * cs, ty + s3 * cs, 2.2, 0, Math.PI * 2); tc.fill();
-            }
-            if (t === T.SAND && s1 > 0.82) {
-                tc.fillStyle = 'rgba(145,130,95,0.60)';
-                tc.beginPath();
-                tc.ellipse(tx + s2 * cs, ty + s3 * cs, 2.8 * s1, 1.9 * s1, s2 * Math.PI, 0, Math.PI * 2);
-                tc.fill();
-            }
-        }
+    for (const [key, region] of Object.entries(REGION_DEFS)) {
+        const el = document.getElementById(region.el);
+        if (!el) continue;
+        el.style.left = region.x + 'px';
+        el.style.top = region.y + 'px';
+        el.style.width = region.w + 'px';
+        el.style.height = region.h + 'px';
+        el.innerHTML = _buildRegionHtml(region, key);
     }
 }
 
-// ===== WORLD DRAW (terrain + water animation) =====
+function syncWorldLayers(camX, camY) {
+    if (!_worldLayersEl) {
+        _worldLayersEl = document.getElementById('world-layers');
+        if (!_worldLayersEl) return;
+    }
+    const z = (typeof ZOOM !== 'undefined') ? ZOOM : 1;
+    _worldLayersEl.style.transform =
+        `translate(${-camX * z}px, ${-camY * z}px) scale(${z})`;
+}
+
+/** تهيئة الطبقات (بديل تحميل نسيج الـ canvas) */
+function loadTerrainTextures(onReady) {
+    initWorldLayers();
+    if (typeof onReady === 'function') onReady({});
+}
+
+function prerenderTerrain() {
+    // التضاريس أصبحت طبقات DOM/SVG — لا حاجة لـ terrainCanvas
+}
+
+// ===== WORLD DRAW (layers sync + water shimmer + trees) =====
 function drawWorld(camX, camY) {
-    if (terrainCanvas) {
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'high';
-        ctx.drawImage(terrainCanvas, -camX, -camY);
-    }
+    syncWorldLayers(camX, camY);
 
     const W  = canvas.width / ZOOM, H = canvas.height / ZOOM;
     const cs = CFG.TILE_SIZE;
@@ -511,40 +626,32 @@ function drawWorld(camX, camY) {
     const ec = Math.min(CFG.WORLD_COLS - 1, Math.ceil((camX + W) / cs));
     const er = Math.min(CFG.WORLD_ROWS - 1, Math.ceil((camY + H) / cs));
 
+    // تموج خفيف فوق بلاطات الماء (استعلام tileMap فقط)
     ctx.save();
     ctx.beginPath();
+    let anyWater = false;
     for (let r = sr; r <= er; r++) {
         for (let c = sc; c <= ec; c++) {
             if (getTile(c, r) !== T.WATER) continue;
             ctx.rect(c * cs - camX, r * cs - camY, cs + 1, cs + 1);
+            anyWater = true;
         }
     }
-    ctx.clip();
-
-    const t = waveTime * 0.001;
-    const bandCount = Math.ceil(H / 18) + 4;
-    for (let i = 0; i < bandCount; i++) {
-        const baseY = i * 18 - 9;
-        for (let x = -30; x < W + 30; x += 6) {
-            const wx = x + camX;
-            const wave = Math.sin(t * 1.8 + wx * 0.03 + i * 0.6) * 6
-                       + Math.sin(t * 1.1 + wx * 0.018 - i * 0.4) * 3;
-            const y2 = baseY + wave;
-            const alpha = 0.05 + Math.sin(t * 2.2 + wx * 0.04) * 0.02;
-            ctx.fillStyle = `rgba(100,210,255,${Math.max(0, alpha)})`;
-            ctx.fillRect(x, y2, 7, 2.5);
-        }
-    }
-
-    for (let fi = 0; fi < 8; fi++) {
-        const fw = (Math.sin(t * 0.7 + fi * 2.3) * 0.5 + 0.5) * W;
-        const fh = (Math.cos(t * 0.5 + fi * 1.8) * 0.5 + 0.5) * H;
-        const fa = Math.sin(t * 3 + fi) * 0.04 + 0.04;
-        if (fa > 0.01) {
-            ctx.fillStyle = `rgba(255,255,255,${fa})`;
-            ctx.beginPath();
-            ctx.ellipse(fw, fh, 18 + Math.sin(t + fi) * 8, 3, 0, 0, Math.PI * 2);
-            ctx.fill();
+    if (anyWater) {
+        ctx.clip();
+        const t = (typeof waveTime !== 'undefined' ? waveTime : 0) * 0.001;
+        const bandCount = Math.ceil(H / 18) + 4;
+        for (let i = 0; i < bandCount; i++) {
+            const baseY = i * 18 - 9;
+            for (let x = -30; x < W + 30; x += 6) {
+                const wx = x + camX;
+                const wave = Math.sin(t * 1.8 + wx * 0.03 + i * 0.6) * 6
+                           + Math.sin(t * 1.1 + wx * 0.018 - i * 0.4) * 3;
+                const y2 = baseY + wave;
+                const alpha = 0.05 + Math.sin(t * 2.2 + wx * 0.04) * 0.02;
+                ctx.fillStyle = `rgba(100,210,255,${Math.max(0, alpha)})`;
+                ctx.fillRect(x, y2, 7, 2.5);
+            }
         }
     }
     ctx.restore();

@@ -1,0 +1,52 @@
+# Revenge — Execute One Task and Don't make game down
+
+## Task (put the path here)
+@tasks/PHASE_01_FOUNDATIONS/TASK_002_SCENE_MANAGER.md 
+
+## Role
+You are a Revenge game developer and expert ui\ux . Implement only this task until its acceptance criteria pass, with the best possible visual quality and code organization within the current game architecture.
+
+## Architecture constraints (mandatory)
+- Multi-page HTML: `game/index.html`, `game/start/`, `game/forest/`, `game/city/` (+ new pages in the same pattern if the task requires them)
+- World rendering: HTML5 Canvas 2D + `requestAnimationFrame` — no Pixi.js
+- State/save: `game/js/shared.js` (`SaveManager` / `GameState`)
+- Audio: extend `game/js/sounds.js` if needed — do not rebuild an audio engine from scratch
+- UI (HUD / menus / modals): HTML/CSS like the city `#modal` and forest HUD
+- Transitions: CSS `.fade-overlay` + `navigateTo` / `SaveManager.mapUrlFor`
+- Do not delete other tasks and do not rewrite unrelated task files
+
+## Before coding (read first)
+1. Read the full task file (Objective + Mechanics + Implementation Hints + Acceptance Criteria)
+2. Inspect the related code (files named in the task + nearest `forest-*.js` / `city/index.html` / `shared.js` modules)
+3. Identify: what already exists? what is the real gap? Do not reinvent a system that already works partially
+
+## Visual quality bar (critical)
+- Match the current game look: Cairo RTL, dark warm palette, `#ffd060` accents, soft borders, subtle gradient modals
+- Canvas world: clear layers (offscreen terrain if present → entities → effects → rgba lighting)
+- Particles: realistic counts (~50–150) with stable performance — no particle spam
+- Motion/transitions: smooth (fade, light shake, flash) without visual noise
+- Arabic text: readable, RTL, no clipping or HUD overlap
+- Small screens: do not break the HUD unless the task explicitly covers mobile/touch
+
+## Work organization
+1. Implement the task as one coherent unit (few files, naming consistent with existing modules: `forest-*`, `dv-*`, etc.)
+2. Reuse existing patterns instead of parallel systems
+3. Persist state through `GameState` / `maps.*` when needed
+4. Update `mapUrlFor` if you add a new stage page
+5. Do not expand scope beyond Acceptance Criteria — if the task is thin, ship the smallest elegant solution that fits the game
+6. After implementation: walk the acceptance checklist item by item and confirm each is covered
+
+## Implementation style
+- Change only the files required for this task
+- Clean code matching project style (vanilla JS, `'use strict'` where already used)
+- No leftover TODOs for the core of the task
+- No new libraries unless the task explicitly requires them and there is no local alternative
+
+## Expected output
+1. Actual code implementation
+2. Short summary: what was added/changed, and which files
+3. Acceptance Criteria list with ✅/❌ per item
+4. If anything remains incomplete: state it clearly and why
+5. update project ReadMe.md 
+
+Start by reading the task file referenced above, then implement it.
