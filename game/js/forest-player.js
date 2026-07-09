@@ -14,7 +14,7 @@ const player = {
     absorbedAttack: 0, absorbedDefense: 0,
     inventory: { stick: 0, stone: 0, meat: 0, horn: 0, teeth: 0, leather: 0, fish: 0, arrows: 15 },
     craftedItems: { axe: false, fishingRod: false, hornSpear: false, hornSword: false, leatherArmor: false },
-    attackCd: 0, hurtTimer: 0, chopCd: 0,
+    attackCd: 0, hurtTimer: 0, chopCd: 0, repairCd: 0,
     walkTimer: 0, isMoving: false,
     isFishing: false, fishingTimer: 0, fishingBite: false, fishingBiteTimer: 0,
     poisoned: false, poisonTimer: 0, poisonDmg: 0,
@@ -88,6 +88,7 @@ function updatePlayer(dt) {
     player.attackCd  = Math.max(0, player.attackCd - dt);
     player.hurtTimer = Math.max(0, player.hurtTimer - dt);
     player.chopCd    = Math.max(0, player.chopCd - dt);
+    player.repairCd  = Math.max(0, (player.repairCd || 0) - dt);
     for (const t of trees) t.shakeTimer = Math.max(0, (t.shakeTimer || 0) - dt);
 
     for (const res of resources) res.update(dt);

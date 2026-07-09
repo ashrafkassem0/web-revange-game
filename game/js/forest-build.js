@@ -92,7 +92,7 @@ function tryPlaceBuild(wx, wy) {
     for (const [k, v] of Object.entries(def.cost)) player.inventory[k] -= v;
     structures.push({
         type: id, x, y, r: def.r, hp: def.hp, maxHp: def.hp,
-        open: false, lit: !!def.light, uid: _structUid++
+        open: false, lit: !!def.light, gate: !!def.gate, uid: _structUid++
     });
     if (typeof SFX !== 'undefined' && SFX.xp) SFX.xp();
     notify(`${def.emoji} تم بناء ${def.name}!`, '#2ecc71');
@@ -126,8 +126,9 @@ function resolveStructureCollision(x, y, radius, isEnemy) {
     for (const s of structures) {
         const def = BUILDABLES[s.type];
         if (!def || !def.solid) continue;
-        if (s.gate && s.open) continue;
-        if (s.gate && !isEnemy) continue; // اللاعب يعبر البوابة، الوحوش لا
+        // البوابة: البطل يعبر دائماً، الحيوانات لا تعبر
+        if (def.gate && !isEnemy) continue;
+        if (def.gate && s.open) continue;
         const dx = x - s.x, dy = y - s.y;
         const d = Math.hypot(dx, dy);
         const minD = s.r + radius;
@@ -181,6 +182,147 @@ function isNearLitCampfire() {
         if (s.type === 'campfire' && s.lit && Math.hypot(s.x - player.x, s.y - player.y) < 70) return true;
     }
     return false;
+}
+
+// ===== REPAIR FENCE / GATE =====
+const REPAIRABLE = { fenceWall: true, gate: true, hut: true };
+const REPAIR_COST = { stick: 1 };      // تكلفة كل ضربة إصلاح
+const REPAIR_HEAL = 45;                // نقاط صحة تُستعاد لكل إصلاح
+const REPAIR_RANGE = 72;
+
+function findNearbyDamagedStructure() {
+    let best = null, bestD = Infinity;
+    for (const s of structures) {
+        if (!REPAIRABLE[s.type]) continue;
+        if (s.hp >= s.maxHp) continue;
+        const d = Math.hypot(s.x - player.x, s.y - player.y);
+        if (d < s.r + REPAIR_RANGE && d < bestD) { bestD = d; best = s; }
+    }
+    return best;
+}
+
+function tryRepairStructure() {
+    const s = findNearbyDamagedStructure();
+    if (!s) return false;
+    if ((player.repairCd || 0) > 0) return true; // قريب لكن على تهدئة
+
+    for (const [k, v] of Object.entries(REPAIR_COST)) {
+        if ((player.inventory[k] || 0) < v) {
+            const name = (typeof ITEM_NAMES !== 'undefined' && ITEM_NAMES[k]) || k;
+            notify(`🔒 تحتاج ${v} ${name} للإصلاح!`, '#e74c3c');
+            return true;
+        }
+    }
+    for (const [k, v] of Object.entries(REPAIR_COST)) player.inventory[k] -= v;
+
+    const before = s.hp;
+    s.hp = Math.min(s.maxHp, s.hp + REPAIR_HEAL);
+    player.repairCd = 450;
+    s.shakeTimer = 180;
+
+    const def = BUILDABLES[s.type];
+    const healed = Math.floor(s.hp - before);
+    if (typeof SFX !== 'undefined' && SFX.xp) SFX.xp();
+    if (s.hp >= s.maxHp) {
+        notify(`🔧 تم إصلاح ${def ? def.name : 'المبنى'} بالكامل!`, '#2ecc71', s.x, s.y - s.r - 12);
+    } else {
+        notify(`🔧 إصلاح +${healed} (${Math.floor(s.hp)}/${s.maxHp})`, '#f0c040', s.x, s.y - s.r - 12);
+    }
+    updateHUD();
+    if (typeof saveForestProgress === 'function') saveForestProgress();
+    return true;
+}
+
+// ===== SLEEP IN HUT =====
+let sleepMenuOpen = false;
+let _sleepHours = 4;
+
+function findNearbyHut() {
+    let best = null, bestD = Infinity;
+    for (const s of structures) {
+        if (s.type !== 'hut') continue;
+        const d = Math.hypot(s.x - player.x, s.y - player.y);
+        if (d < s.r + 36 && d < bestD) { bestD = d; best = s; }
+    }
+    return best;
+}
+
+function openSleepMenu() {
+    if (sleepMenuOpen || !findNearbyHut()) return;
+    if (typeof craftMenuOpen !== 'undefined' && craftMenuOpen) closeCraftingMenu();
+    if (typeof backpackOpen !== 'undefined' && backpackOpen) closeBackpack();
+    if (typeof buildMode !== 'undefined' && buildMode) exitBuildMode();
+    sleepMenuOpen = true;
+    gamePaused = true;
+    _sleepHours = 4;
+    const panel = document.getElementById('sleepPanel');
+    if (panel) panel.style.display = 'flex';
+    updateSleepHoursUI();
+}
+
+function closeSleepMenu() {
+    sleepMenuOpen = false;
+    gamePaused = false;
+    const panel = document.getElementById('sleepPanel');
+    if (panel) panel.style.display = 'none';
+}
+
+function adjustSleepHours(delta) {
+    _sleepHours = Math.max(1, Math.min(12, _sleepHours + delta));
+    updateSleepHoursUI();
+}
+
+function updateSleepHoursUI() {
+    const el = document.getElementById('sleepHoursVal');
+    if (el) el.textContent = String(_sleepHours);
+    const hint = document.getElementById('sleepHint');
+    if (hint && typeof gameClock !== 'undefined') {
+        const wake = (gameClock.minutes + _sleepHours * 60) % 1440;
+        const h = Math.floor(wake / 60) % 24;
+        const m = Math.floor(wake % 60);
+        hint.textContent = `تستيقظ عند ${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    }
+}
+
+function confirmSleep() {
+    if (!sleepMenuOpen || !findNearbyHut()) { closeSleepMenu(); return; }
+    const hours = _sleepHours;
+    // تقدّم الساعة بعدد الساعات المختارة
+    if (typeof gameClock !== 'undefined') {
+        gameClock.minutes += hours * 60;
+        while (gameClock.minutes >= 1440) {
+            gameClock.minutes -= 1440;
+            if (typeof dayCount !== 'undefined') dayCount++;
+        }
+        if (typeof getPhaseFor === 'function') {
+            const p = getPhaseFor(gameClock.minutes);
+            if (p !== dayNightPhase) {
+                const prev = dayNightPhase;
+                dayNightPhase = p;
+                if (typeof onDayNightPhaseChange === 'function') onDayNightPhaseChange(prev, p);
+            }
+            isNight = (p === 'night' || p === 'dusk');
+        }
+        if (typeof updateClockHUD === 'function') updateClockHUD();
+    }
+    // شفاء حسب ساعات النوم
+    const heal = Math.min(player.maxHp - player.hp, hours * 8);
+    const stam = Math.min(CFG.STAMINA_MAX - player.stamina, hours * 12);
+    player.hp = Math.min(player.maxHp, player.hp + heal);
+    player.stamina = Math.min(CFG.STAMINA_MAX, player.stamina + stam);
+    player.poisoned = false;
+    player.poisonTimer = 0;
+    player.nauseous = false;
+    player.nauseaTimer = 0;
+    const indP = document.getElementById('poisonIndicator');
+    const indN = document.getElementById('nauseaIndicator');
+    if (indP) indP.style.display = 'none';
+    if (indN) indN.style.display = 'none';
+    closeSleepMenu();
+    notify(`😴 نمت ${hours} ساعة — +${heal}❤️ +${Math.floor(stam)}⚡`, '#5dade2');
+    if (typeof SFX !== 'undefined' && SFX.xp) SFX.xp();
+    updateHUD();
+    if (typeof saveForestProgress === 'function') saveForestProgress();
 }
 
 // ===== DRAW =====
@@ -277,6 +419,17 @@ function drawStructure(s, camX, camY) {
         ctx.fillRect(-9, 2, 18, 22);
         ctx.fillStyle = '#f0c040';
         ctx.beginPath(); ctx.arc(5, 13, 1.6, 0, Math.PI * 2); ctx.fill();
+        // تلميح النوم (الإصلاح يُرسم لاحقاً فوق شريط الصحة)
+        if (s.hp >= s.maxHp && typeof player !== 'undefined' &&
+            Math.hypot(s.x - player.x, s.y - player.y) < s.r + 36) {
+            ctx.font = 'bold 11px Cairo';
+            ctx.textAlign = 'center';
+            ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+            ctx.lineWidth = 3;
+            ctx.strokeText('[E] 😴 نم', 0, -54);
+            ctx.fillStyle = '#5dade2';
+            ctx.fillText('[E] 😴 نم', 0, -54);
+        }
     }
 
     // شريط صحة عند التضرر
@@ -285,6 +438,19 @@ function drawStructure(s, camX, camY) {
         ctx.fillStyle = '#333'; ctx.fillRect(-bw / 2, -s.r - 14, bw, bh);
         ctx.fillStyle = s.hp / s.maxHp > 0.4 ? '#2ecc71' : '#e74c3c';
         ctx.fillRect(-bw / 2, -s.r - 14, bw * (s.hp / s.maxHp), bh);
+    }
+
+    // تلميح الإصلاح — فوق شريط الصحة حتى يظهر بوضوح
+    if (REPAIRABLE[s.type] && s.hp < s.maxHp && typeof player !== 'undefined' &&
+        Math.hypot(s.x - player.x, s.y - player.y) < s.r + REPAIR_RANGE) {
+        ctx.font = 'bold 12px Cairo';
+        ctx.textAlign = 'center';
+        ctx.strokeStyle = 'rgba(0,0,0,0.9)';
+        ctx.lineWidth = 4;
+        const labelY = -s.r - 28;
+        ctx.strokeText('[E] 🔧 إصلاح', 0, labelY);
+        ctx.fillStyle = '#f0c040';
+        ctx.fillText('[E] 🔧 إصلاح', 0, labelY);
     }
     ctx.restore();
 }
@@ -365,7 +531,7 @@ function restoreStructures(arr) {
             type: s.type, x: s.x, y: s.y, r: def.r,
             hp: (typeof s.hp === 'number') ? s.hp : def.hp, maxHp: def.hp,
             open: !!s.open, lit: (s.lit != null) ? !!s.lit : !!def.light,
-            uid: _structUid++, shakeTimer: 0
+            gate: !!def.gate, uid: _structUid++, shakeTimer: 0
         });
     }
 }

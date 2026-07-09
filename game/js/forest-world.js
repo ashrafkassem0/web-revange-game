@@ -156,96 +156,146 @@ function generateTrees() {
     }
 }
 
-// ===== SPAWN ENEMIES — كل حيوان في بيئته الطبيعية =====
+// ===== HABITAT ZONES — منطقة مفضّلة لكل حيوان =====
+// يُولَّد الحيوان داخل منطقته، ويمكنه الخروج قليلاً لكن يعود غالباً إليها
 // مرجع الخريطة (بالبكسل، الخلية = 40px):
-//   DARK  (غابة مظلمة): يسار (0-320, 0-3200)، أعلى-يسار (0-880, 0-1000)، أعلى-يمين (2280-3200, 0-1000)
-//   ROCK  (صخر/جبل)  : يمين (2560-3200, 800-2480)
-//   WATER (ماء)       : بحيرة ش-غ ≈(480,480)، ش-ش ≈(2720,480)، وسط ≈(1600,1520)
-//   SAND  (رمل)       : شواطئ البحيرات + شريط جنوبي (1480-1680, 2320-3200)
-//   GRASS / DEEP      : بقية الخريطة
+//   DARK  : يسار / أعلى-يسار / أعلى-يمين
+//   ROCK  : يمين (جبل)
+//   WATER : بحيرات ش-غ، ش-ش، وسط + شريط رملي جنوبي
+const ANIMAL_HABITATS = {
+    wildRabbit: {
+        zones: [[850, 1600, 2350, 2900], [1000, 2200, 2200, 3050]],
+        count: 10, leash: 380
+    },
+    deer: {
+        zones: [[900, 1800, 2300, 3000], [1000, 1100, 2100, 1900]],
+        count: 5, leash: 420
+    },
+    fox: {
+        zones: [[800, 1200, 2200, 2400], [600, 1600, 1800, 2500]],
+        count: 5, leash: 400
+    },
+    wolf: {
+        zones: [[2560, 850, 3150, 2000], [2560, 2000, 3150, 2450]],
+        prefer: T.ROCK, count: 8, leash: 450
+    },
+    snake: {
+        zones: [[30, 100, 310, 3100], [30, 30, 870, 970], [2290, 30, 3150, 970]],
+        prefer: T.DARK, count: 13, leash: 320
+    },
+    wildBoar: {
+        zones: [[350, 300, 1800, 1300], [1800, 100, 3000, 900]],
+        count: 6, leash: 400
+    },
+    bear: {
+        zones: [[150, 150, 880, 880], [2200, 150, 3100, 880], [1200, 1250, 2050, 1850]],
+        count: 6, leash: 480
+    },
+    gorilla: {
+        zones: [[30, 30, 700, 900], [2290, 30, 3100, 800]],
+        prefer: T.DARK, count: 4, leash: 360
+    },
+    crocodile: {
+        zones: [[150, 150, 800, 800], [2380, 150, 3100, 800], [1440, 1360, 1820, 1760], [1460, 2360, 1700, 3100]],
+        prefer: T.WATER, count: 10, leash: 500
+    },
+    eagle: {
+        zones: [[600, 200, 2600, 1600]],
+        count: 3, leash: 550
+    },
+    // مفترسات ليلية — مناطق مظلمة/صخرية بعيدة عن الجنوب
+    direWolf: {
+        zones: [[2560, 850, 3150, 2200], [30, 100, 500, 2000]],
+        prefer: T.ROCK, count: 4, leash: 500
+    },
+    nightPanther: {
+        zones: [[30, 30, 870, 1200], [2290, 30, 3150, 1100]],
+        prefer: T.DARK, count: 3, leash: 480
+    },
+    giantSpider: {
+        zones: [[30, 800, 400, 2800], [2400, 200, 3150, 1400]],
+        prefer: T.DARK, count: 3, leash: 400
+    },
+    shadowBeast: {
+        zones: [[80, 80, 700, 900], [2400, 80, 3100, 900]],
+        prefer: T.DARK, count: 1, leash: 520
+    },
+};
+
+function _isBlockedByStructure(x, y, radius) {
+    if (typeof structures === 'undefined' || !structures.length) return false;
+    for (const s of structures) {
+        const def = (typeof BUILDABLES !== 'undefined') ? BUILDABLES[s.type] : null;
+        if (!def || !def.solid) continue;
+        if (def.gate) continue; // البوابة ليست منطقة توليد محظورة بالكامل
+        if (Math.hypot(s.x - x, s.y - y) < (s.r || def.r) + radius + 8) return true;
+    }
+    return false;
+}
+
+function _tileOkForPrefer(tile, prefer, tries) {
+    if (prefer === T.WATER) {
+        if (tile === T.WATER || tile === T.SAND) return true;
+        return tries > 18 && tile !== T.WATER;
+    }
+    if (prefer === T.SAND) {
+        if (tile === T.SAND) return true;
+        return tries > 18 && tile !== T.WATER;
+    }
+    if (prefer === T.ROCK) {
+        if (tile === T.ROCK) return true;
+        return tries > 18 && tile !== T.WATER;
+    }
+    if (prefer === T.DARK) {
+        if (tile === T.DARK) return true;
+        return tries > 18 && tile !== T.WATER;
+    }
+    return tile !== T.WATER;
+}
+
+/** يختار نقطة توليد داخل مناطق الحيوان المفضّلة (يتجنب الماء/السياج) */
+function pickHabitatSpawn(type, opts) {
+    opts = opts || {};
+    const hab = ANIMAL_HABITATS[type];
+    const zones = hab && hab.zones && hab.zones.length
+        ? hab.zones
+        : [[220, 220, CFG.WORLD_W - 220, CFG.WORLD_H - 220]];
+    const prefer = hab ? hab.prefer : undefined;
+    const minDist = opts.minDistFromPlayer || 0;
+    const radius = opts.radius || 16;
+
+    for (let tries = 0; tries < 50; tries++) {
+        const zone = zones[Math.floor(Math.random() * zones.length)];
+        const x = zone[0] + Math.random() * (zone[2] - zone[0]);
+        const y = zone[1] + Math.random() * (zone[3] - zone[1]);
+        const tile = getTile(Math.floor(x / CFG.TILE_SIZE), Math.floor(y / CFG.TILE_SIZE));
+        if (!_tileOkForPrefer(tile, prefer, tries)) continue;
+        if (minDist > 0 && typeof player !== 'undefined' &&
+            Math.hypot(x - player.x, y - player.y) < minDist) continue;
+        if (_isBlockedByStructure(x, y, radius)) continue;
+        return { x, y, leash: (hab && hab.leash) || 400 };
+    }
+    return null;
+}
+
+function spawnEnemyInHabitat(type, opts) {
+    const tmpl = ENEMY_TEMPLATES[type];
+    if (!tmpl) return null;
+    const pt = pickHabitatSpawn(type, Object.assign({ radius: tmpl.radius || 16 }, opts || {}));
+    if (!pt) return null;
+    const e = new Enemy(tmpl, pt.x, pt.y);
+    e.homeX = pt.x;
+    e.homeY = pt.y;
+    e.leashRadius = pt.leash;
+    enemies.push(e);
+    return e;
+}
 
 function spawnEnemies() {
-    // prefer: T.DARK | T.ROCK | T.WATER | T.SAND | undefined (= أي أرض)
-    const sp = [
-        // ————— أرانب — الغابة العشبية —————
-        { type: 'wildRabbit', zone: [850,  1600, 2350, 2900], count: 6 },
-        { type: 'wildRabbit', zone: [1000, 2200, 2200, 3050], count: 4 },
-
-        // ————— غزلان — المراعي المفتوحة —————
-        { type: 'deer', zone: [900,  1800, 2300, 3000], count: 3 },
-        { type: 'deer', zone: [1000, 1100, 2100, 1900], count: 2 },
-
-        // ————— ذئاب — المناطق الصخرية الجبلية —————
-        { type: 'wolf', zone: [2560, 850,  3150, 2000], count: 5, prefer: T.ROCK },
-        { type: 'wolf', zone: [2560, 2000, 3150, 2450], count: 3, prefer: T.ROCK },
-
-        // ————— دببة — قرب الغابة والمياه —————
-        { type: 'bear', zone: [150,  150,  880,  880],  count: 2 }, // قرب بحيرة ش-غ
-        { type: 'bear', zone: [2200, 150,  3100, 880],  count: 2 }, // قرب بحيرة ش-ش
-        { type: 'bear', zone: [1200, 1250, 2050, 1850], count: 2 }, // قرب البحيرة الوسطى
-
-        // ————— تماسيح — داخل المياه وعلى الشواطئ —————
-        { type: 'crocodile', zone: [150,  150,  800,  800],  count: 3, prefer: T.WATER }, // بحيرة ش-غ
-        { type: 'crocodile', zone: [2380, 150,  3100, 800],  count: 3, prefer: T.WATER }, // بحيرة ش-ش
-        { type: 'crocodile', zone: [1440, 1360, 1820, 1760], count: 2, prefer: T.WATER }, // البحيرة الوسطى
-        { type: 'crocodile', zone: [1460, 2360, 1700, 3100], count: 2, prefer: T.SAND  }, // الشريط الجنوبي
-
-        // ————— ثعابين — الغابة المظلمة —————
-        { type: 'snake', zone: [30,   100,  310,  3100], count: 5, prefer: T.DARK }, // الحافة اليسرى
-        { type: 'snake', zone: [30,   30,   870,  970],  count: 4, prefer: T.DARK }, // أعلى-يسار
-        { type: 'snake', zone: [2290, 30,   3150, 970],  count: 4, prefer: T.DARK }, // أعلى-يمين
-
-        // ————— خنازير برية — الغابة الكثيفة —————
-        { type: 'wildBoar', zone: [350,  300,  1800, 1300], count: 3 },
-        { type: 'wildBoar', zone: [1800, 100,  3000, 900],  count: 3 },
-
-        // ————— ثعالب — أطراف الغابة —————
-        { type: 'fox', zone: [800,  1200, 2200, 2400], count: 3 },
-        { type: 'fox', zone: [600,  1600, 1800, 2500], count: 2 },
-
-        // ————— غوريلا — قلب الغابة المظلمة —————
-        { type: 'gorilla', zone: [30,   30,   700,  900],  count: 2, prefer: T.DARK },
-        { type: 'gorilla', zone: [2290, 30,   3100, 800],  count: 2, prefer: T.DARK },
-
-        // ————— نسور — المناطق المفتوحة —————
-        { type: 'eagle', zone: [600, 200, 2600, 1600], count: 3 },
-    ];
-
-    for (const s of sp) {
-        const tmpl = ENEMY_TEMPLATES[s.type];
-        if (!tmpl) continue;
-
-        for (let i = 0; i < s.count; i++) {
-            let x = 0, y = 0, tries = 0;
-            let valid = false;
-
-            while (tries < 25) {
-                x = s.zone[0] + Math.random() * (s.zone[2] - s.zone[0]);
-                y = s.zone[1] + Math.random() * (s.zone[3] - s.zone[1]);
-                tries++;
-                const tile = getTile(Math.floor(x / CFG.TILE_SIZE), Math.floor(y / CFG.TILE_SIZE));
-
-                if (s.prefer === T.WATER) {
-                    // تماسيح: تُحسّب الأولوية للماء والرمال، وإن فشلت تُقبل أي أرض
-                    if (tile === T.WATER || tile === T.SAND) { valid = true; break; }
-                    if (tries > 18 && tile !== T.WATER)     { valid = true; break; }
-                } else if (s.prefer === T.SAND) {
-                    if (tile === T.SAND)               { valid = true; break; }
-                    if (tries > 18 && tile !== T.WATER) { valid = true; break; }
-                } else if (s.prefer === T.ROCK) {
-                    if (tile === T.ROCK)               { valid = true; break; }
-                    if (tries > 18 && tile !== T.WATER) { valid = true; break; }
-                } else if (s.prefer === T.DARK) {
-                    if (tile === T.DARK)               { valid = true; break; }
-                    if (tries > 18 && tile !== T.WATER) { valid = true; break; }
-                } else {
-                    if (tile !== T.WATER)              { valid = true; break; }
-                }
-            }
-
-            if (!valid) continue;
-            enemies.push(new Enemy(tmpl, x, y));
-        }
+    for (const [type, hab] of Object.entries(ANIMAL_HABITATS)) {
+        if (!ENEMY_TEMPLATES[type] || ENEMY_TEMPLATES[type].nocturnal) continue;
+        const n = hab.count || 0;
+        for (let i = 0; i < n; i++) spawnEnemyInHabitat(type);
     }
 }
 

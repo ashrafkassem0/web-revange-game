@@ -9,11 +9,16 @@ class Enemy {
         Object.assign(this, JSON.parse(JSON.stringify(tmpl)));
         this.maxHp = this.hp;
         this.x = x; this.y = y;
+        // نقطة المنزل: يبقى معظم الوقت قرب منطقة توليده
+        this.homeX = x;
+        this.homeY = y;
+        this.leashRadius = 400;
         this.vx = 0; this.vy = 0;
         this.wanderTimer = 0;
         this.wanderAngle = Math.random() * Math.PI * 2;
         this.attackTimer = 0;
         this.hurtTimer = 0;
+        this.retreatTimer = 0; // بعد الهجوم: يتراجع للخلف ~1 ثانية ثم يهاجم مجدداً
         this.isDead = false;
         this.deathTimer = 0;
         this.provoked = false;
@@ -24,26 +29,42 @@ class Enemy {
         if (this.isDead) { this.deathTimer += dt; return; }
         this.attackTimer = Math.max(0, this.attackTimer - dt);
         this.hurtTimer   = Math.max(0, this.hurtTimer - dt);
+        this.retreatTimer = Math.max(0, (this.retreatTimer || 0) - dt);
 
         const dx = player.x - this.x;
         const dy = player.y - this.y;
         const dist = Math.hypot(dx, dy);
 
-        if (this.provoked && this.behavior === 'flee') {
+        // بعد الهجوم: تراجع بطيء ثم اندفاع سريع للهجوم مجدداً
+        if (this.retreatTimer > 0 && this.behavior === 'aggressive') {
+            const a = Math.atan2(-dy, -dx);
+            const retreatSpd = this.speed * 0.28; // تراجع بطيء
+            this.vx = Math.cos(a) * retreatSpd;
+            this.vy = Math.sin(a) * retreatSpd;
+        } else if (this.provoked && this.behavior === 'flee') {
             this.provokedAttackTimer = Math.max(0, (this.provokedAttackTimer || 0) - dt);
-            const a = Math.atan2(dy, dx);
-            this.vx = Math.cos(a) * this.speed;
-            this.vy = Math.sin(a) * this.speed;
-            if (dist < this.provokedAttackRange + this.radius && this.provokedAttackTimer <= 0) {
-                this.provokedAttackTimer = this.provokedAttackCd;
-                const dmg = this.provokedAttackDmg;
-                player.hp = Math.max(0, player.hp - dmg);
-                player.hurtTimer = 400;
-                SFX.playerHurt();
-                flashScreen();
-                notify(`-${dmg} 💔`, '#e74c3c', this.x, this.y - this.radius - 8);
-                if (player.hp <= 0) killPlayer();
-                updateHUD();
+            if (this.retreatTimer > 0) {
+                const a = Math.atan2(-dy, -dx);
+                const retreatSpd = this.speed * 0.28;
+                this.vx = Math.cos(a) * retreatSpd;
+                this.vy = Math.sin(a) * retreatSpd;
+            } else {
+                const a = Math.atan2(dy, dx);
+                const chargeSpd = this.speed * 1.7; // اندفاع سريع للهجوم
+                this.vx = Math.cos(a) * chargeSpd;
+                this.vy = Math.sin(a) * chargeSpd;
+                if (dist < this.provokedAttackRange + this.radius && this.provokedAttackTimer <= 0) {
+                    this.provokedAttackTimer = this.provokedAttackCd;
+                    this.retreatTimer = 1000;
+                    const dmg = this.provokedAttackDmg;
+                    player.hp = Math.max(0, player.hp - dmg);
+                    player.hurtTimer = 400;
+                    SFX.playerHurt();
+                    flashScreen();
+                    notify(`-${dmg} 💔`, '#e74c3c', this.x, this.y - this.radius - 8);
+                    if (player.hp <= 0) killPlayer();
+                    updateHUD();
+                }
             }
         } else if (this.behavior === 'flee') {
             const fleeSpd = this.hurtTimer > 0
@@ -57,8 +78,10 @@ class Enemy {
         } else if (this.behavior === 'aggressive') {
             if (dist < this.aggroRange) {
                 const a = Math.atan2(dy, dx);
-                this.vx = Math.cos(a) * this.speed;
-                this.vy = Math.sin(a) * this.speed;
+                // بعد التراجع: اندفاع سريع نحو اللاعب للهجوم
+                const chargeSpd = this.attackTimer > 0 ? this.speed * 1.7 : this.speed;
+                this.vx = Math.cos(a) * chargeSpd;
+                this.vy = Math.sin(a) * chargeSpd;
                 if (dist < this.attackRange + this.radius + 14 && this.attackTimer <= 0) {
                     this._attackPlayer();
                 }
@@ -103,15 +126,34 @@ class Enemy {
                     if (!isWater(tx, ty)) { bestAngle = a; break; }
                 }
             }
+            // إن ابتعد عن منطقته: يميل للعودة نحو المنزل (حبل مرن)
+            const leash = this.leashRadius || 0;
+            if (leash > 0 && this.homeX != null) {
+                const homeDist = Math.hypot(this.x - this.homeX, this.y - this.homeY);
+                if (homeDist > leash) {
+                    const homeA = Math.atan2(this.homeY - this.y, this.homeX - this.x);
+                    const pull = Math.min(0.85, 0.35 + (homeDist - leash) / leash * 0.4);
+                    const wx = Math.cos(bestAngle) * (1 - pull) + Math.cos(homeA) * pull;
+                    const wy = Math.sin(bestAngle) * (1 - pull) + Math.sin(homeA) * pull;
+                    bestAngle = Math.atan2(wy, wx);
+                }
+            }
             this.wanderAngle = bestAngle;
         }
-        const sp = this.speed * 0.3;
+        // خارج الحبل: يمشي أسرع قليلاً نحو المنزل
+        let sp = this.speed * 0.3;
+        if (this.leashRadius > 0 && this.homeX != null) {
+            const homeDist = Math.hypot(this.x - this.homeX, this.y - this.homeY);
+            if (homeDist > this.leashRadius * 1.35) sp = this.speed * 0.55;
+        }
         this.vx = Math.cos(this.wanderAngle) * sp;
         this.vy = Math.sin(this.wanderAngle) * sp;
     }
 
     _attackPlayer() {
-        this.attackTimer = this.attackCooldown;
+        // هجوم كل ثانيتين: يضرب ثم يتراجع للخلف ثانية ويعود
+        this.attackTimer = this.attackCooldown || 2000;
+        this.retreatTimer = 1000;
         const dmg = this.attackDmg;
         player.hp = Math.max(0, player.hp - dmg);
         player.hurtTimer = 400;
@@ -141,7 +183,7 @@ class Enemy {
                 this.provokedAttackDmg   = Math.max(3, Math.floor(this.maxHp * 0.08));
                 this.provokedAttackRange = this.radius + 20;
                 this.provokedAggroRange  = 400;
-                this.provokedAttackCd    = 1200;
+                this.provokedAttackCd    = 2000;
                 this.provokedAttackTimer = 0;
                 this.speed = Math.min(this.speed * 1.3, 5.5);
             }

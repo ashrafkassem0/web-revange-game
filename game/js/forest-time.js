@@ -148,6 +148,10 @@ function _aliveCount(pred) {
 }
 
 function _spawnAtValidTile(type, minDistFromPlayer) {
+    // توليد داخل منطقة الحيوان المفضّلة (وليس عشوائياً على كل الخريطة)
+    if (typeof spawnEnemyInHabitat === 'function') {
+        return spawnEnemyInHabitat(type, { minDistFromPlayer: minDistFromPlayer || 0 });
+    }
     const tmpl = ENEMY_TEMPLATES[type];
     if (!tmpl) return null;
     for (let tries = 0; tries < 45; tries++) {
@@ -155,7 +159,9 @@ function _spawnAtValidTile(type, minDistFromPlayer) {
         const y = 220 + Math.random() * (CFG.WORLD_H - 440);
         if (isWater(x, y)) continue;
         if (Math.hypot(x - player.x, y - player.y) < minDistFromPlayer) continue;
+        if (typeof _isBlockedByStructure === 'function' && _isBlockedByStructure(x, y, tmpl.radius || 16)) continue;
         const e = new Enemy(tmpl, x, y);
+        e.homeX = x; e.homeY = y; e.leashRadius = 400;
         enemies.push(e);
         return e;
     }

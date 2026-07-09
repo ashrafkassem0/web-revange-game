@@ -604,6 +604,93 @@
         .bi-emoji { font-size: 1.5rem; }
         .bi-name  { font-size: 0.7rem; color: #ddd; }
         .bi-cost  { font-size: 0.65rem; color: #f0c040; }
+
+        /* ===== SLEEP PANEL ===== */
+        #sleepPanel {
+            position: absolute;
+            inset: 0;
+            z-index: 120;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0,0,0,0.55);
+            backdrop-filter: blur(4px);
+            font-family: 'Cairo', sans-serif;
+        }
+        #sleepPanel .sleep-box {
+            background: rgba(12, 14, 20, 0.95);
+            border: 2px solid rgba(93, 173, 226, 0.45);
+            border-radius: 16px;
+            padding: 22px 28px;
+            min-width: 300px;
+            text-align: center;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.55);
+        }
+        #sleepPanel .sleep-title {
+            font-size: 1.15rem; font-weight: 900; color: #5dade2;
+            margin-bottom: 6px;
+        }
+        #sleepPanel .sleep-sub {
+            font-size: 0.82rem; color: #aaa; margin-bottom: 16px;
+        }
+        #sleepPanel .sleep-row {
+            display: flex; align-items: center; justify-content: center; gap: 16px;
+            margin-bottom: 10px;
+        }
+        #sleepPanel .sleep-btn {
+            width: 42px; height: 42px; border-radius: 10px; border: none;
+            background: rgba(93,173,226,0.2); color: #5dade2;
+            font-size: 1.4rem; font-weight: 900; cursor: pointer;
+            font-family: 'Cairo', sans-serif;
+        }
+        #sleepPanel .sleep-btn:hover { background: rgba(93,173,226,0.35); }
+        #sleepHoursVal {
+            font-size: 2rem; font-weight: 900; color: #fff; min-width: 48px;
+        }
+        #sleepHint { font-size: 0.8rem; color: #f0c040; margin-bottom: 16px; }
+        #sleepPanel .sleep-actions {
+            display: flex; gap: 10px; justify-content: center;
+        }
+        #sleepPanel .sleep-go {
+            padding: 10px 22px; border: none; border-radius: 10px;
+            background: linear-gradient(135deg, #2980b9, #5dade2);
+            color: #fff; font-family: 'Cairo', sans-serif;
+            font-size: 0.95rem; font-weight: 700; cursor: pointer;
+        }
+        #sleepPanel .sleep-go:hover { transform: scale(1.04); }
+        #sleepPanel .sleep-cancel {
+            padding: 10px 18px; border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.2);
+            background: rgba(255,255,255,0.06); color: #aaa;
+            font-family: 'Cairo', sans-serif; font-size: 0.9rem; cursor: pointer;
+        }
+        #sleepPanel .sleep-cancel:hover { color: #eee; background: rgba(255,255,255,0.12); }
+
+        /* ===== SAVE BUTTON ===== */
+        #saveBtn {
+            position: absolute;
+            top: 12px;
+            left: 14px;
+            z-index: 70;
+            padding: 8px 14px;
+            border: 1px solid rgba(46, 204, 113, 0.45);
+            border-radius: 10px;
+            background: rgba(8, 20, 12, 0.88);
+            color: #2ecc71;
+            font-family: 'Cairo', sans-serif;
+            font-size: 0.85rem;
+            font-weight: 700;
+            cursor: pointer;
+            backdrop-filter: blur(6px);
+            transition: all 0.15s;
+            pointer-events: auto;
+        }
+        #saveBtn:hover {
+            background: rgba(46, 204, 113, 0.22);
+            transform: scale(1.04);
+            box-shadow: 0 0 14px rgba(46, 204, 113, 0.35);
+        }
+        #saveBtn:active { transform: scale(0.97); }
     </style>
 </head>
 <body>
@@ -621,10 +708,13 @@
     <!-- Nausea indicator -->
     <div id="nauseaIndicator">🤢 غثيان</div>
 
+    <!-- Manual Save -->
+    <button id="saveBtn" type="button" onclick="manualSaveGame()" title="حفظ كل التقدم">💾 حفظ</button>
+
     <!-- Clock / day-night widget -->
     <div id="clockWidget">
         <span id="clockIcon">☀️</span>
-        <span id="clockTime">15:00</span>
+        <span id="clockTime">08:00</span>
         <span id="clockPhase">نهار</span>
     </div>
 
@@ -705,6 +795,24 @@
     <!-- Build Bar -->
     <div id="buildBar" style="display:none;"></div>
 
+    <!-- Sleep Panel (hut) -->
+    <div id="sleepPanel" style="display:none;">
+        <div class="sleep-box">
+            <div class="sleep-title">😴 النوم في الكوخ</div>
+            <div class="sleep-sub">اختر عدد الساعات التي تريد النوم فيها</div>
+            <div class="sleep-row">
+                <button class="sleep-btn" type="button" onclick="adjustSleepHours(-1)">−</button>
+                <div id="sleepHoursVal">4</div>
+                <button class="sleep-btn" type="button" onclick="adjustSleepHours(1)">+</button>
+            </div>
+            <div id="sleepHint">تستيقظ عند --:--</div>
+            <div class="sleep-actions">
+                <button class="sleep-go" type="button" onclick="confirmSleep()">نم الآن</button>
+                <button class="sleep-cancel" type="button" onclick="closeSleepMenu()">إلغاء</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Controls Hint -->
     <div id="fishingStatus">🎣 جارٍ الصيد... اضغط R للسحب</div>
 
@@ -717,6 +825,8 @@
         <span>F</span> صناعة &nbsp;|&nbsp;
         <span>I</span> الحقيبة &nbsp;|&nbsp;
         <span>B</span> بناء &nbsp;|&nbsp;
+        <span>E</span> إصلاح/نم &nbsp;|&nbsp;
+        <span>P</span> حفظ &nbsp;|&nbsp;
         <span>Q</span> أكل
     </div>
 

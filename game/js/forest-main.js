@@ -136,12 +136,23 @@ function checkCompletion() {
 }
 
 function showCompletion() {
-    // اللعبة تستمر — لا نوقفها، فقط نُظهر إشعاراً وشريطاً ثابتاً
+    // اللعبة تستمر — لا نوقفها، فقط نُظهر إشعاراً وشريطاً يختفي بعد 5 ثوانٍ
     SFX.victory();
     notify('🏆 أكملت تدريب الغابة! توجّه إلى بوابة المدينة جنوباً 🏙️', '#f0c040');
     setTimeout(() => notify('⬇️ البوابة في الجنوب — ادخلها للمضي نحو الانتقام!', '#2ecc71'), 3000);
     const banner = document.getElementById('completionBanner');
-    if (banner) banner.style.display = 'flex';
+    if (banner) {
+        banner.style.display = 'flex';
+        banner.style.opacity = '1';
+        banner.style.transition = 'opacity 0.6s';
+        setTimeout(() => {
+            banner.style.opacity = '0';
+            setTimeout(() => {
+                banner.style.display = 'none';
+                banner.style.opacity = '1';
+            }, 600);
+        }, 5000);
+    }
 }
 
 function finishForest() {
@@ -400,7 +411,7 @@ function gameLoop(ts) {
         lastTime = ts;
         waveTime = ts;
 
-        if (!craftMenuOpen && !backpackOpen) {
+        if (!craftMenuOpen && !backpackOpen && !(typeof sleepMenuOpen !== 'undefined' && sleepMenuOpen)) {
             if (!gamePaused) {
                 updatePlayer(dt);
                 updateEnemies(dt);
@@ -469,6 +480,7 @@ function resetInputState() {
     craftMenuOpen = false;
     backpackOpen = false;
     buildMode = false;
+    if (typeof sleepMenuOpen !== 'undefined' && sleepMenuOpen) closeSleepMenu();
     player.isFishing = false;
     player.fishingBite = false;
     player.fishingTimer = 0;
@@ -514,6 +526,10 @@ function handleKeyDown(e) {
         case 'KeyB':
             if (typeof toggleBuildMode === 'function' && (gameRunning || buildMode)) toggleBuildMode();
             break;
+        case 'KeyP':
+            // اختصار الحفظ اليدوي
+            if (gameRunning && typeof manualSaveGame === 'function') manualSaveGame();
+            break;
         case 'Digit1':
             player.weapon = 'sword'; notify('⚔️ السيف', '#c0c0c0');
             break;
@@ -524,22 +540,27 @@ function handleKeyDown(e) {
             if (gameRunning && !craftMenuOpen && !backpackOpen) startFishing();
             break;
         case 'KeyE':
-            if (gameRunning && !craftMenuOpen && !backpackOpen) {
+            if (gameRunning && !craftMenuOpen && !backpackOpen && !(typeof sleepMenuOpen !== 'undefined' && sleepMenuOpen)) {
+                const nearDamaged = (typeof findNearbyDamagedStructure === 'function') ? findNearbyDamagedStructure() : null;
+                const nearHut = (typeof findNearbyHut === 'function') ? findNearbyHut() : null;
                 const nearDrop = droppedItems.find(i => i.isNearPlayer());
                 const nearRes  = resources.find(r => r.isNearPlayer());
                 const nearTree = trees.find(t => !t.chopped &&
                     Math.hypot(player.x - t.x, player.y - t.y) < t.r + 32);
-                if (nearDrop) nearDrop.pickup();
+                if (nearDamaged && typeof tryRepairStructure === 'function') tryRepairStructure();
+                else if (nearHut && (!nearHut.hp || nearHut.hp >= nearHut.maxHp)) openSleepMenu();
+                else if (nearDrop) nearDrop.pickup();
                 else if (nearRes) nearRes.pickup();
                 else if (nearTree) chopTree(nearTree);
                 else if (player.weapon === 'sword') playerAttack();
             }
             break;
         case 'Space':
-            if (gameRunning && !craftMenuOpen && !backpackOpen && player.weapon === 'sword') playerAttack();
+            if (gameRunning && !craftMenuOpen && !backpackOpen && !(typeof sleepMenuOpen !== 'undefined' && sleepMenuOpen) && player.weapon === 'sword') playerAttack();
             break;
         case 'Escape':
-            if (craftMenuOpen) closeCraftingMenu();
+            if (typeof sleepMenuOpen !== 'undefined' && sleepMenuOpen) closeSleepMenu();
+            else if (craftMenuOpen) closeCraftingMenu();
             else if (backpackOpen) closeBackpack();
             else if (buildMode && typeof exitBuildMode === 'function') exitBuildMode();
             else if (player.isFishing) reelIn();
@@ -630,7 +651,7 @@ function init() {
         updateHUD();
     }, { passive: false });
     canvas.addEventListener('click', e => {
-        if (!gameRunning || craftMenuOpen || backpackOpen) return;
+        if (!gameRunning || craftMenuOpen || backpackOpen || (typeof sleepMenuOpen !== 'undefined' && sleepMenuOpen)) return;
         const r = canvas.getBoundingClientRect();
         const wx = (e.clientX - r.left) / ZOOM + camera.x;
         const wy = (e.clientY - r.top)  / ZOOM + camera.y;

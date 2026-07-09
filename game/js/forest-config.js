@@ -27,7 +27,7 @@ const CFG = {
     // ===== دورة اليوم/الليل =====
     // المطلوب: "الدقيقة = ثانية" → 1 ثانية حقيقية = 1 دقيقة لعبة (يوم كامل = 24 دقيقة حقيقية)
     GAME_MIN_PER_REAL_SEC: 1,
-    CLOCK_START_MIN: 15 * 60,   // يبدأ عند 15:00 ليرى اللاعب النهار ثم الغسق
+    CLOCK_START_MIN: 8 * 60,    // يبدأ عند 08:00
     // حدود الأطوار (بالدقائق ضمن يوم 1440):
     DAWN_START: 5 * 60,     // 05:00 بداية الفجر
     DAY_START:  7 * 60,     // 07:00 نهار كامل
@@ -55,16 +55,8 @@ const CITY_PORTAL = {
     radius: 55,
 };
 
-// Intro story scenes
+// Intro — شاشة التحكم فقط (بدون مشاهد القصة)
 const INTRO_SCENES = [
-    {
-        img: '../start/images/scene_burial.png',
-        text: 'بعد أن دفن عائلته... وقف <span class="hl">أشرف</span> وحده أمام الغابة المظلمة...'
-    },
-    {
-        img: '../start/images/scene_entering_forest.png',
-        text: 'دخل الغابة يحمل <span class="hl2">قوس أبيه</span> وسيفه... مصمّماً على التدرب والقتال...'
-    },
     {
         img: null,
         text: 'اقتل الوحوش... اجمع الموارد... <span class="hl2">اصنع أسلحتك</span>... وكن مستعداً للانتقام!',
