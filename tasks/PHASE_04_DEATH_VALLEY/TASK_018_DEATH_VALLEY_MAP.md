@@ -1,144 +1,86 @@
 # TASK_018 — DEATH_VALLEY_MAP
 
 ## Objective
-Build the Death Valley map — a harsh, dangerous mountainous zone with extreme terrain and scarce resources, rendered with HTML5 Canvas 2D (offscreen terrain canvas + `requestAnimationFrame` loop, same pattern as forest/city).
+Create a new multi-page zone `game/death-valley/index.html` using the same patterns as forest/city: Canvas 2D, offscreen terrain, WASD/arrows top-down, `shared.js` (`GameState` / `SaveManager` / `navigateTo`). Scale similar to forest (**3200×3200**) or slightly smaller (~**2400×2400**). Zero Pixi.
+
+## Architecture (must follow)
+| Piece | Pattern |
+|-------|---------|
+| Page | `game/death-valley/index.html` (HTML + canvas + HUD) |
+| Modules | Prefer `game/js/dv-*.js` **or** reuse `forest-config`/`forest-world` patterns copied lightly — do not invent Pixi scenes |
+| Save | `maps.deathValley` already in `DEFAULT_MAPS`: `{ trialsCompleted: 0, eliteEnemiesKilled: [] }` |
+| URL | `SaveManager.mapUrlFor('deathValley')` → `'death-valley/index.html'` (fix the current forest fallback) |
+| Entry | From city south gate (TASK_017); exit north gate → city |
 
 ## Detailed Mechanics & User Stories
 
-### Map Specifications
-- Size: 4000 × 4000 px (100 × 100 tiles × 40px) — largest map
-- Zoom: 1.2 (wider view to see hazards)
+### Map specs
+- Tile size ~40px (match forest `CFG.TILE_SIZE` if reusing helpers).
+- World: **~2400–3200** square (not 4000×4000).
+- Camera follows player; blit `terrainCanvas` at `-camX, -camY` like `forest-world.js`.
 
-### Tile Types (pre-rendered on offscreen terrain canvas)
-| Type | Color | Effect |
-|------|-------|--------|
-| `SAND` | #D4A574 | Main floor, 90% speed |
-| `ROCK` | #8B7355 | Normal speed, minerals spawn here |
-| `CLIFF` | #4A3728 | Impassable, blocks movement |
-| `LAVA` | #FF4400 | 5 HP/s damage, animated glow |
-| `OASIS` | #4488AA | Safe zone, restores stamina |
-| `CRACK` | #6B5B45 | 20% collapse chance → fall + 10 DMG |
-| `RUINS` | #8B7D6B | Ancient structures, stealth cover |
-| `GATE_NORTH` | portal blue | Returns to city |
-| `GATE_SOUTH` | portal red | Dark Kingdom (locked until trials) |
+### Tile types (pre-render static; animate hazards in draw pass)
+| Type | Color (approx) | Passable | Notes |
+|------|----------------|----------|-------|
+| `SAND` | #D4A574 | ✅ | Default floor; may slow (TASK_019) |
+| `ROCK` | #8B7355 | ✅ | Minerals / footing |
+| `CLIFF` | #4A3728 | ❌ | Blocks movement (no jump/climb physics) |
+| `LAVA` | #FF4400 | ✅* | DoT on stand (TASK_019); animate glow each frame |
+| `OASIS` | #4488AA | ✅ | Safe / heat relief |
+| `RUINS` | #8B7D6B | ✅ | Cover flavor + crafting access later |
+| `GATE_NORTH` | portal | ✅ | Return to city |
+| `GATE_SOUTH` | portal | ❌ locked | Dark Kingdom stub (later phase) |
 
-### Layout
+### Layout sketch
 ```
-North (entrance from city): Rocky plateau, safe
-Center: Sand valley with lava pools, cliff walls
-South-east: Ruins area with treasure chests
-South-west: Dense crack zone (dangerous shortcuts)
-Far south: Red gate to Dark Kingdom
+North: rocky plateau + city portal (safe)
+Center: sand basin, lava pools, cliff walls
+SE: ruins pockets
+SW: hazard sand / unstable patches (TASK_019)
+Far south: locked red gate (visual only for now)
 ```
 
-### Lava Animation (Canvas 2D)
-- Animate lava tiles each frame: cycle fill color / drawImage frame index (4 frames, loop)
-- Orange/yellow glow: `ctx.globalCompositeOperation = 'lighter'` (or soft radial gradient), alpha oscillating 0.2–0.5
-- Bubble particles: plain JS array of `{x,y,vy,life}` orange circles rising and popping
+### Resources (light)
+| Id | Where | Notes |
+|----|-------|-------|
+| `mineral` or reuse `stone` | rock belts | pick up / interact |
+| `cactusFruit` (new inv key) | oasis | small heal |
+| DV elite drops | TASK_020 | wire into inventory defaults in `shared.js` |
 
-### Heat Meter (HUD)
-- If player stands on non-shaded tiles (not OASIS/RUINS) for >30s → heat meter fills
-- At 100%: 2 HP/s damage
-- Shade (OASIS, RUINS) resets meter
-- HUD bar: HTML thermometer icon + CSS bar (or drawn on canvas HUD strip)
-
-### Resource Spawns
-| Resource | Count | Location | Tool |
-|----------|-------|----------|------|
-| `mineral` | 20 | Rocky areas | Pickaxe |
-| `cactusFruit` | 10 | Oasis | None (heals 5 HP) |
-| `ancientCoin` | 8 | Ruins | None (worth 5 coins) |
-| `lavaCrystal` | 3 | Near lava | Pickaxe (rare) |
+### Heat meter (basic — deepen in TASK_019/022)
+- HTML bar near HUD (like city `#hpBar`).
+- Fills on open sand; drains on `OASIS` / `RUINS`.
+- At full: small HP DoT.
 
 ### Edge Cases
-- **Falling off map:** Teleport to nearest OASIS with 10 HP penalty
-- **Lava + Rain:** Rain doesn't exist here (too hot). No weather interaction.
-- **Gate South:** Locked until all 3 Valley Trials complete (TASK_020)
+- Leaving map bounds: clamp or soft push-back — **no** fall-into-sublevel.
+- North gate: save DV state + `navigateTo('../city/index.html')`.
+- South gate: locked message «غير متاح بعد».
 
 ## Canvas 2D Implementation Hints
 ```javascript
-// Death Valley world generation
-function generateDVWorld() {
-  const world = [];
-  for (let y = 0; y < 100; y++) {
-    world[y] = [];
-    for (let x = 0; x < 100; x++) {
-      world[y][x] = getDVTile(x, y);
-    }
-  }
-  return world;
-}
+// game/death-valley/index.html
+// <script src="../js/shared.js"></script>
+// optional: characters.js, crafting.js, dv-world.js, dv-main.js
 
-// Static terrain once; lava/glow drawn dynamically each frame
-function prerenderDVTerrain(world) {
+const CFG = { WORLD_W: 2400, WORLD_H: 2400, TILE_SIZE: 40, SPEED: 2.6 };
+
+function prerenderDVTerrain() {
   terrainCanvas = document.createElement('canvas');
-  terrainCanvas.width = 4000;
-  terrainCanvas.height = 4000;
-  const tc = terrainCanvas.getContext('2d');
-  for (let y = 0; y < 100; y++) {
-    for (let x = 0; x < 100; x++) {
-      if (world[y][x] === T.LAVA) continue; // animated separately
-      tc.fillStyle = TILE_COLORS[world[y][x]];
-      tc.fillRect(x * 40, y * 40, 40, 40);
-    }
-  }
+  terrainCanvas.width = CFG.WORLD_W;
+  terrainCanvas.height = CFG.WORLD_H;
+  // fill non-lava tiles once; draw lava dynamically
 }
 
-const lavaBubbles = []; // plain particle array
-
-function drawLava(ctx, world, camera, time) {
-  const frame = Math.floor(time / 100) % 4;
-  for (let y = 0; y < 100; y++) {
-    for (let x = 0; x < 100; x++) {
-      if (world[y][x] !== T.LAVA) continue;
-      const px = x * 40 - camera.x;
-      const py = y * 40 - camera.y;
-      const heat = 0.7 + 0.3 * Math.sin(time * 0.005 + x + y);
-      ctx.fillStyle = `rgb(${200 + frame * 10}, ${40 + frame * 20}, 0)`;
-      ctx.fillRect(px, py, 40, 40);
-      ctx.globalCompositeOperation = 'lighter';
-      ctx.fillStyle = `rgba(255,100,0,${0.2 + heat * 0.3})`;
-      ctx.fillRect(px - 4, py - 4, 48, 48);
-      ctx.globalCompositeOperation = 'source-over';
-    }
-  }
-  // Bubbles
-  for (const b of lavaBubbles) {
-    ctx.fillStyle = `rgba(255,180,40,${b.life})`;
-    ctx.beginPath();
-    ctx.arc(b.x - camera.x, b.y - camera.y, b.r, 0, Math.PI * 2);
-    ctx.fill();
-  }
-}
-
-// Heat meter — HTML HUD preferred (match city #hpBar)
-class HeatMeter {
-  constructor() {
-    this.value = 0;
-    this.max = 100;
-    this.el = document.getElementById('heatBar');
-  }
-
-  update(dt, playerTile) {
-    if (playerTile === T.OASIS || playerTile === T.RUINS) {
-      this.value = Math.max(0, this.value - dt * 5);
-    } else {
-      this.value = Math.min(this.max, this.value + dt * 3.3); // 30s to full
-    }
-    const ratio = this.value / this.max;
-    this.el.style.width = (ratio * 100) + '%';
-    this.el.style.background = ratio < 0.5 ? '#FFAA00' : ratio < 0.8 ? '#FF6600' : '#FF0000';
-  }
-}
+// SaveManager.mapUrlFor
+case 'deathValley': return 'death-valley/index.html';
 ```
 
 ## Verification & Acceptance Criteria
-- [ ] Death Valley map renders at 4000×4000 with 9 tile types
-- [ ] Lava pools animate with glow + damage player on contact (5 HP/s)
-- [ ] CLIFF tiles block movement
-- [ ] Heat meter fills in 30s on unshaded tiles, deals 2 HP/s at 100%
-- [ ] OASIS and RUINS reset heat meter
-- [ ] Resources spawn at correct locations
-- [ ] North gate returns to city
-- [ ] South gate locked until 3 Valley Trials completed
-- [ ] Map music changes to tense drums + wind ambience
+- [ ] `game/death-valley/index.html` loads with Canvas 2D + `shared.js`
+- [ ] World size ~2400–3200; camera + offscreen terrain blit work
+- [ ] CLIFF blocks; lava/oasis/ruins/sand distinct
+- [ ] North gate returns to city with inventory/HP saved
+- [ ] `SaveManager.mapUrlFor('deathValley')` returns death-valley URL
+- [ ] `maps.deathValley` read/written without breaking forest/city saves
+- [ ] No Pixi; WASD/arrows only (no jump physics)

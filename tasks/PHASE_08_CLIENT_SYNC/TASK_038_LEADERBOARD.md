@@ -1,46 +1,56 @@
-# TASK_038 — LEADERBOARD (OPTIONAL)
+# TASK_038 — LEADERBOARD
 
 ## Objective
-Add an optional leaderboard and player stats display for competitive motivation.
+Add an **HTML leaderboard panel** on the main menu that consumes the **existing** leaderboard API (server already implemented with 034–036). Client UI only — do not rebuild the backend.
 
-## API Endpoints
+## Architecture (must follow)
+- Button on `game/index.html`: «لوحة المتصدرين»
+- Modal/panel: HTML table + loading/empty states
+- `fetch('/api/v1/leaderboard?limit=20')` (adjust path to match `server` routes)
+- Optional: highlight current user if logged in (TASK_037)
+- Opt-out toggle can live in settings if API exposes `leaderboard_opt_out`
+- **No Pixi**
 
-| Method | Path | Auth | Response |
-|--------|------|------|----------|
-| GET | `/api/v1/leaderboard?limit=20&offset=0` | No | `{ entries: [{ rank, username, level, totalKills, totalDistance, completed }] }` |
-| GET | `/api/v1/leaderboard/me` | Yes | `{ rank, entry }` |
-| GET | `/api/v1/players/:id/profile` | No | `{ username, level, totalKills, achievements, totalPlayMs }` |
+## Detailed Mechanics & User Stories
 
-## Leaderboard Rules
-- Ranked by `hero_level DESC`, tiebreaker `total_kills DESC`
-- Only players who completed at least the intro are included
-- Updated after every sync (live)
-- Top 3: gold/silver/bronze crown icons 👑🥈🥉
-- Player's own entry highlighted in blue
-
-## Privacy
-- `leaderboard_opt_out` column in `users` table
-- Toggle in settings: "المشاركة في لوحة المتصدرين"
-- If opted out: `/leaderboard/me` returns `{ rank: null }`
-
-## Client UI (HTML/CSS overlay)
-- Main menu button "🏆 لوحة المتصدرين"
-- Scrollable table: rank, crown, username, level, kills, completion badge
-- Loading skeleton (CSS animated bars) while fetching
+### Panel contents
+- Rank, username, level, kills (and completion if API returns it)
+- Top 3 visual emphasis (CSS, not images required)
 - Refresh button
-- Empty state: "بانتظار المزيد من الأبطال..."
+- Loading skeleton or spinner
+- Empty: «بانتظار المزيد من الأبطال...»
+- Offline: show last cached JSON from `localStorage` if present
 
-## Edge Cases
-- **Too Few Players:** If < 3 entries, show placeholder text
-- **Tie:** Use total kills → total play time as subsequent tiebreakers
-- **Offline:** Show cached last-known leaderboard from localStorage
+### Privacy
+- If settings opt-out exists, call the matching user update endpoint; otherwise document as follow-up
+- Logged-out users can still view public board
+
+### Out of scope
+- Re-implementing SQL / Express leaderboard services
+- Profile pages beyond a simple row expand (optional)
+
+## Implementation Hints
+```javascript
+async function openLeaderboard() {
+  panel.classList.remove('hidden');
+  showSkeleton();
+  try {
+    const res = await fetch('/api/v1/leaderboard?limit=20');
+    const data = await res.json();
+    renderRows(data.entries || data);
+    localStorage.setItem('revenge_leaderboard_cache', JSON.stringify(data));
+  } catch {
+    renderRows(JSON.parse(localStorage.getItem('revenge_leaderboard_cache') || 'null'));
+  }
+}
+```
+
+Match field names to `server/src/services/leaderboard.service.js`.
 
 ## Verification & Acceptance Criteria
-- [ ] Leaderboard endpoint returns correct ordering by level → kills
-- [ ] Player's own entry highlighted in blue
-- [ ] Top 3 have crown icons (gold/silver/bronze)
-- [ ] Profile endpoint returns public player stats
-- [ ] Opt-out removes player from leaderboard
-- [ ] Leaderboard with <3 entries shows placeholder
-- [ ] Loading state shows skeleton animation
-- [ ] Client UI refreshes on demand
+- [ ] Main menu opens leaderboard panel
+- [ ] Data loads from existing API
+- [ ] Loading and empty states work
+- [ ] Offline falls back to cache when possible
+- [ ] Own row highlighted when logged in (if auth present)
+- [ ] HTML/CSS only — zero Pixi

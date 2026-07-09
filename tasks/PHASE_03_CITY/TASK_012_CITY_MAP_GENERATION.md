@@ -1,136 +1,98 @@
 # TASK_012 — CITY_MAP_GENERATION
 
 ## Objective
-Build the city map (`game/city/index.html`) with distinct districts, enterable buildings, NPC sprites, and Canvas 2D tile rendering (same pattern as the existing city/forest maps).
+Expand the existing single-file city hub in `game/city/index.html` (~750 lines) so districts read clearly on one Canvas 2D screen. Keep the current architecture: one HTML page, tile map, offscreen `prerenderTerrain`, WASD/arrows top-down movement, decorative building labels — **not** seven enterable building interiors.
+
+## Current Baseline (do not replace)
+- Map: `CFG.COLS=22`, `CFG.ROWS=18`, `CFG.TILE=48` → **1056×864**
+- Tiles: `T.STONE | ROAD | BUILDING | GRASS | WATER | SAND` via `MAP_STR`
+- Collision: `isBlocked` on `BUILDING` only
+- Decorative rooftops in `drawBuildings()` (blacksmith / healer / merchant / inn / library / farm / artisan / scholar / tavern)
+- Central well (`drawWell`), north forest portal (`FOREST_PORTAL` + `drawPortal`)
+- Scripts: inline city logic + `../js/shared.js` (`GameState` / `navigateTo`)
 
 ## Detailed Mechanics & User Stories
 
-### Map Specifications
-- Size: 2400 × 2400 px (60 × 60 tiles × 40px)
-- Zoom: 1.5
-- Camera bounds: constrained to map edges
+### Scope: expand in place
+Choose **one** of these (prefer A unless playtesting needs more room):
 
-### Tile Types (drawn on offscreen terrain canvas, then blitted each frame)
-| Type | Color | Description | Passable |
-|------|-------|-------------|----------|
-| `GROUND` | #8B7355 | Dirt/stone path | ✅ |
-| `ROAD` | #6B5B45 | Wide stone road | ✅ |
-| `BUILDING` | #4A3F35 | Solid wall | ❌ |
-| `DOOR` | #5C4033 | Building entrance | ✅ (triggers interior) |
-| `PLAZA` | #A0896B | Central square | ✅ |
-| `GARDEN` | #4A7A3A | Green area | ✅ |
-| `WALL` | #3A3A3A | City boundary | ❌ |
-| `GATE_NORTH` | #8B7355 + glow | Returns to forest | ✅ |
-| `GATE_SOUTH` | #8B0000 + chains | Locked until city completion | ❌ (locked) |
+| Option | Size | Notes |
+|--------|------|-------|
+| **A (preferred)** | Keep ~22×18 (1056×864) | Re-layout `MAP_STR` + labels for clearer districts |
+| **B (modest)** | Up to ~28×22 tiles (~1344×1056) | Still one screen; update `CFG.COLS/ROWS`, `W/H`, `MAP_STR`, `prerenderTerrain` |
 
-### Districts Layout
+Do **not** grow to forest-scale (3200×3200) or add a camera scroll unless Option B still fits comfortably on one viewport.
+
+### Labeled districts (visual only)
+Redraw / re-label so the hub reads as districts without interior scenes:
+
 ```
-┌──────────────────────────────┐
-│  Government District  │ Temple │  ← North
-│  (palace, barracks)   │  Dist  │
-├──────────┬───────────┼────────┤
-│          │           │        │
-│  Plaza   │  Fountain  │ Garden │
-│ (center) │   Square   │        │
-├──────────┴───────────┼────────┤
-│  Market District     │ Resid. │  ← South
-│  (shops, stalls)     │  Dist  │
-│                      │        │
-└──────────────────────────────┘
+┌────────────────────────────────────┐
+│  بوابة الغابة (شمال)               │
+│  حي الحداد / المشفى / التاجر       │
+├──────────────┬─────────────────────┤
+│  ساحة البئر  │  حديقة / طرق        │
+├──────────────┴─────────────────────┤
+│  حي الحانة / المزرعة (جنوب)        │
+│  بوابة وادي الموت (مقفلة — TASK_016/017) │
+└────────────────────────────────────┘
 ```
 
-### Enterable Buildings (Interior Overlays)
-Each building has an interior scene rendered as a separate offscreen canvas (or a dedicated draw pass) shown over the exterior:
-1. **General Merchant** — 3 NPC counters
-2. **Weapons Merchant** — Weapons displayed on walls
-3. **Rare Goods Merchant** — Dimly lit, mysterious
-4. **Healer's Temple** — Altar, candles, healing pool
-5. **Blacksmith** — Anvil, forge fire (animated), tools
-6. **Tavern** — Tables, ambient NPCs
-7. **Library** — Bookshelves, scholar NPC
+- Keep Arabic labels on rooftops (`⚒️ الحداد`, `🏥 المشفى`, `🛒 التاجر`, …) as in `drawBuildings()`.
+- Optional: soft district tint on grass/plaza tiles (still pre-rendered on `terrainCanvas`).
+- Buildings remain **solid `BUILDING` tiles** + painted roofs. Doors are decorative unless a later task adds a simple overlay room.
 
-### Interior Transition
-1. Player walks onto `DOOR` tile
-2. Exterior game pauses (`onPause`)
-3. Zoom-in effect: camera zooms to door (0.5s), then CSS `.fade-overlay` fades to black (0.3s)
-4. Interior canvas/draw pass shown, player appears at interior entrance point
-5. Reverse on exit
+### Tile / layout polish
+| Type | Role |
+|------|------|
+| `ROAD` | Main cross streets between districts |
+| `STONE` | Plaza / courtyards |
+| `GRASS` | Garden / farm edges |
+| `WATER` | Optional fountain / well ring (already decorative well at center) |
+| `BUILDING` | Impassable footprints under labeled roofs |
+| South opening | Leave a clear road stub for `GATE_SOUTH` (wired in TASK_017) |
 
-### Ambient NPCs
-- 5-10 non-interactive NPCs walking predefined paths
-- Walk cycle via frame index updated in the `requestAnimationFrame` loop
-- Patrol between 2-3 waypoints, simple `{ x, y }` movement
-- Draw as colored circles with emoji (`ctx.fillText`) if no sprite sheet
+### Ambient flavor (lightweight)
+- Optional 2–4 non-interactive walkers (colored circle + emoji) on short road waypoints — **no** dialogue trees.
+- Keep frame budget low; city stays a small hub.
 
 ### Edge Cases
-- **House Collision:** BUILDING tiles and WALL tiles block movement (collision check in player update)
-- **Interior On Exit:** Player exits interior → return to same DOOR tile position
-- **Gate North:** Always open, E to interact → navigate to forest
-- **Gate South:** Chains visual (drawn with `ctx` over the gate). E → "غير متاح بعد" until `completedCity`
+- **Collision:** `BUILDING` still blocks; player cannot clip through roofs.
+- **Portal north:** `FOREST_PORTAL` stays top-center; E → `saveAndExit()` → forest.
+- **South gate:** Visual stub + chains OK here; unlock logic belongs to TASK_016 / TASK_017.
+- **No interiors:** Do not implement zoom-in room scenes or separate interior canvases in this task.
 
 ## Canvas 2D Implementation Hints
 ```javascript
-// City world generation (similar to forest but with city tile rules)
-function generateCityWorld() {
-  const world = [];
-  for (let y = 0; y < 60; y++) {
-    world[y] = [];
-    for (let x = 0; x < 60; x++) {
-      // Determine tile based on district zones
-      world[y][x] = getCityTile(x, y);
-    }
-  }
-}
+// Expand MAP_STR / CFG in game/city/index.html — same prerender pattern
+const CFG = { TILE: 48, COLS: 22, ROWS: 18, SPEED: 2.8 }; // or modest bump for Option B
+const W = CFG.COLS * CFG.TILE;
+const H = CFG.ROWS * CFG.TILE;
 
-// Pre-render static terrain once (same pattern as city/index.html prerenderTerrain)
-function prerenderCityTerrain() {
+function prerenderTerrain(textures) {
   terrainCanvas = document.createElement('canvas');
-  terrainCanvas.width = 2400;
-  terrainCanvas.height = 2400;
-  const tc = terrainCanvas.getContext('2d');
-  for (let y = 0; y < 60; y++) {
-    for (let x = 0; x < 60; x++) {
-      tc.fillStyle = TILE_COLORS[world[y][x]];
-      tc.fillRect(x * 40, y * 40, 40, 40);
-    }
-  }
+  terrainCanvas.width = W;
+  terrainCanvas.height = H;
+  // PASS 1 procedural fills, PASS 2 bombTexture(grass/water/sand), PASS 3 accents
 }
 
-// Each frame: blit terrain, then draw dynamic entities
-function draw() {
-  ctx.drawImage(terrainCanvas, -camera.x, -camera.y);
-  drawBuildings(ctx);
-  drawAmbientNPCs(ctx);
-  drawPlayer(ctx);
-  drawGateOverlays(ctx); // chains on south gate, glow on north
+function drawDistrictLabels(ctx) {
+  // Optional floating Arabic district names above plaza / market / south road
+  ctx.font = 'bold 12px Cairo';
+  ctx.fillStyle = 'rgba(255,208,96,0.85)';
+  ctx.textAlign = 'center';
+  ctx.fillText('ساحة المدينة', W / 2, H / 2 - 40);
 }
 
-// Interior scene — separate offscreen canvas or draw mode flag
-const interiors = {}; // buildingId → { canvas, npcs, exitPoint }
-function enterInterior(buildingId) {
-  onPause();
-  // CSS fade-overlay → swap draw mode to interior
-  fadeOverlay(() => {
-    currentInterior = interiors[buildingId];
-    player.x = currentInterior.exitPoint.x;
-    player.y = currentInterior.exitPoint.y;
-  });
-}
-
-// Collision check
-function isWalkable(x, y) {
-  const tile = getTile(x, y);
-  return tile !== T.BUILDING && tile !== T.WALL && !(tile === T.GATE_SOUTH && !completedCity);
-}
+// drawBuildings() — keep labeled roof blocks; do NOT add enterInterior()
 ```
 
 ## Verification & Acceptance Criteria
-- [ ] City map renders at 2400×2400 with 9 tile types
-- [ ] 5 districts distinct and identifiable
-- [ ] 7 enterable buildings with interior overlays
-- [ ] COLLISION on BUILDING and WALL tiles works
-- [ ] Ambient NPCs walk patrol paths
-- [ ] North gate → navigate to forest scene
-- [ ] South gate locked with chain visual until city completion
-- [ ] Interior transition shows zoom-in + fade effect
-- [ ] Exiting interior returns to correct door position
+- [ ] City still loads as **one** page: `game/city/index.html` + `shared.js`
+- [ ] Map remains single-screen (Option A ~1056×864 or modest Option B)
+- [ ] Districts are visually identifiable via layout + Arabic rooftop / district labels
+- [ ] `BUILDING` collision still works; WASD/arrows top-down unchanged
+- [ ] North forest portal still works (`saveAndExit` → `../forest/index.html`)
+- [ ] South road/gate stub exists for later Death Valley wiring
+- [ ] **No** seven enterable interiors; decorative buildings only
+- [ ] Terrain still uses offscreen `terrainCanvas` blit each frame

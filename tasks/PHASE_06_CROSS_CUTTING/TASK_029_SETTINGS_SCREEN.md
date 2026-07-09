@@ -1,91 +1,66 @@
 # TASK_029 — SETTINGS_SCREEN
 
 ## Objective
-Build a comprehensive settings screen accessible from main menu and in-game pause menu, using HTML/CSS for the menu overlay.
+Add a compact **HTML/CSS settings** panel: master/SFX volume (wired to `sounds.js` / `SFX`), mute, and fullscreen — reachable from the **main menu** and **in-game pause**.
+
+## Architecture (must follow)
+- HTML overlay (like existing menu / forest pause UI), RTL Arabic
+- Persist `localStorage` key e.g. `revenge_settings`
+- Wire volume into existing Web Audio `SFX` module (gain multiplier) — there is no separate AudioManager yet; extend `sounds.js` with `SFX.setVolume(v)` / `SFX.setMuted(m)`
+- **No Pixi**, no full key-rebinding suite required for this task
 
 ## Detailed Mechanics & User Stories
 
-### Access Paths
-- Main menu: "الإعدادات" button
-- In-game: Escape → Pause menu → "الإعدادات" button
+### Access
+- Main menu (`game/index.html`): «الإعدادات» button
+- In-game: Escape pause → «الإعدادات»
 
-### Settings Categories (Tabbed)
+### Settings (keep focused)
+| Setting | Control | Default | Behavior |
+|---------|---------|---------|----------|
+| Master / SFX volume | Range 0–100 | 80 | Scales `SFX` output gain |
+| Mute | Toggle | Off | Forces volume 0; remembers prior level |
+| Fullscreen | Toggle | Off | `requestFullscreen` / `exitFullscreen` |
 
-**🎵 الصوت (Audio)**
-| Setting | Type | Range | Default |
-|---------|------|-------|---------|
-| Master Volume | Slider | 0-100 | 80 |
-| Music Volume | Slider | 0-100 | 70 |
-| SFX Volume | Slider | 0-100 | 90 |
-| Ambient Volume | Slider | 0-100 | 60 |
-| Test Sound | Button | — | Plays click SFX |
+### Optional (only if quick)
+- Show FPS toggle (pairs with TASK_032)
+- Music slider stub that no-ops until music exists
 
-**🎮 التحكم (Controls)**
-| Setting | Type | Default |
-|---------|------|---------|
-| Move Up | Key | W |
-| Move Down | Key | S |
-| Move Left | Key | A |
-| Move Right | Key | D |
-| Interact | Key | E |
-| Attack | Key | Space |
-| Craft | Key | F |
-| Use Item | Key | Q |
-| Fish | Key | R |
-| Weapon 1 | Key | 1 |
-| Weapon 2 | Key | 2 |
-| Inventory | Key | I |
-| Skill Tree | Key | K |
-| Pause | Key | Escape |
-| Reset Defaults | Button | — |
+### Explicitly out of scope for this task
+- Full key remapping matrix
+- Multi-slot save manager UI (SaveManager already exists)
+- Quality presets (see TASK_032)
 
-Key remapping: Click key → press new key → validate no conflicts → save
-
-**🖥️ العرض (Display)**
-| Setting | Type | Range | Default |
-|---------|------|-------|---------|
-| Zoom Level | Slider | 1.0-2.5 | 1.5 |
-| Fullscreen | Toggle | On/Off | Off |
-| Quality | Dropdown | Low/Medium/High | High |
-| Show FPS | Toggle | On/Off | Off |
-
-**💾 الحفظ (Save)**
-- Show current save slot info (level, play time, map)
-- Save to Slot 1 / Slot 2 buttons
-- Load from Slot 1 / Slot 2 buttons (with warning)
-- Delete Save (with confirmation)
-
-### Settings Persistence
+### Persistence
 ```javascript
 const DEFAULT_SETTINGS = {
-  audio: { master: 80, music: 70, sfx: 90, ambient: 60 },
-  controls: { moveUp: 'W', moveDown: 'S', moveLeft: 'A', moveRight: 'D', interact: 'E', attack: ' ', craft: 'F', useItem: 'Q', fish: 'R', weapon1: '1', weapon2: '2', inventory: 'I', skillTree: 'K', pause: 'Escape' },
-  display: { zoom: 1.5, fullscreen: false, quality: 'high', showFps: false }
+  volume: 80,
+  muted: false,
+  fullscreen: false
 };
+// localStorage 'revenge_settings'
 ```
-- Saved to `localStorage` under `revenge_settings`
-- Loaded on game start, applied to game systems
 
-### Edge Cases
-- **Key Conflict:** If player remaps to an already-used key, show "هذا المفتاح مستخدم بالفعل" and don't apply
-- **Low Quality:** Disable particles, reduce shadow, simplify water. Auto-detect if FPS < 20.
-- **Fullscreen:** `document.documentElement.requestFullscreen()`, handle `fullscreenchange` event
+### Edge cases
+- Apply volume on load before first SFX
+- Fullscreen change via browser UI should update toggle (`fullscreenchange`)
+- Mute while slider moves: unmute when user raises volume
 
 ## Implementation Hints
-- HTML/CSS overlay — simpler for form elements
-- CSS: `position: fixed`, `z-index: 2000`, `overflow-y: auto`, RTL alignment
-- Tabs via `<div>` with `data-tab` attributes + CSS `display: none/block`
-- Sliders: `<input type="range">` with event listeners
-- Key binding: `keydown` listener, capture `event.code`, check conflicts
+```javascript
+// sounds.js
+let masterGain = 0.8, muted = false;
+function effectiveVolume(v) { return muted ? 0 : v * masterGain; }
+SFX.setVolume = (pct) => { masterGain = pct / 100; };
+SFX.setMuted = (m) => { muted = m; };
+```
+
+Shared modal partial can live in `shared.css` + small `settings.js` included from menu + forest.
 
 ## Verification & Acceptance Criteria
-- [ ] Settings accessible from main menu and in-game pause
-- [ ] Volume sliders affect AudioManager correctly and persist
-- [ ] Key remapping works with conflict detection
-- [ ] Reset defaults restores all settings
-- [ ] Zoom slider updates Canvas 2D camera zoom
+- [ ] Settings open from main menu and pause
+- [ ] Volume / mute change audible SFX output
 - [ ] Fullscreen toggle works
-- [ ] Quality setting reduces particles and effects
-- [ ] Save/load slot management works with confirmation
-- [ ] Delete save with "هل أنت متأكد؟" confirmation
-- [ ] All settings persist across sessions
+- [ ] Settings persist in localStorage
+- [ ] HTML/CSS only — matches existing menu look
+- [ ] Zero Pixi

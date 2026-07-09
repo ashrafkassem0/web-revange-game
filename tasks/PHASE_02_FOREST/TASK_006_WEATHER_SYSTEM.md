@@ -1,128 +1,64 @@
 # TASK_006 — WEATHER_SYSTEM
 
 ## Objective
-Implement dynamic weather in the forest using plain JS particle arrays drawn with Canvas 2D `ctx` for rain/fog/storm effects.
+Add a forest weather system as **plain JS particle arrays + `ctx` drawing** in the forest loop, integrated with day/night darkness and existing `SFX.startRain` / `stopRain` / `thunder`.
+
+## Status
+**Not implemented in forest gameplay** (rain SFX exists; start scene has CSS rain only). This task adds runtime weather to the forest map.
 
 ## Detailed Mechanics & User Stories
 
-### Weather States
-| State | Duration | Effect |
-|-------|----------|--------|
-| Clear | 3-8 min (random) | Default, no particles |
-| Light Rain | 2-4 min | 100 raindrop particles, speed -5% |
-| Heavy Rain | 1-3 min | 300 raindrop particles, speed -10%, torch depletes 2x |
-| Fog | 1-3 min | Visibility 150px, muffled audio, enemies 50% detection range |
-| Storm | 30-90 sec | Heavy rain + thunder + lightning, screen shake, all animals flee |
+### Weather states (keep scope realistic)
+| State | Duration (real) | Particles | Gameplay |
+|-------|-----------------|-----------|----------|
+| Clear | 3–8 min | 0 | Default |
+| Light rain | 2–4 min | ~50–80 drops | Slight move slow optional (−5%) |
+| Heavy rain | 1–3 min | ~100–150 drops | −10% speed; call `SFX.startRain` |
+| Fog | 1–3 min | 0 particles + soft fill | Extra veil; slightly stronger effective darkness |
+| Storm | 30–90 s | ~120–150 drops | Rain + `SFX.thunder` + brief white flash + light camera shake |
 
-### Rain Particles (JS array + ctx)
-- Plain array of `{ x, y, vx, vy, len }` objects updated each frame
-- Each raindrop: thin white/blue line (`ctx.strokeRect` or `lineTo`) falling diagonally
-- Speed: 400-600 px/s, angle: 10° from vertical
-- Particles wrap from bottom to top
-- Storm: larger drops + wind shear (angle changes mid-fall)
+**Particle budget:** target **~50–150** on screen (not 300+). If FPS dips, clamp toward 50.
 
-### Fog Overlay
-- Semi-transparent white/grey `fillRect` over viewport, or soft radial clear around player
-- Optional: animate alpha / offset noise with `Math.sin` for organic movement
-- Player vision cone reduced via stronger darkness outside a radius (combine with night overlay)
+### Rain particles
+```javascript
+// e.g. in forest-weather.js or section of forest-main.js
+particles: [{ x, y, vx, vy, len }, ...]  // screen-space or world+camera
+// each frame: update positions, wrap; draw with ctx.stroke thin lines
+```
 
-### Lightning & Thunder (Storm)
-- Lightning flash: full-screen white `fillRect` with high alpha for 100ms
-- Thunder sound: `AudioManager.play('thunder')` with 0-2s random delay after flash
-- Lightning strike randomly on ground: bright stroke/bolt at random world position for 200ms
-- Screen shake: offset `camera.x` / `camera.y` (or draw offset) with short oscillation
+### Fog
+- Semi-transparent grey `fillRect` over viewport, alpha eased in/out
+- Combine with `computeDarkness` (night + fog = darker); campfire lights still help via existing overlay
 
-### HUD Indicator
-- Weather icon (sun, rain cloud, fog, storm) + transition arrow if changing
-- Position: top-right near day/night indicator (HTML HUD or `forest-hud.js`)
+### Storm FX
+- Flash: short full-viewport white `fillRect` alpha decay
+- Thunder: `SFX.thunder()` with 0–2s delay after flash
+- Shake: temporary offset on `camera` or draw translation for <0.5s
 
-### Performance Mode
-- If measured FPS < 30 for 2 seconds: reduce rain particles to 50 (Light) / 150 (Heavy)
-- Toggle via `autoQuality` flag in settings
-- FPS can be estimated from `requestAnimationFrame` delta
+### Scheduling
+- Timer in forest update: roll next weather after duration; fade alphas 1–2s between states
+- Pause: do not advance weather timers when `gamePaused`
+- Persist optional: `maps.forest.weather = { state, remainingMs }` in snapshot
 
-### Edge Cases
-- **Combined Day/Night + Weather:** Night + fog = extreme darkness. Torch helps but rain reduces it.
-- **Pause:** Weather pauses when game pauses. Lightning timer also pauses.
-- **Save/Restore:** Current weather and transition state saved in `maps.forest.weather`
+### HUD
+- Small icon near clock (`☀️` / `🌧️` / `🌫️` / `⛈️`) in forest HUD HTML
+
+### Integration
+- Start/stop `SFX.startRain` / `stopRain` when entering/leaving rainy states; respect TASK_003 mute
+- Do not require torch fuel 2× unless player torch exists from TASK_005
 
 ## Canvas 2D Implementation Hints
-```javascript
-class WeatherSystem {
-  constructor() {
-    this.particles = []; // plain JS array
-    this.current = 'clear';
-    this.fogAlpha = 0;
-    this.flashAlpha = 0;
-    this.shake = { x: 0, y: 0 };
-  }
-
-  setWeather(type) {
-    this.current = type;
-    this.particles.length = 0;
-    if (type === 'clear') return;
-
-    const count = type === 'lightRain' ? 100 : type === 'heavyRain' || type === 'storm' ? 300 : 0;
-    for (let i = 0; i < count; i++) {
-      this.particles.push({
-        x: Math.random() * canvas.width,
-        y: Math.random() * canvas.height,
-        vx: 50,
-        vy: 400 + Math.random() * 200,
-        len: 6 + Math.random() * 4
-      });
-    }
-  }
-
-  update(dt) {
-    if (this.current === 'clear') return;
-    for (const drop of this.particles) {
-      drop.y += drop.vy * dt;
-      drop.x += drop.vx * dt;
-      if (drop.y > canvas.height) {
-        drop.y = -8;
-        drop.x = Math.random() * canvas.width;
-      }
-    }
-    if (this.flashAlpha > 0) this.flashAlpha = Math.max(0, this.flashAlpha - dt * 10);
-  }
-
-  draw(ctx) {
-    if (this.fogAlpha > 0) {
-      ctx.fillStyle = `rgba(200,200,210,${this.fogAlpha})`;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-    }
-    ctx.strokeStyle = 'rgba(136,136,255,0.6)';
-    ctx.lineWidth = 1;
-    for (const drop of this.particles) {
-      ctx.beginPath();
-      ctx.moveTo(drop.x, drop.y);
-      ctx.lineTo(drop.x + 2, drop.y + drop.len);
-      ctx.stroke();
-    }
-    if (this.flashAlpha > 0) {
-      ctx.fillStyle = `rgba(255,255,255,${this.flashAlpha})`;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-    }
-  }
-}
-```
-
-### Fog + Vision
-```javascript
-// Soft fog: full-screen fill, then cut a clear circle around the player
-function drawFog(ctx, playerSx, playerSy, visionR, alpha) {
-  const off = document.createElement('canvas'); // or reuse cached offscreen
-  // fill fog, destination-out radial around player, then drawImage to main ctx
-}
-```
+- Prefer new `game/js/forest-weather.js` included from `game/forest/index.html`, updated/drawn from `forest-main.js` after world / before or after night overlay (rain usually after world, flash last).
+- Day/night: `forest-time.js` `drawNightOverlay`; weather fog can draw just before/after it.
+- Audio: `game/js/sounds.js` — reuse rain loop + thunder; do not fork SFX.
+- Keep counts in the 50–150 range; reuse one particles array (clear/rebuild on state change).
 
 ## Verification & Acceptance Criteria
-- [ ] Weather transitions smoothly between states with fade
-- [ ] Rain particles render at correct angle and speed (JS array + ctx)
-- [ ] Fog overlay reduces visibility correctly
-- [ ] Storm lightning flash + thunder with screen shake
-- [ ] Torch fuel depletes faster in rain
-- [ ] Performance mode reduces particles when FPS drops
-- [ ] Weather + day/night combine correctly (night fog is darker)
-- [ ] HUD shows correct weather icon
+- [ ] Weather cycles Clear → rain/fog/storm without breaking the rAF loop
+- [ ] Rain uses JS particles + `ctx` strokes at ~50–150 count
+- [ ] Heavy rain / storm starts rain SFX; clear/fog stops it
+- [ ] Storm shows flash + thunder + brief shake
+- [ ] Fog visibly reduces contrast and stacks with night darkness
+- [ ] Weather pauses while menus pause the game
+- [ ] HUD weather icon updates
+- [ ] Low-FPS path can reduce particle count toward ~50

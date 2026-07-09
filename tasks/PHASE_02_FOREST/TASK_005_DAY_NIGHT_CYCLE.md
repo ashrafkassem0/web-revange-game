@@ -1,114 +1,45 @@
 # TASK_005 — DAY_NIGHT_CYCLE
 
 ## Objective
-Add a dynamic day/night cycle to the forest scene using Canvas 2D rgba overlays (extending `forest-time.js`), affecting visibility, enemy behavior, and gameplay.
+Polish the existing forest day/night system in `forest-time.js` / `forest-config.js` — close gameplay and UX gaps. Do **not** replace the clock, overlay, or wildlife manager with a parallel cycle.
+
+## Status
+**Largely done.** In-game clock (`gameClock.minutes`), phases (`dawn|day|dusk|night`), `computeDarkness`, offscreen night canvas + `destination-out` lights via `getLightSources()`, HUD clock (`#clockTime` / phase labels), and night predator spawns already ship.
 
 ## Detailed Mechanics & User Stories
 
-### Cycle Duration
-- Full cycle = 12 minutes real-time (6 min day, 6 min night)
-- Phases: Dawn (1 min), Day (5 min), Dusk (1 min), Night (5 min)
+### Keep as-is
+- Timing: `CFG.GAME_MIN_PER_REAL_SEC` (1 real sec ≈ 1 game minute → ~24 min full day), phase bounds `DAWN_START` / `DAY_START` / `DUSK_START` / `NIGHT_START`, `NIGHT_MAX_DARKNESS`
+- Draw: `drawNightOverlay()` in `forest-time.js` called from the forest render path
+- Lights: lit `campfire` + `hut` from `forest-build.js` → `getLightSources()`
+- Wildlife: `NIGHT_SPAWNS` / day cleanup via existing wildlife helpers
+- Sleep advances clock through hut sleep menu (`forest-build.js`)
 
-### Visual Overlay (Canvas 2D fillRect)
-- Draw a full-viewport night layer with `ctx.fillRect` / offscreen canvas (same approach as existing `drawNightOverlay` in `forest-time.js`):
-  - **Day:** No overlay (full brightness)
-  - **Dawn/Dusk:** Warm/orange-tinted `rgba(...)` fill, alpha ~0.3
-  - **Night:** Dark blue tint, alpha ~0.7
-- Smooth transition over 2 minutes between phases via `computeDarkness()`
+### Gaps to close (this task)
+1. **Pause respect** — when `gamePaused` / craft / backpack / sleep / build menus open, `updateDayNight(dt)` should not advance (or advance only if intentionally desired; default = pause clock).
+2. **Persist time** — save/restore `gameClock.minutes` (+ `dayCount` if useful) inside forest snapshot (`forest-save.js` / `maps.forest`), not only structures.
+3. **Player light (optional polish)** — if night feels too dark away from campfires, add a small player torch radius into `getLightSources()` (fixed radius, no full fuel economy required). Skip a complex stick-refuel system unless it stays tiny.
+4. **Stars (optional)** — few twinkling `ctx.arc` dots when darkness high; keep cheap.
+5. **Indoor** — when player is inside/near hut sleep or clearly “indoors”, optionally skip or soften night overlay (hut already contributes a light hole).
+6. **Do not** change cycle to an arbitrary 12-minute real-time redesign that fights `CFG`; document and tune CFG instead if designers want faster nights.
 
-### Lighting Mask
-- At night, player has a torch light circle (radius 200px)
-- Implement with offscreen canvas + `destination-out` radial gradients (already used for campfire lights in `forest-time.js`)
-- Outside light circle: darkness
-- Multiple light sources: torch, campfires, enemy torches via `getLightSources()`
-
-### Torch Mechanic
-- Torch burns automatically at night
-- Fuel: initially 100, depletes at 1/sec
-- When empty: light radius shrinks to 50px
-- Refuel: press F → "Refuel Torch" → 1 stick = 30s fuel
-- Visual: animated flame drawn with `ctx` (flickering arcs/ellipses, 4-frame cycle via time index)
-
-### Enemy Behavior Changes
-- **Night:** Wolves double aggro range. Bats spawn (new enemy). Snakes hide. Rabbits/deer sleep (reduced flee range).
-- **Day:** Rabbits/deer spawn more. Wolves reduced aggro. Bats despawn.
-
-### Sky Visual
-- Sky gradient: `ctx` fill at top of viewport, color transitions with phase
-- Stars at night: 50 small white circles (`ctx.arc`), twinkle via alpha oscillation
-
-### HUD Element
-- Moon/sun icon + phase text ("الفجر", "النهار", "المساء", "الليل") in forest HUD HTML (or canvas HUD draw in `forest-hud.js`)
-- Position: top-right of game view
+### Enemy / wildlife
+- Verify night predators spawn/despawn on phase change (`onDayNightPhaseChange`) without leaks.
+- Day animals vs night predators: polish counts only; no new bat species required here (see TASK_010 if needed).
 
 ### Edge Cases
-- **Indoor/Building:** When player enters interior, day/night overlay is hidden, indoor lighting applied
-- **Pause:** Cycle pauses when game is paused (`SceneManager.onPause`)
-- **Save/Restore:** Time of day saved in `maps.forest.timeOfDay`, restored on scene entry
+- Clock wrap at 1440 increments `dayCount`
+- Load mid-night restores darkness and HUD phase text (`نهار` / `فجر` / `غسق` / `ليل`)
 
 ## Canvas 2D Implementation Hints
-```javascript
-// Extend forest-time.js patterns
-class DayNightCycle {
-  constructor() {
-    this.timeOfDay = 0;       // 0-1440 minutes (in-game)
-    this.phase = 'day';
-    this.alpha = 0;
-    this._nightCanvas = null;
-    this._nightCtx = null;
-  }
-
-  update(dt) {
-    this.timeOfDay += dt * 2;  // 12 min real = 24 hr in-game
-    this.phase = this.getPhase();
-    this.alpha = this.getDarknessAlpha();
-  }
-
-  draw(ctx, canvas) {
-    if (this.alpha <= 0.012) return;
-    const W = canvas.width, H = canvas.height;
-    if (!this._nightCanvas) {
-      this._nightCanvas = document.createElement('canvas');
-      this._nightCtx = this._nightCanvas.getContext('2d');
-    }
-    // ... size sync, fillRect rgba tint, destination-out light holes ...
-    ctx.drawImage(this._nightCanvas, 0, 0);
-  }
-
-  drawTorchLight(nc, playerScreenX, playerScreenY, radius) {
-    nc.globalCompositeOperation = 'destination-out';
-    const g = nc.createRadialGradient(playerScreenX, playerScreenY, radius * 0.12,
-                                      playerScreenX, playerScreenY, radius);
-    g.addColorStop(0, 'rgba(0,0,0,0.95)');
-    g.addColorStop(1, 'rgba(0,0,0,0)');
-    nc.fillStyle = g;
-    nc.beginPath();
-    nc.arc(playerScreenX, playerScreenY, radius, 0, Math.PI * 2);
-    nc.fill();
-    nc.globalCompositeOperation = 'source-over';
-  }
-}
-```
-
-### Torch Flame Draw
-```javascript
-function drawTorchFlame(ctx, sx, sy, fuel) {
-  const t = Date.now() * 0.01;
-  const h = 8 + Math.sin(t) * 2;
-  ctx.fillStyle = `rgba(255,140,0,${0.5 + fuel / 200})`;
-  ctx.beginPath();
-  ctx.ellipse(sx, sy - h, 4, h, 0, 0, Math.PI * 2);
-  ctx.fill();
-}
-```
+- Core files: `game/js/forest-time.js`, constants in `game/js/forest-config.js`, lights in `game/js/forest-build.js`, loop in `game/js/forest-main.js`.
+- Overlay pattern already uses offscreen canvas + radial `destination-out` — extend `getLightSources()` rather than rewriting draw.
+- HUD: update via `updateClockHUD()` DOM elements in forest HTML.
 
 ## Verification & Acceptance Criteria
-- [ ] Day/night transitions smoothly over 12 min cycle
-- [ ] Canvas rgba overlay darkens at night correctly
-- [ ] Torch light circle visible at night via radial cutout
-- [ ] Torch fuel depletes and refuels with sticks
-- [ ] Enemy behavior changes between day and night
-- [ ] Stars appear at night with twinkle
-- [ ] HUD shows correct time of day icon and text
-- [ ] Cycle pauses when game is paused
-- [ ] Indoor areas hide day/night overlay
+- [ ] Phases transition smoothly using existing CFG bounds; HUD shows correct Arabic phase + clock
+- [ ] Night overlay darkens and campfire/hut light holes remain visible
+- [ ] Clock does not advance while game is paused / blocking menus open
+- [ ] Time of day restores after save/reload and after city round-trip
+- [ ] Night wildlife spawn/despawn still works after polish
+- [ ] No second day/night module; `forest-time.js` remains the authority

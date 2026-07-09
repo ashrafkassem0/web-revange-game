@@ -1,208 +1,100 @@
 # TASK_022 — WEATHER_EXTREMES
 
 ## Objective
-Implement Death Valley-specific weather extremes (sandstorms, heat waves, meteor showers) with Canvas 2D particle arrays, screen effects, and gameplay impact.
+Keep Death Valley weather: **sandstorm** and **heat haze** as Canvas 2D particle arrays + overlays in the DV scene. Integrate with forest weather ideas from `TASK_006` / shared helper if one exists (or a small `dv-weather.js` / shared `weather-particles.js`). Use realistic particle counts. Optional light meteor is OK; do not depend on underground shelters.
+
+## Architecture
+- DV page rAF loop calls `weather.update(dt)` + `weather.draw(ctx)`.
+- Prefer extracting a tiny helper reusable from forest rain (particle pool, wrap, dim overlay) — but DV-specific events stay in DV.
+- Persist optional `maps.deathValley.weather` (`{ type, timeLeft }`) via `GameState`.
+- Top-down only: weather affects speed, visibility, heat — no cave “pause weather” requirement.
 
 ## Detailed Mechanics & User Stories
 
-### Sandstorm
+### Sandstorm (primary)
 | Property | Value |
 |----------|-------|
-| Chance | 10% every 5 min |
-| Duration | 60s |
-| Particles | 500 orange/brown dots (plain JS array drawn with `ctx`) |
-| Effects | Visibility 80px, speed -30%, arrow range halved |
-| Shelter | Ruins (complete), Oasis (50%) |
-| Wind sound | AudioManager.playAmbient('sandstorm') |
+| Trigger | ~10% check every 4–6 min, or scripted timer |
+| Duration | 45–75s |
+| Particles | **120–220** sand motes (not 500) — raise only if FPS stable |
+| Visual | brown/orange `fillRect`/`arc` drift + dim overlay `rgba(40,25,10,0.3)` |
+| Gameplay | move speed −25%, optional shorter bow range; Arabic toast «عاصفة رملية!» |
+| Shelter | standing on `RUINS` or `OASIS` reduces slow / clears overlay alpha by half |
 
-### Heat Wave
+### Heat haze (primary)
 | Property | Value |
 |----------|-------|
-| Chance | 15% every 8 min |
-| Duration | 90s |
-| Effects | Heat meter fills 2x faster, oasis restores 2x slower |
-| Shelter | Ruins only |
-| Visual | Screen shimmer (subtle vertical sine offset when blitting / overlay), sun icon pulse |
-| Strategy | Carry cactus fruit (reduces heat by 30 points) |
+| Trigger | often while on open sand, or timed “heat wave” 60–90s |
+| Visual | warm overlay `rgba(255,120,40,0.06–0.12)` + subtle sine shimmer on overlay alpha |
+| Gameplay | heat meter fills ~1.5–2× faster (TASK_018/019); oasis still best relief |
+| Item | `cactusFruit` reduces heat by a chunk; desert cloak (TASK_021) slows heat gain |
 
-### Meteor Shower (Rare)
-| Property | Value |
-|----------|-------|
-| Chance | 5% every 10 min |
-| Duration | 30s |
-| Meteors | 1 per 2s, 15 total |
-| Damage | 50 in 60px radius |
-| Warning | 3s red circle on ground (`ctx` arc, alpha pulse) |
-| Shelter | Ruins, cliff overhangs |
-| Reward | 3-5 "star fragments" spawn at impact sites |
+### Meteor shower (optional, light)
+- Rare, short (20–30s), **4–8** impacts max.
+- Warning circle 2s → small damage if player stays in radius; soft camera shake.
+- Skip star-fragment economy if it bloats scope; flavor FX is enough.
 
-### Meteor Impact Sequence
-1. Warning: red circle appears at random position, grows from radius 10→60 over 3s, alpha pulses
-2. Impact: screen flash (full-canvas white rect, alpha 0.8 for 100ms), screen shake (camera offset jitter)
-3. Crater: temporary obstacle drawn on ground (dark ellipse), lasts 60s
-4. Star fragment: dropped item at impact center, collectible
+### Forecast (optional)
+- Key or HUD button → `#notify` Arabic line with rough prediction («عاصفة رملية قادمة» / «الجو معتدل»).
+- No need for 80% accuracy simulation — simple based on next scheduled event.
 
-### Weather Forecast
-- Press `Y` → HTML toast / HUD text prediction with 80% accuracy:
-  - "تبدو السماء... عاصفة رملية قادمة" (sandstorm)
-  - "الجو حار جداً اليوم" (heat wave)
-  - "سماء غريبة... ربما زخات نيزكية" (meteor shower)
-  - "الطقس معتدل اليوم" (clear)
+### Performance
+- If frame dt spikes, cut sand particles in half (same idea as TASK_006 performance mode).
+- One event at a time (`currentEvent` exclusive).
 
 ### Edge Cases
-- **Multiple Events:** Never more than one event active. Exclusive flag.
-- **Underground/Cave:** All weather effects pause. Sub-level / cave draw passes not affected.
-- **Meteor Hit Player:** If player stands in warning circle and doesn't move, takes 50 damage. "احترس من النيازك!" warning text.
+- Clear weather default; never stack sandstorm + meteor.
+- Pause: if DV has a pause/modal, freeze weather timers.
+- City/forest unaffected unless shared helper is explicitly reused there for rain only.
 
 ## Canvas 2D Implementation Hints
 ```javascript
-class DVWeatherSystem {
+class DVWeather {
   constructor() {
-    this.currentEvent = null;
-    this.eventTimer = 0;
-    this.sandParticles = [];
-    this.meteors = [];
-    this.shake = { x: 0, y: 0, timer: 0 };
-    this.flashAlpha = 0;
-    this.heatShimmerT = 0;
+    this.current = 'clear';
+    this.particles = [];
+    this.t = 0;
   }
 
   startSandstorm() {
-    this.currentEvent = 'sandstorm';
-    this.sandParticles = [];
-    for (let i = 0; i < 500; i++) {
-      this.sandParticles.push({
+    this.current = 'sandstorm';
+    this.particles = [];
+    const n = 160;
+    for (let i = 0; i < n; i++) {
+      this.particles.push({
         x: Math.random() * canvas.width,
         y: Math.random() * canvas.height,
-        vx: 2 + Math.random() * 4,
-        vy: 0.5 + Math.random(),
-        alpha: 0.3 + Math.random() * 0.4,
-        w: 2 + Math.random() * 2,
-        h: 4 + Math.random() * 4
+        vx: 2 + Math.random() * 3,
+        vy: 0.4 + Math.random() * 0.8,
+        a: 0.25 + Math.random() * 0.35
       });
     }
-    AudioManager.playAmbient('sandstorm');
+    notify('عاصفة رملية!', '#e0a060');
   }
 
-  updateSandstorm(dt) {
-    for (const p of this.sandParticles) {
-      p.x += p.vx;
-      p.y += p.vy;
-      if (p.x > canvas.width) p.x = 0;
-      if (p.y > canvas.height) p.y = 0;
-    }
-  }
-
-  drawSandstorm(ctx) {
-    // Dim visibility overlay
-    ctx.fillStyle = 'rgba(40,25,10,0.35)';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    for (const p of this.sandParticles) {
-      ctx.fillStyle = `rgba(204,136,68,${p.alpha})`;
-      ctx.fillRect(p.x, p.y, p.w, p.h);
-    }
-  }
-
-  // Heat wave shimmer: slight sine offset when drawing world, or CSS filter on canvas
-  drawHeatShimmer(ctx) {
-    this.heatShimmerT += 0.05;
-    // Optional: draw a semi-transparent warm overlay
-    ctx.fillStyle = `rgba(255,120,40,${0.08 + 0.04 * Math.sin(this.heatShimmerT)})`;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-  }
-
-  startMeteorShower() {
-    this.currentEvent = 'meteor';
-    this.meteorCount = 0;
-    this.meteorSpawnAcc = 0;
-  }
-
-  updateMeteorShower(dt, player, camera) {
-    this.meteorSpawnAcc += dt;
-    if (this.meteorSpawnAcc >= 2 && this.meteorCount < 15) {
-      this.meteorSpawnAcc = 0;
-      this.meteorCount++;
-      this.spawnMeteor(player, camera);
-    }
-    for (const m of this.meteors) {
-      m.warnTimer -= dt;
-      m.warnRadius = 10 + (1 - m.warnTimer / 3) * 50;
-      m.warnAlpha = 0.3 + 0.3 * Math.sin(Date.now() * 0.01);
-      if (m.warnTimer <= 0 && !m.impacted) {
-        m.impacted = true;
-        this.impactMeteor(m, player);
-      }
-    }
-  }
-
-  spawnMeteor(player, camera) {
-    this.meteors.push({
-      x: camera.x + Math.random() * canvas.width,
-      y: camera.y + Math.random() * canvas.height,
-      warnTimer: 3,
-      warnRadius: 10,
-      warnAlpha: 0.3,
-      impacted: false
-    });
-  }
-
-  impactMeteor(m, player) {
-    const dist = Math.hypot(player.x - m.x, player.y - m.y);
-    if (dist < 60) player.takeDamage(50);
-    this.flashAlpha = 0.8;
-    this.shake.timer = 0.3;
-    this.shake.intensity = 10;
-    m.craterLife = 60;
-    spawnDroppedItem('starFragment', m.x, m.y);
-  }
-
-  drawMeteors(ctx, camera) {
-    for (const m of this.meteors) {
-      if (!m.impacted) {
-        ctx.fillStyle = `rgba(255,0,0,${m.warnAlpha})`;
-        ctx.beginPath();
-        ctx.arc(m.x - camera.x, m.y - camera.y, m.warnRadius, 0, Math.PI * 2);
-        ctx.fill();
-      } else if (m.craterLife > 0) {
-        ctx.fillStyle = 'rgba(30,20,15,0.8)';
-        ctx.beginPath();
-        ctx.ellipse(m.x - camera.x, m.y - camera.y, 28, 16, 0, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-    if (this.flashAlpha > 0) {
-      ctx.fillStyle = `rgba(255,255,255,${this.flashAlpha})`;
+  draw(ctx) {
+    if (this.current === 'sandstorm') {
+      ctx.fillStyle = 'rgba(40,25,10,0.32)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      this.flashAlpha = Math.max(0, this.flashAlpha - 0.15);
+      for (const p of this.particles) {
+        ctx.fillStyle = `rgba(204,136,68,${p.a})`;
+        ctx.fillRect(p.x, p.y, 2, 3);
+      }
     }
-  }
-
-  updateShake(camera, dt) {
-    if (this.shake.timer <= 0) {
-      this.shake.x = 0; this.shake.y = 0;
-      return;
+    if (this.current === 'heat' || this.heatHaze) {
+      const a = 0.08 + 0.04 * Math.sin(this.t * 2);
+      ctx.fillStyle = `rgba(255,120,40,${a})`;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
-    this.shake.timer -= dt;
-    this.shake.x = (Math.random() - 0.5) * this.shake.intensity;
-    this.shake.y = (Math.random() - 0.5) * this.shake.intensity;
-  }
-
-  // Forecast — HTML notify toast
-  showForecast() {
-    const msg = predictWeather(0.8); // 80% accuracy
-    notify(msg, '#ffd060');
   }
 }
 ```
 
 ## Verification & Acceptance Criteria
-- [ ] Sandstorm reduces visibility (dim overlay), speed, and arrow range
-- [ ] 500 sand particles render via plain JS array + Canvas 2D
-- [ ] Heat wave doubles heat meter fill rate
-- [ ] Cactus fruit reduces heat by 30 points
-- [ ] Meteor warning red circle appears 3s before impact
-- [ ] Meteor impact: flash, screen shake, 50 damage in 60px radius
-- [ ] Star fragments spawn at impact sites (3-5 per shower)
-- [ ] Weather forecast predicts with ~80% accuracy (Y key)
-- [ ] Events are exclusive (no double events)
-- [ ] Underground shelters from all weather
+- [ ] Sandstorm draws particle array + dim overlay; slows player; Arabic notify
+- [ ] Heat haze overlay integrates with heat meter (faster fill / oasis relief)
+- [ ] Particle counts stay in a realistic range (~120–220 sand); FPS-safe fallback
+- [ ] Only one weather event active at a time
+- [ ] Optional meteor is limited and top-down (warning circle + damage) — no cave shelter dependency
+- [ ] Shared/forest weather helper reused only if clean; otherwise `dv-weather.js` is fine
+- [ ] Zero Pixi; works inside `game/death-valley` Canvas loop

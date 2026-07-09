@@ -1,200 +1,67 @@
 # TASK_030 — MOBILE_TOUCH_CONTROLS
 
 ## Objective
-Add responsive touch controls for mobile/tablet play with auto-detect, virtual joystick, and action buttons overlaying the Canvas 2D game canvas.
+Add a **virtual joystick + 3–4 action buttons** as an HTML overlay on the game canvas for touch devices. Match forest controls; keep the button count small.
+
+## Architecture (must follow)
+- HTML/CSS overlay on `game/forest/index.html` (and later dark-kingdom / boss)
+- Auto-show when `ontouchstart` / `maxTouchPoints > 0` (or settings toggle)
+- Map touches to the same actions keyboard already uses (move, attack, interact, item)
+- **No Pixi**
 
 ## Detailed Mechanics & User Stories
 
-### Auto-Detect
-```javascript
-const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-if (isTouchDevice) showTouchControls();
+### Layout
+```
+┌─────────────────────────────┐
+│         Canvas 2D           │
+│  (joystick)     [⚔][E][Q]  │
+│   bottom-left   bottom-right│
+└─────────────────────────────┘
 ```
 
-### Touch Layout
-```
-┌──────────────────────────────────────┐
-│                                      │
-│        [Game Canvas - Canvas 2D]     │
-│                                      │
-│                                      │
-│   ╭──┐          [C] [F] [I] [K]    │
-│   │  │          [Q] [1] [2] [B]    │
-│   ╰──┘                    [🗡️/🏹]  │
-│   Joystick              Action Btns │
-└──────────────────────────────────────┘
-  [Quickbar: 1-6 items horizontal]
-```
+### Controls (3–4 buttons max)
+| Control | Action |
+|---------|--------|
+| Joystick | Move (WASD equivalent) |
+| Attack | Sword / current weapon (Space) |
+| Interact | E |
+| Use item | Q |
+| Optional 4th | Bow toggle or inventory |
 
-### Virtual Joystick
-- Size: 140×140px, bottom-left (10% from edge)
-- Touchstart on zone → capture touch ID
-- Touchmove → calculate direction vector from center (clamped to radius 50px)
-- Touchend → reset to center, stop movement
-- Dead zone: 15px (no accidental tiny movements)
-- Visual: outer circle (semi-transparent) + inner knob (solid)
+Do **not** ship a 9-button craft/fish/build/skill cluster.
 
-### Action Buttons
-| Button | Position | Action |
-|--------|----------|--------|
-| ⚔️ Sword | Bottom-right | Melee attack |
-| 🏹 Bow | Above sword | Toggle bow mode |
-| E | Above attack | Interact |
-| Q | Left of E | Use item |
-| C | Top-right | Craft menu |
-| F | Left of C | Fish (near water) |
-| I | Below C | Inventory |
-| K | Below I | Skill tree |
-| B | Below K | Build mode |
-| 1/2 | Left of Q | Quickbar slots |
+### Joystick
+- Bottom-left; knob clamped to ~50px radius; dead zone ~15px
+- Track `touch.identifier` so joystick + buttons work together
+- `touchend` → stop movement
 
-### Bow Aiming (Touch)
-- When bow equipped: tap right half of screen → aim reticle appears at tap position
-- Second tap → shoot arrow at reticle
-- Long press on enemy → lock target (same as right-click)
+### Settings
+- Toggle «إظهار أزرار اللمس» in TASK_029 settings (or local flag)
 
-### Responsive Layout
-- All positions in `%` not `px`
-- `landscape`: joystick left, buttons right
-- `portrait`: joystick left, buttons right (smaller)
-- Button size: `min(8vh, 8vw)`
-
-### Edge Cases
-- **Multiple Touches:** Track touch IDs independently. Joystick uses first touch on left third. Buttons use touches on right two-thirds.
-- **Desktop + Touch:** Both input methods work simultaneously
-- **Hide Controls:** Settings toggle "إظهار أزرار اللمس"
+### Edge cases
+- Desktop + touch: both work
+- `preventDefault` on buttons to avoid scroll/zoom
+- Portrait: slightly smaller hit targets via `vh`/`vw`
 
 ## Implementation Hints
 ```html
 <div id="touch-controls" class="hidden">
-  <div id="joystick-zone">
-    <div id="joystick-base">
-      <div id="joystick-knob"></div>
-    </div>
-  </div>
-  <div id="action-buttons">
-    <button data-action="attack" class="touch-btn">⚔️</button>
-    <button data-action="bow" class="touch-btn">🏹</button>
-    <button data-action="interact" class="touch-btn">E</button>
-    <button data-action="useItem" class="touch-btn">Q</button>
-    <button data-action="craft" class="touch-btn">🔧</button>
-    <button data-action="fish" class="touch-btn">🎣</button>
-    <button data-action="inventory" class="touch-btn">🎒</button>
-    <button data-action="skills" class="touch-btn">⭐</button>
-    <button data-action="build" class="touch-btn">🏗️</button>
+  <div id="joystick-zone"><div id="joystick-knob"></div></div>
+  <div id="touch-actions">
+    <button data-action="attack">⚔️</button>
+    <button data-action="interact">E</button>
+    <button data-action="useItem">Q</button>
   </div>
 </div>
 ```
 
-### Touch to Game Input Mapping
-```javascript
-class TouchInput {
-  constructor() {
-    this.joystick = { active: false, touchId: null, dx: 0, dy: 0 };
-    this.buttons = {};
-    this.setupJoystick();
-    this.setupButtons();
-  }
-
-  setupJoystick() {
-    const zone = document.getElementById('joystick-zone');
-    const knob = document.getElementById('joystick-knob');
-
-    zone.addEventListener('touchstart', (e) => {
-      this.joystick.active = true;
-      this.joystick.touchId = e.changedTouches[0].identifier;
-      this.updateJoystick(e);
-    });
-
-    zone.addEventListener('touchmove', (e) => {
-      const touch = Array.from(e.changedTouches).find(
-        t => t.identifier === this.joystick.touchId
-      );
-      if (!touch) return;
-      this.updateJoystick(e);
-    });
-
-    zone.addEventListener('touchend', (e) => {
-      const touch = Array.from(e.changedTouches).find(
-        t => t.identifier === this.joystick.touchId
-      );
-      if (!touch) return;
-      this.joystick.active = false;
-      knob.style.transform = 'translate(-50%, -50%)';
-      player.vx = 0; player.vy = 0;
-    });
-  }
-
-  updateJoystick(e) {
-    const touch = Array.from(e.changedTouches).find(
-      t => t.identifier === this.joystick.touchId
-    );
-    if (!touch) return;
-
-    const zone = document.getElementById('joystick-zone');
-    const knob = document.getElementById('joystick-knob');
-    const rect = zone.getBoundingClientRect();
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
-    const dx = touch.clientX - centerX;
-    const dy = touch.clientY - centerY;
-    const dist = Math.hypot(dx, dy);
-    const maxDist = 50;
-
-    const clamped = Math.min(dist, maxDist);
-    const angle = Math.atan2(dy, dx);
-    const knobX = Math.cos(angle) * clamped;
-    const knobY = Math.sin(angle) * clamped;
-
-    knob.style.transform = `translate(calc(-50% + ${knobX}px), calc(-50% + ${knobY}px))`;
-
-    if (dist > 15) {
-      player.vx = (dx / dist) * player.speed * (dist / maxDist);
-      player.vy = (dy / dist) * player.speed * (dist / maxDist);
-    } else {
-      player.vx = 0; player.vy = 0;
-    }
-  }
-
-  setupButtons() {
-    document.querySelectorAll('.touch-btn').forEach(btn => {
-      btn.addEventListener('touchstart', (e) => {
-        e.preventDefault();
-        const action = btn.dataset.action;
-        this.handleAction(action, 'start');
-        btn.classList.add('pressed');
-      });
-      btn.addEventListener('touchend', (e) => {
-        e.preventDefault();
-        const action = btn.dataset.action;
-        this.handleAction(action, 'end');
-        btn.classList.remove('pressed');
-      });
-    });
-  }
-
-  handleAction(action, phase) {
-    const keyMap = {
-      attack: ' ', bow: '2', interact: 'e', useItem: 'q',
-      craft: 'f', fish: 'r', inventory: 'i', skills: 'k', build: 'b'
-    };
-    if (phase === 'start') {
-      InputManager.pressKey(keyMap[action]);
-    } else {
-      InputManager.releaseKey(keyMap[action]);
-    }
-  }
-}
-```
+Feed into existing key/input state object used by forest-main (set `keys.w` etc. or `player.vx/vy`).
 
 ## Verification & Acceptance Criteria
-- [ ] Touch controls auto-show on touch devices
-- [ ] Virtual joystick moves player in all directions with speed control
-- [ ] Dead zone prevents accidental movement (15px)
-- [ ] All action buttons trigger correct game actions
-- [ ] Bow aiming via tap on right half of screen
-- [ ] Long press on enemy locks target
-- [ ] Multiple touches handled independently (joystick + buttons)
-- [ ] Controls responsive in landscape and portrait
-- [ ] Hide/show toggle in settings
-- [ ] No conflict with mouse+keyboard input
+- [ ] Touch devices show joystick + 3–4 buttons
+- [ ] Joystick moves the player; dead zone works
+- [ ] Attack / interact / use-item fire correctly
+- [ ] Multi-touch: move + attack together
+- [ ] Can hide via setting
+- [ ] Zero Pixi; HTML overlay only

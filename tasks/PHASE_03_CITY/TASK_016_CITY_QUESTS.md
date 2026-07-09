@@ -1,200 +1,84 @@
 # TASK_016 — CITY_QUESTS
 
 ## Objective
-Design and implement 3 city quests with an HTML quest log UI, objective tracking, rewards, and Death Valley unlocking. In-world quest markers and cellar combat use Canvas 2D.
+Add **1–2** city quests tracked in `maps.city.completedQuests`, delivered through the existing three NPCs + `#modal`. Unlock the south gate for Death Valley. Avoid cellars / well caves unless a tiny same-canvas sub-area is unavoidable — prefer inventory + talk objectives.
+
+## Current Baseline
+- `DEFAULT_MAPS.city` in `game/js/shared.js`: `{ completedQuests: [], spokenToNpcs: [], boughtItems: [] }`
+- NPCs: merchant, healer, blacksmith only (no tavern keeper / scholar / guard captain yet — attach quests to these three or add **at most one** extra gate guard NPC if needed)
+- Decorative well and south road stub from TASK_012
 
 ## Detailed Mechanics & User Stories
 
-### Quest 1: "مشكلة الجرذان" (Rat Infestation)
-| Property | Value |
-|----------|-------|
-| Giver | Tavern Keeper (tavern) |
-| Objective | Kill 5 giant rats in tavern cellar |
-| Enemies | Giant rat: HP 25, fast, swarms of 3 |
-| Reward | 20 coins, 3 cooked meat, rep +10 |
-| Unlocks | Tavern Keeper shares rumor about Terror King |
+### Quest A — «ذخيرة المسافر» (recommended)
+| Field | Value |
+|-------|-------|
+| Giver | التاجر (`merchant`) |
+| Objective | Complete any 2 barters **or** hold ≥20 arrows after trading |
+| Track | `boughtItems.length` and/or `inventory.arrows` |
+| Reward | +10 arrows **or** small HP restore; Arabic toast «✔️ اكتملت: ذخيرة المسافر» |
+| Persist | push `'quest_traveler_supplies'` into `completedQuests` |
 
-Cellar: enclosed room (400×400 interior), accessible via tavern door. Rats spawn in waves of 3. After 5 kills, quest completes.
+### Quest B — «طريق الوادي» (unlock gate)
+| Field | Value |
+|-------|-------|
+| Giver | الحداد or optional south-gate guard NPC |
+| Objective | Bring night-prep materials, e.g. `beastHide ≥ 1` **and** `teeth ≥ 3` (from forest) — turn in via modal |
+| Reward | South gate unlock flag; toast «البوابة الجنوبية فُتحت» |
+| Persist | `'quest_valley_path'` in `completedQuests`; set `maps.city.southGateUnlocked = true` (or derive unlock from completed list) |
 
-### Quest 2: "الكتاب المفقود" (The Lost Book)
-| Property | Value |
-|----------|-------|
-| Giver | Library Scholar (library) |
-| Objective | Find lost book in city well (requires rope) |
-| Rope | Buy from general merchant (5 coins) |
-| Reward | 35 coins, "لعنات الظلام" lore book, rep +15 |
-| Unlocks | Terror King weakness: fire (1.5x damage) |
+Optional flavor only: healer asks player to rest once (`spokenToNpcs` / rest flag) — do **not** require a rat cellar.
 
-Well: interactive object near plaza. If player has rope, E to descend → small cave (200×200) with book drawn on canvas. Pick up → quest completes.
+### Quest flow
+1. NPC intro (TASK_013) → button «هل لديك عمل؟» if quest available.
+2. Accept → store `activeQuestId` in `maps.city` (or infer from incomplete definitions).
+3. Progress checked on interact / trade / inventory.
+4. Turn-in modal grants reward + `completedQuests.push(id)`.
+5. After Quest B: south gate interactable (TASK_017 navigates to Death Valley).
 
-### Quest 3: "طريق الوادي" (The Valley Path)
-| Property | Value |
-|----------|-------|
-| Giver | Guard Captain (south gate) |
-| Objective | Collect 10 valley herbs (near south gate) + 5 wolf teeth |
-| Reward | 50 coins, "ممر آمن" map, rep +20 |
-| Unlocks | South gate → Death Valley |
-
-Valley herbs: 10 spawn in garden near south gate. Wolf teeth: check inventory. Turn in → gate unlocked.
-
-### Quest UI (HTML Overlay)
-- Press `J` → quest log overlay (`#questLog` panel, same modal style as city)
-- Active quests: yellow text with progress "جرذان مقتولة: 3/5"
-- Completed quests: green with "✔️" prefix, strikethrough
-- Quest markers on minimap: yellow `!` (available), blue `?` (turn-in), green dot (objective location) — drawn with `minimapCtx`
-
-### Quest Tracking
-```javascript
-class QuestManager {
-  constructor() {
-    this.quests = {};
-    this.active = [];
-    this.completed = [];
-  }
-
-  addQuest(questId) {
-    const quest = QUEST_DEFINITIONS[questId];
-    quest.state = 'active';
-    quest.progress = {};
-    quest.objectives.forEach(obj => { quest.progress[obj.id] = 0; });
-    this.active.push(quest);
-    showToast(`📜 مهمة جديدة: ${quest.name}`);
-  }
-
-  updateProgress(questId, objectiveId, delta = 1) {
-    const quest = this.active.find(q => q.id === questId);
-    if (!quest) return;
-    quest.progress[objectiveId] = Math.min(
-      quest.progress[objectiveId] + delta,
-      quest.objectives.find(o => o.id === objectiveId).count
-    );
-    // Check if all objectives complete
-    if (quest.objectives.every(o => quest.progress[o.id] >= o.count)) {
-      this.completeQuest(questId);
-    }
-  }
-
-  completeQuest(questId) {
-    const quest = this.active.find(q => q.id === questId);
-    quest.state = 'completed';
-    this.completed.push(quest);
-    this.active = this.active.filter(q => q.id !== questId);
-    // Grant rewards
-    giveRewards(quest.rewards);
-    showToast(`✔️ ${quest.name} مكتمل!`);
-  }
-}
-```
-
-### Quest Definitions
-```javascript
-const QUEST_DEFINITIONS = {
-  quest_rat_infestation: {
-    id: 'quest_rat_infestation',
-    name: 'مشكلة الجرذان',
-    description: 'اقتل 5 جرذان في قبو الحانة',
-    giver: 'npc_tavern_keeper',
-    objectives: [
-      { id: 'kill_rats', type: 'kill', target: 'giantRat', count: 5 }
-    ],
-    rewards: { coins: 20, items: { cookedMeat: 3 }, reputation: 10 },
-    unlock: 'terror_king_rumor'
-  },
-  // ...
-};
-```
+### UI
+- Prefer quest status **inside NPC modals** (progress line in Arabic).
+- Optional tiny `#questHint` under HUD — **not** a full J-key quest log / minimap markers system.
 
 ### Edge Cases
-- **Already Completed:** NPC shows different dialogue, offers repeatable quest ("جلب 10 أعشاب" for 5 coins)
-- **No Rope (Quest 2):** Well interaction shows "تحتاج حبلاً لتنزله" hint with rope purchase tip
-- **Multiple Active Quests:** No limit, all shown in quest log
-- **Quest Item in Inventory:** Book is `questItems.lostBook`, cannot be dropped or sold
+- Already completed → NPC says «أنجزت هذا من قبل.» / offers no repeat (or a trivial repeatable barter tip).
+- Missing items on turn-in → list what’s missing in Arabic.
+- Do **not** require rope + well cave or tavern cellar combat for v1.
 
-## Canvas 2D Implementation Hints
-```html
-<div id="questLog" class="hidden">
-  <h2>📜 المهام</h2>
-  <div id="questList"></div>
-  <button onclick="closeQuestLog()">إغلاق</button>
-</div>
-```
+### Out of scope
+- 3-quest chain with rat waves / lost book cave
+- Reputation rewards
+- Minimap `!` / `?` markers
 
+## Canvas 2D / HTML Implementation Hints
 ```javascript
-function refreshQuestLog() {
-  const list = document.getElementById('questList');
-  list.innerHTML = '';
-  QuestManager.active.forEach(q => {
-    const progress = q.objectives.map(o =>
-      `${o.id}: ${q.progress[o.id]}/${o.count}`
-    ).join(', ');
-    const el = document.createElement('div');
-    el.className = 'quest-active';
-    el.textContent = `${q.name} — ${progress}`;
-    list.appendChild(el);
-  });
-  QuestManager.completed.forEach(q => {
-    const el = document.createElement('div');
-    el.className = 'quest-done';
-    el.textContent = `✔️ ${q.name}`;
-    list.appendChild(el);
-  });
+function getCityState() {
+  // read/write maps.city via GameState helpers
 }
 
-// Rat cellar — Canvas 2D interior + plain JS enemy array
-class RatCellar {
-  constructor() {
-    this.canvas = document.createElement('canvas');
-    this.canvas.width = 400;
-    this.canvas.height = 400;
-    this.ctx = this.canvas.getContext('2d');
-    this.rats = [];
-    this.killCount = 0;
-    this.spawnRats();
-  }
-
-  spawnRats() {
-    for (let i = 0; i < 3; i++) {
-      this.rats.push({
-        x: 50 + Math.random() * 300,
-        y: 50 + Math.random() * 300,
-        hp: 25,
-        emoji: '🐀'
-      });
-    }
-  }
-
-  draw() {
-    const c = this.ctx;
-    c.fillStyle = '#2a2018';
-    c.fillRect(0, 0, 400, 400);
-    // crates, barrels...
-    for (const rat of this.rats) {
-      if (rat.hp <= 0) continue;
-      c.font = '24px Cairo';
-      c.textAlign = 'center';
-      c.fillText(rat.emoji, rat.x, rat.y);
-    }
-  }
-
-  onRatKilled(rat) {
-    rat.hp = 0;
-    this.killCount++;
-    QuestManager.updateProgress('quest_rat_infestation', 'kill_rats');
-    if (this.rats.every(r => r.hp <= 0) && this.killCount < 5) {
-      setTimeout(() => this.spawnRats(), 1000);
-    }
-  }
+function isQuestDone(id) {
+  return (getCityState().completedQuests || []).includes(id);
 }
+
+function completeQuest(id, rewardFn) {
+  const city = getCityState();
+  if (!city.completedQuests.includes(id)) city.completedQuests.push(id);
+  rewardFn?.();
+  persistCity(city);
+  notify(`✔️ اكتملت المهمة`, '#6ddc6d');
+}
+
+function isSouthGateUnlocked() {
+  return isQuestDone('quest_valley_path');
+}
+
+// South gate draw: chains if !unlocked; [E] hint if unlocked
 ```
 
 ## Verification & Acceptance Criteria
-- [ ] All 3 quests available from respective NPCs
-- [ ] Quest objectives track correctly (kill counter, item collection)
-- [ ] Quest rewards (coins, items, reputation) granted on completion
-- [ ] Quest log (J key) shows active + completed with progress
-- [ ] Minimap markers for quest NPCs and objectives
-- [ ] Rat cellar loads with 3 rats per wave, kill 5 total
-- [ ] Lost book found in well cave with rope item
-- [ ] Valley herbs collectible near south gate
-- [ ] South gate unlocks after Quest 3 completion
-- [ ] Repeatable quests available after completion
+- [ ] 1–2 quests only; IDs stored in `maps.city.completedQuests`
+- [ ] Quests start/turn in via existing `#modal` + NPC E interact
+- [ ] Quest B unlocks south gate (flag or completedQuests check)
+- [ ] Rewards apply to inventory / HP and persist through `GameState`
+- [ ] No rat cellar / well cave required; Arabic strings throughout
+- [ ] Reload mid-quest restores progress from `maps.city`

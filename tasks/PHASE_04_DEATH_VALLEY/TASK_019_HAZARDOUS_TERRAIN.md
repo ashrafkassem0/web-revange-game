@@ -1,158 +1,89 @@
-# TASK_019 — HAZARDOUS_TERRAIN_MECHANICS
+# TASK_019 — HAZARDOUS_TERRAIN
 
 ## Objective
-Implement advanced terrain interaction: ledge climbing, rope descents, collapsing ground, lava jumping, stealth in ruins, and weighted platforms — all via Canvas 2D drawing and vanilla JS state machines in the game loop.
+Add **top-down** hazardous terrain to Death Valley that fits Revenge’s WASD/arrows movement — **no** Space-jump, rope climb, ledge climb animations, or sub-cave levels. Keep the spirit of dangerous ground: heat/lava DoT, slow sand, knockback, brief unstable tiles.
+
+## Architecture constraint
+Movement is planar (`player.x/y` + blocked tiles), same as `game/city/index.html` and forest. Do **not** introduce gravity, jump arcs, or interior cellar scenes.
 
 ## Detailed Mechanics & User Stories
 
-### Ledge Climbing
-- Some CLIFF tiles are "ledge" variants (lighter brown edge)
-- Press `Space` near ledge → climb animation (2s): player y decreases, arm-over-arm motion via frame index
-- Unlocks shortcuts to hidden areas with rare loot
-- Visual: reach-up draw frames (2 frames alternating)
+### 1. Lava / heat damage tiles
+- Standing on `LAVA`: apply DoT (e.g. **5 HP/s**), tick in `update(dt)`.
+- Visual: animate lava fill + soft radial glow + few bubble particles (plain array), as sketched in TASK_018.
+- Optional: brief i-frames after knockback so DoT doesn’t stack unfairly with shove.
 
-### Rope Descent
-- Specific CLIFF edges have rope hooks (visual: wooden stake drawn with `ctx`)
-- If player has `rope` item (bought in city), press E to descend
-- Rope stays after use (persistent, can reuse multiple times)
-- Creates shortcut back up
+### 2. Slow sand
+- On deep `SAND` (or flagged slow tiles): move speed × **0.7** (or ×0.5 in “soft sand” pockets).
+- Arabic hint when entering: «الرمل يبطئ خطاك…».
 
-### Collapsing Ground (CRACK tiles)
-- Visual warning: CRACK tile shakes (draw offset ±3px) for 1 second before collapse
-- Player can step off during warning window
-- If collapse happens: player falls through to sub-level cave (200×200)
-- Sub-level: small cave with exit ladder (E to climb back up)
-- Exit spawns player at nearest safe tile
+### 3. Hazard knockback
+- Entering lava edge or geyser tile: push player away from tile center (~40–80px), deal small burst damage (e.g. 8–12).
+- Implement as velocity impulse decayed over ~0.2–0.4s in the top-down plane (`kbX`, `kbY`) — **not** a jump.
 
-### Lava Jumping
-- Narrow lava pools (1-2 tiles wide) can be jumped across
-- Hold Shift + Press Space → jump (arc animation, 2 tiles distance, 0.5s duration)
-- Fail: player takes 15 damage, knocked back to nearest safe tile
-- Visual: jump arc via `ctx` stroke arc + player y offset during jump
+### 4. Unstable ground (replaces collapsing cave)
+- `CRACK` / unstable tiles: after standing **≥0.6–1.0s**, tile “gives”:
+  - Screen/tile shake (±3px draw offset) for ~0.4s warning
+  - Then: damage (e.g. 10 HP) + slow for 2s **or** short knockback to nearest safe tile
+- Tile may become a darker scar (still walkable, stronger slow) — **do not** drop into a 200×200 sub-level.
 
-### Stealth in Ruins
-- Inside RUINS tiles: stand still for 1 second → become semi-transparent (`ctx.globalAlpha = 0.3`)
-- Enemies ignore stealthed player
-- Moving breaks stealth (`globalAlpha` back to 1.0)
-- Visual: "🕵️ مختفي" text above player (`ctx.fillText`, 0.5s fade)
+### 5. Ruins “cover” (optional light stealth)
+- While on `RUINS` and not moving for 1s: `drawAlpha = 0.45`; elites ignore until player moves.
+- No weighted pressure-plate puzzle required for this task (treasure can be a simple E pickup in ruins).
 
-### Weighted Platforms
-- 3 pressure plates in ruins area (drawn with arrow symbol)
-- Player must place 3 `stone` items on plate (E while standing on plate with stone in inventory)
-- Plate depresses animation (draw y +5), gate to treasure room opens
-- Treasure: ancient coins (5) + lore scroll about Terror King
+### Heat meter integration
+- Open sand/rock: heat rises; oasis/ruins: heat falls (TASK_018 bar).
+- At 100% heat: +2 HP/s until shade.
 
 ### Edge Cases
-- **Fall Damage:** Walk off CLIFF edge unintentionally → 20 damage, respawn at last safe tile
-- **Infinite Fall Protection:** If y > world height → teleport to nearest OASIS with 10 HP penalty
-- **Jump Cancel:** Player can cancel jump mid-air by pressing opposite direction (reduced distance)
+- **Safe tiles:** oasis clears heat and should not apply sand slow.
+- **Death:** use existing hero HP / forest-style defeat handling if present; respawn at north plateau or last oasis — not under-map teleport caves.
+- **CLIFF:** still impassable; walking into cliff does nothing (no fall damage off ledges).
+
+### Out of scope (explicitly removed from old design)
+- Space ledge climb, rope descent, Shift+Space lava jump
+- Sub-level caves / ladders
+- Weighted platforms needing 3 stones
 
 ## Canvas 2D Implementation Hints
 ```javascript
-class HazardSystem {
-  constructor() {
-    this.collapsingTiles = [];
-    this.ropes = [];
-    this.platforms = [];
+function updateHazards(player, dt) {
+  const tile = getTileAt(player.x, player.y);
+
+  if (tile === T.LAVA) {
+    player.hp -= 5 * dt;
+    applyKnockbackFromTile(player, tileCenter, 60);
   }
 
-  // Ledge climb — animate in update() via requestAnimationFrame dt
-  tryClimb(player, tileX, tileY) {
-    if (!isLedge(tileX, tileY)) return false;
-    player.state = 'climbing';
-    player.climbTimer = 2;
-    player.climbStartY = player.y;
-    player.climbTargetY = player.y - 40;
-    player.animFrame = 0;
-    return true;
+  if (tile === T.SAND_DEEP) {
+    player.speedMul = 0.7;
+  } else {
+    player.speedMul = 1;
   }
 
-  updateClimb(player, dt) {
-    if (player.state !== 'climbing') return;
-    player.climbTimer -= dt;
-    const t = 1 - player.climbTimer / 2;
-    player.y = player.climbStartY + (player.climbTargetY - player.climbStartY) * t;
-    player.animFrame = Math.floor(t * 8) % 2;
-    if (player.climbTimer <= 0) {
-      player.y = player.climbTargetY;
-      player.state = 'idle';
+  if (tile === T.CRACK) {
+    player.unstableTimer = (player.unstableTimer || 0) + dt;
+    if (player.unstableTimer > 0.8) {
+      player.hp -= 10;
+      player.slowTimer = 2;
+      player.unstableTimer = 0;
+      notify('الأرض غير مستقرة!', '#e74c3c');
     }
+  } else {
+    player.unstableTimer = 0;
   }
 
-  // Collapsing ground
-  triggerCollapse(tileX, tileY) {
-    const tile = getTile(tileX, tileY);
-    if (tile !== T.CRACK) return;
-    const entry = { tileX, tileY, shakeTimer: 1, shake: 0 };
-    this.collapsingTiles.push(entry);
-    setTimeout(() => {
-      if (player.onTile(tileX, tileY)) {
-        player.takeDamage(10);
-        this.enterSubLevel(player);
-      }
-      setTile(tileX, tileY, T.HOLE);
-    }, 1000);
-  }
-
-  drawCrackShake(ctx, entry, camera) {
-    entry.shake = (Math.random() - 0.5) * 6;
-    const px = entry.tileX * 40 - camera.x + entry.shake;
-    const py = entry.tileY * 40 - camera.y;
-    ctx.fillStyle = '#6B5B45';
-    ctx.fillRect(px, py, 40, 40);
-  }
-
-  // Lava jump — physics in game loop (no external ticker)
-  tryLavaJump(player) {
-    if (player.isOnLavaEdge() && player.shiftHeld) {
-      player.state = 'jumping';
-      player.vy = -8;
-      player.vx = player.facingRight ? 4 : -4;
-      player.groundY = player.y;
-    }
-  }
-
-  updateJump(player, dt) {
-    if (player.state !== 'jumping') return;
-    player.y += player.vy;
-    player.x += player.vx;
-    player.vy += 0.3; // gravity
-    if (player.y >= player.groundY) {
-      player.y = player.groundY;
-      player.state = 'idle';
-      if (isLava(getTileAt(player.x, player.y))) {
-        player.takeDamage(15);
-        player.knockback(3);
-      }
-    }
-  }
-
-  // Stealth
-  updateStealth(player, dt) {
-    if (player.onTile(T.RUINS) && !player.moving) {
-      player.stealthTimer += dt;
-      if (player.stealthTimer > 1) {
-        player.drawAlpha = 0.3;
-        player.stealthed = true;
-      }
-    } else {
-      player.stealthTimer = 0;
-      player.drawAlpha = 1.0;
-      player.stealthed = false;
-    }
-  }
+  // decay knockback
+  player.x += player.kbX; player.y += player.kbY;
+  player.kbX *= 0.8; player.kbY *= 0.8;
 }
-
-// When drawing player: ctx.globalAlpha = player.drawAlpha
 ```
 
 ## Verification & Acceptance Criteria
-- [ ] Ledge climbing works with Space (2s animation)
-- [ ] Rope descent creates persistent shortcut
-- [ ] Collapsing ground shakes for 1s then opens hole
-- [ ] Sub-level cave renders when player falls through
-- [ ] Lava jump crosses narrow pools (Hold Shift + Space, 0.5s arc)
-- [ ] Stealth in ruins makes player semi-transparent, enemies ignore
-- [ ] Weighted platform (3 stone) opens gate to treasure
-- [ ] Fall damage (20 HP) on cliff edge
-- [ ] Under-map recovery teleport works
+- [ ] Lava deals DoT; glow/bubbles draw on Canvas 2D
+- [ ] Deep sand slows WASD movement (no jump required to cross hazards)
+- [ ] At least one knockback hazard works in the top-down plane
+- [ ] Unstable ground warns (shake) then damages/slows — **no** sub-cave
+- [ ] Heat meter interacts with oasis/ruins vs open sand
+- [ ] CLIFF remains blocked; no rope/climb/jump controls added
+- [ ] Arabic notify strings for slow sand / unstable ground

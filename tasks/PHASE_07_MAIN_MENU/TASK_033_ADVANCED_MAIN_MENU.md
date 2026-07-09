@@ -1,66 +1,56 @@
 # TASK_033 — ADVANCED_MAIN_MENU
 
 ## Objective
-Enhance the main menu (`game/index.html`) with map selection, progress summary, post-completion features, and New Game+ using HTML/CSS/JS overlays.
+Enhance `game/index.html` with a **settings** entry, **map select for unlocked stages**, and a **completion badge**. New Game+ is **not** required.
+
+## Architecture (must follow)
+- HTML/CSS/JS on the existing main menu (particles / vignette already there)
+- Navigation via `SaveManager.mapUrlFor(stage)` + `GameState` progress flags
+- Stages today: intro → forest → city; later deathValley / darkKingdom / ending when built (mapUrlFor currently stubs DV/DK → forest — update as pages ship)
+- **No Pixi**
 
 ## Detailed Mechanics & User Stories
 
-### Current Menu (Existing)
-- Title "الانتقام" with subtitle "قصة أشرف"
-- "لعبة جديدة" / "متابعة اللعب" / "الإعدادات" buttons
-- Version number bottom
-- Red floating CSS particles
-- Background image with vignette overlay
+### Keep existing
+- Title «الانتقام» / «قصة أشرف»
+- «لعبة جديدة» / «متابعة اللعب»
+- Version footer
 
-### Enhancements
+### Add
+1. **الإعدادات** — opens TASK_029 panel
+2. **اختيار الخريطة** (if any non-forest stage unlocked) — list/cards:
+   - 🌲 الغابة — always after intro
+   - 🏙 المدينة — if `completedForest` / city unlocked
+   - 🏜 وادي الموت — when DV page exists + unlocked
+   - 🏰 مملكة الظلام — when DK unlocked
+   - Locked stages show 🔒 and are not clickable
+3. **Completion badge** — if `completedGame`: trophy + «القصة مكتملة!»
+4. **الإنجازات** — opens TASK_031 list (if present)
+5. Optional: «عرض النهاية» → `ending/index.html` when completed
 
-**Map Selection Screen**
-- Button "اختيار الخريطة" appears if any map beyond forest is unlocked
-- World map visual: vertical path with zone cards
-- Each card shows:
-  - Emoji icon + name (e.g., 🌲 الغابة)
-  - Status badge: ✔️ (completed) / 🔓 (unlocked) / 🔒 (locked)
-  - Stats: kills, play time, completion %
-  - Click → navigate to that map (if unlocked)
+### Explicitly out of scope
+- New Game+ campaign
+- Full story-movie mode chaining every cutscene (optional later)
+- Parallax mouse background (nice-to-have only)
 
-**Progress Summary on Continue**
-- Brief overlay before entering game:
-  - المستوى X | الخريطة: Y | وقت اللعب: Z
-  - "اضغط أي مفتاح للمتابعة"
-
-**Post-Completion Badge**
-- Golden trophy icon 🏆 appears if `completedGame = true`
-- "🎉 القصة مكتملة!" text pulse animation
-
-**New Buttons (After Completion)**
-- "الحملة الجديدة+" — starts NG+ (keeps stats, harder enemies)
-- "عرض القصة" — plays all cutscenes sequentially (story movie mode)
-- "الإنجازات" — opens achievement screen
-
-**Background Parallax**
-- Mouse-follow parallax on title screen background
-- `background-position` shifts by `dx * 0.02, dy * 0.02`
-- Max offset: 10px
-
-### Edge Cases
-- **First Time:** No localStorage → auto-redirect to intro
-- **All Saves Deleted:** Keep `completedGame` flag for badge + story mode
-- **Guest Player:** Show "سجل الدخول لربط تقدمك" banner (from TASK_037)
+### Edge cases
+- First launch / no save → intro (`start/index.html`) as today
+- Guest auth banner only if TASK_037 auth UI exists
 
 ## Implementation Hints
-- CSS: `background-position` animation via JS `mousemove` listener
-- Map selection: HTML overlay with CSS grid, each card a `<div>` with conditional classes
-- Badge: CSS `@keyframes pulse` animation on trophy emoji
-- All text: Arabic, RTL layout
-- Transitions: CSS `.fade-overlay` when entering a map from menu
+```javascript
+const stages = [
+  { id: 'forest', label: 'الغابة', unlock: () => true },
+  { id: 'city', label: 'المدينة', unlock: () => GameState.load('completedForest') },
+  { id: 'darkKingdom', label: 'مملكة الظلام', unlock: () => GameState.load('unlockedDarkKingdom') }
+];
+// location.href = SaveManager.mapUrlFor(id)
+```
 
 ## Verification & Acceptance Criteria
-- [ ] Map selection shows correct unlocked zones with status badges
-- [ ] Clicking a zone navigates to it via SceneManager
-- [ ] Progress summary shows on "Continue Game"
-- [ ] Post-completion trophy badge + "القصة مكتملة!" text
-- [ ] "الحملة الجديدة+" button works
-- [ ] "عرض القصة" replays all cutscenes
-- [ ] Background parallax effect (2px max offset)
-- [ ] First-time player redirects to intro
-- [ ] Auth banner shown for guest players
+- [ ] Settings button works
+- [ ] Map select shows only unlocked stages; locked are disabled
+- [ ] Completion badge when `completedGame`
+- [ ] Continue / New Game still work
+- [ ] No NG+ requirement
+- [ ] HTML/CSS menu — zero Pixi

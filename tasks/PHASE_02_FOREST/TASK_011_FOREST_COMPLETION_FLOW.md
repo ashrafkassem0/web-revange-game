@@ -1,114 +1,67 @@
 # TASK_011 — FOREST_COMPLETION_FLOW
 
 ## Objective
-Polish the forest-to-city transition with clear completion flow, graduation sequence, and persistent world state marking using HTML/CSS overlays and the existing CSS `.fade-overlay` transition.
+Polish forest → city completion using the **real** CFG thresholds and existing banner/portal flow — align copy, checks, and persistence (no invented 5 km / 4-challenge requirements).
+
+## Status
+**Mostly done.** `checkCompletion` / `showCompletion` / `finishForest` / city portal panel live in `forest-main.js`; HUD progress in `forest-hud.js`; portal at `CITY_PORTAL` in `forest-config.js`.
+
+## Authoritative requirements (`forest-config.js`)
+```javascript
+CFG.KILLS_NEEDED = 10
+CFG.DIST_NEEDED = 3000        // world distance units (HUD treats as progress to 3000, not “5 km”)
+CFG.CHALLENGES_NEEDED = 2    // axe + fishingRod crafted
+```
+
+Challenge count today: `(craftedItems.axe ? 1 : 0) + (craftedItems.fishingRod ? 1 : 0)`.
 
 ## Detailed Mechanics & User Stories
 
-### Completion Conditions
-```javascript
-KILLS_NEEDED: 10        // Up from 3 — more challenging
-DISTANCE_NEEDED: 5.0    // km walked
-CHALLENGES_NEEDED: 4    // axe, fishingRod, campfire built, workbench built
-```
+### Completion detection
+- Keep `checkCompletion()` on kills, distance milestones, craft success
+- When all three met: set `gameCompleted`, play `SFX.victory`, show `#completionBanner` + notifies:
+  - `أكملت تدريب الغابة! توجّه إلى بوابة المدينة جنوباً`
+  - Portal hint south
 
-### Completion Banner (HTML/CSS UI)
-- Non-blocking banner at top of screen: HTML `<div>` sliding down via CSS transition / class
-- Trophy icon + "أكملت تدريب الغابة!"
-- Stats display: kills / distance / challenges in a row
-- "انتقل إلى المدينة" glowing button
-- Banner enters via animation: `transform: translateY` from `-100%` to `0` over 500ms
-- Dismissible with close button (X)
+### Portal panel (`#cityPortalPanel`)
+- Incomplete: Arabic warning that training is unfinished; allow confirm early leave **or** cancel (keep existing early-exit behavior; ensure copy matches).
+- Complete: primary CTA to city → `finishForest()`:
+  - `GameState.save('completedForest', true)`
+  - clear/save forest state as today
+  - `GameState.setCurrentMap('city')`
+  - `navigateTo('../city/index.html')` with `.fade-overlay`
 
-### Graduation Scene
-When player uses city portal with completion met:
-1. Fade to black via existing CSS `.fade-overlay` (add `.active`, ~1s)
-2. Typewriter text overlay (HTML): "تدرب أشرف في الغابة لأيام... تعلم الصيد والصناعة والقتال... حان الوقت لمواصلة الرحلة..."
-3. Typewriter at 45ms per character into a centered HTML element
-4. Fade to city scene via `navigateTo('../city/index.html')`
+### Graduation beat (polish, optional but fitting)
+- Before navigate, short HTML typewriter over fade (Arabic), e.g.  
+  `تدرب أشرف في الغابة لأيام... تعلم الصيد والصناعة والقتال... حان الوقت لمواصلة الرحلة...`  
+- Then call existing `navigateTo` — do not build a separate scene page.
 
-### Persistent Forest State
-- `completedForest = true` set in GameState
-- Forest remains accessible via city north gate
-- Enemies no longer give XP (xpMultiplier = 0)
-- Resources still collectible, respawn normally
+### Post-completion forest
+- Forest remains reachable from city north/forest portal
+- Optional light polish: reduced XP or trivial combat — only if easy; not required to show `??` levels unless already desired
+- Resources/building remain available
+
+### HUD
+- Progress bars must display `kills / 10`, distance toward `3000`, challenges `/ 2` (already in `forest-hud.js`) — fix any label that still says km incorrectly if present.
 
 ### Edge Cases
-- **Leave Early:** Portal with incomplete conditions → warning dialog: "لم تكمل تدريبك بعد! هل أنت متأكد؟" with confirm/cancel buttons via HTML modal (city `#modal` pattern)
-- **Return Post-Completion:** Enemies display "??" level indicator above head (`ctx.fillText('مستوى ??', ...)`). Combat is trivial (enemies die in 1 hit).
-- **Completion Check Frequency:** `checkCompletion()` runs every 30s and on key events (kill, craft, rest).
+- Banner dismissible / auto-hide (already ~5s) without pausing the run
+- `completedForest` true prevents re-trigger spam of victory banner
+- Early leave without completion should not set `completedForest`
 
 ## Canvas 2D Implementation Hints
-```javascript
-// HTML banner — prefer DOM over canvas UI
-class CompletionBanner {
-  constructor() {
-    this.el = document.getElementById('completion-banner');
-    this.killsEl = this.el.querySelector('.stats-kills');
-    this.el.hidden = true;
-    this.el.classList.remove('visible');
-    this.el.querySelector('.go-city').addEventListener('click', () => this.goToCity());
-  }
-
-  show(kills, distance, challenges) {
-    this.el.hidden = false;
-    this.killsEl.textContent =
-      `⚔️ ${kills} قتلة  |  🚶 ${distance.toFixed(1)} كم  |  🔧 ${challenges} تحديات`;
-    requestAnimationFrame(() => this.el.classList.add('visible')); // CSS slide-down
-  }
-
-  hide() {
-    this.el.classList.remove('visible');
-    setTimeout(() => { this.el.hidden = true; }, 300);
-  }
-
-  goToCity() {
-    // graduation typewriter then navigateTo
-  }
-}
-```
-
-### Graduation Text Overlay
-```javascript
-// HTML typewriter over fade-overlay
-class TypewriterOverlay {
-  constructor(text, onComplete) {
-    this.el = document.getElementById('graduation-text');
-    this.text = text;
-    this.idx = 0;
-    this.onComplete = onComplete;
-    this.el.textContent = '';
-    this.el.hidden = false;
-    this.timer = setInterval(() => this.typeChar(), 45);
-  }
-
-  typeChar() {
-    if (this.idx >= this.text.length) {
-      clearInterval(this.timer);
-      this.onComplete?.();
-      return;
-    }
-    this.el.textContent += this.text[this.idx++];
-  }
-}
-
-// Transition uses shared.js navigateTo + .fade-overlay
-function startGraduationThenCity() {
-  document.querySelector('.fade-overlay')?.classList.add('active');
-  setTimeout(() => {
-    new TypewriterOverlay(
-      'تدرب أشرف في الغابة لأيام... تعلم الصيد والصناعة والقتال... حان الوقت لمواصلة الرحلة...',
-      () => navigateTo('../city/index.html')
-    );
-  }, 1000);
-}
-```
+- Logic: `game/js/forest-main.js` (`checkCompletion`, `showCompletion`, `finishForest`, portal panel)
+- Constants: `game/js/forest-config.js`
+- HUD: `game/js/forest-hud.js`
+- Markup/CSS: `game/forest/index.html` (`#completionBanner`, `#cityPortalPanel`)
+- Transition: `navigateTo` + `.fade-overlay` in `shared.js` / `shared.css`
+- Persistence: `GameState.save('completedForest', true)` in `shared.js` progress
 
 ## Verification & Acceptance Criteria
-- [ ] Completion banner slides down when all conditions met (10 kills, 5km, 4 challenges)
-- [ ] Banner shows correct stats
-- [ ] Graduation typewriter scene plays on city portal use
-- [ ] `completedForest = true` saved in GameState
-- [ ] Returning to forest post-completion shows "??" level on enemies, no XP gain
-- [ ] Early exit warning dialog with confirm/cancel
-- [ ] Completion check runs every 30s and on key game events
+- [ ] Completion requires **10** kills, **3000** distance, **2** challenges (axe + fishing rod)
+- [ ] Banner + Arabic notifies appear when conditions met; game stays playable
+- [ ] Portal to city with completion sets `completedForest` and loads city via fade
+- [ ] Early portal use does **not** set `completedForest` without confirm flow as designed
+- [ ] HUD progress matches CFG values (not 5 km / 4 challenges)
+- [ ] Optional graduation typewriter plays before city load without breaking save
+- [ ] Returning from city still loads forest snapshot

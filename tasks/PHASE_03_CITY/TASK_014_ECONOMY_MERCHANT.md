@@ -1,114 +1,85 @@
 # TASK_014 — ECONOMY_MERCHANT
 
 ## Objective
-Implement a full buy/sell/trade economy with 3 merchants, coin currency, dynamic pricing, and an HTML/CSS trade UI (extend the existing city `#modal` / `openMerchant()` pattern).
+Expand the **single** merchant barter UI in `game/city/index.html` (`openMerchant`, `.trade-row`, `trade()`). Keep HTML trade rows over Canvas — **no** three-merchant dynamic economy, reputation pricing, or stock simulation.
+
+## Current Baseline
+- `openMerchant()` offers resource → arrows barters (`leather`, `meat`, `fish`, `teeth`, `stick`).
+- `window.trade(fromItem, fromAmt, toItem, toAmt)` mutates `player.inventory`, `GameState.save('inventory', …)`, refreshes modal, `#notify` on failure.
+- Save already has `maps.city.boughtItems: []` for tracking purchases/trades.
 
 ## Detailed Mechanics & User Stories
 
-### Currency
-- `coins` added to inventory schema
-- Earned from: quests, selling items, finding in ruins
-- Display: top-right HUD corner (HTML span, e.g. `🪙 45`)
+### Expand barter table
+Add a few more rows using existing inventory keys from `DEFAULT_INVENTORY` / night loot:
 
-### Merchant Types
-| Merchant | Location | Buys | Sells |
-|----------|----------|------|-------|
-| 🧑‍💼 General | Market | Basic resources (stick, stone, meat, leather, teeth, herbs) | Arrows, food, potions |
-| ⚔️ Weapons | Market | Weapons, minerals | Iron sword (200🪙), iron arrows |
-| 💎 Rare Goods | Market (back room) | Rare items (venomSac, nightCrystal, shadowEssence) | Ring of protection, speed boots |
+| Give | Get | Notes |
+|------|-----|-------|
+| 2 🧥 جلد → 8 🏹 | existing | keep |
+| 3 🥩 لحم → 6 🏹 | existing | keep |
+| 2 🐟 سمكة → 5 🏹 | existing | keep |
+| 1 🦷 أسنان → 10 🏹 | existing | keep |
+| 5 🪵 عصا → 3 🏹 | existing | keep |
+| 1 🐺 جلد وحشي → 15 🏹 | new | `beastHide` |
+| 1 🧪 كيس سم → 12 🏹 | new | `venomSac` (optional) |
 
-### Trade UI (HTML Modal Overlay)
-- Two panels: Merchant items (left) + Player items (right), scrollable HTML lists inside `#modalBox`
-- Each row: item emoji + name + stock/quantity + price per unit (reuse `.trade-row` styles)
-- Click item → select quantity via +/- buttons
-- Total at bottom updates in real-time
-- Buy/Sell button; Confirm/Cancel on transaction
+Keep Arabic labels in the modal body.
 
-### Dynamic Pricing
+### Optional simple coins (lightweight)
+If adding currency, keep it minimal:
+- Add `coins` to inventory defaults in `shared.js` + city HUD chip (`🪙 N`).
+- 1–2 rows: sell surplus for coins **or** buy a small pack of arrows with coins.
+- Do **not** build supply multipliers, daily gold pools, or reputation discounts.
+
+### Track trades
 ```javascript
-function calculatePrice(merchant, itemId, action, quantity, reputation) {
-  const basePrice = ITEM_PRICES[itemId][action]; // buy or sell
-  const repMultiplier = 1.0 - (reputation - 50) / 200; // 0.85–1.15
-  const supplyMultiplier = getSupplyMultiplier(merchant.id, itemId); // decreases 10% after 5 sold
-  return Math.round(basePrice * repMultiplier * supplyMultiplier);
+function recordBought(itemId) {
+  const city = getCityMapState();
+  city.boughtItems.push({ id: itemId, at: Date.now() });
+  // persist maps.city
 }
 ```
-- Prices reset toward base after player rests (day change)
-- Supply multiplier: tracks how many of each item type the merchant has bought/sold
+Use for quests / achievements later; not for dynamic pricing.
 
-### Barter Mode
-- If player has 0 coins, merchant accepts trade: resource for resource
-- Conversion rates defined in `BARTER_RATES`: e.g., 5 stick = 1 arrow
+### UI rules
+- Stay inside `#modal` / `#modalBox` with `.trade-row` + `.trade-btn`.
+- Insufficient resources → `#notify` with Arabic message (existing pattern: `❌ لا يكفي …`).
+- After trade, refresh `openMerchant()` and `updateHUD()`.
 
-### Merchant Inventory
-- Each merchant has 5-8 item slots with stock counts
-- Stock refills when player rests (day change)
-- Merchants have limited gold: 200 coins each, resets daily
+### Out of scope
+- Separate General / Weapons / Rare Goods merchants
+- Two-column buy/sell quantity pickers
+- Dynamic price formulas, stock refill on day change
+- Full inventory capacity checks beyond “not enough resource”
 
-### Edge Cases
-- **Insufficient Coins:** Buy button disabled, "ليس لديك نقود كافية" toast (`#notify`)
-- **Full Inventory:** Cannot buy, "المخزون ممتلئ" toast
-- **Sold Out:** Item shows "نفد من المخزون" text, stock = 0, grayed out (`opacity` / disabled button)
-
-## Canvas 2D Implementation Hints
+## Canvas 2D / HTML Implementation Hints
 ```javascript
-// Extend existing city openModal / tradeRow pattern
-function openTradeUI(merchant) {
-  const merchantRows = merchant.inventory.map((item, i) => createTradeRowHtml(item, 'buy', i)).join('');
-  const playerRows = getSellableItems().map((item, i) => createTradeRowHtml(item, 'sell', i)).join('');
-
-  openModal(`🧑‍💼 ${merchant.name}`, `
-    <div class="trade-columns">
-      <div class="trade-col">
-        <h3>بضاعة التاجر</h3>
-        ${merchantRows}
-      </div>
-      <div class="trade-col">
-        <h3>مخزونك</h3>
-        ${playerRows}
-      </div>
-    </div>
-    <div class="trade-footer">
-      <span id="tradeTotal">الإجمالي: 0 🪙</span>
-      <button class="trade-btn" id="confirmTrade" onclick="confirmTrade()">تأكيد</button>
-      <button class="trade-btn" onclick="closeModal()">إلغاء</button>
-    </div>
+function openMerchant() {
+  openModal('🧑‍💼 التاجر', `
+    <p style="margin-bottom:12px;color:#ccc">بادل مواردك بالسهام:</p>
+    ${tradeRow('جلد', 2, '🧥', 8, '🏹', 'trade("leather",2,"arrows",8)')}
+    ${tradeRow('جلد وحشي', 1, '🐺', 15, '🏹', 'trade("beastHide",1,"arrows",15)')}
+    <!-- … -->
   `);
 }
 
-function createTradeRowHtml(item, action, index) {
-  const price = action === 'buy' ? item.buyPrice : item.sellPrice;
-  const soldOut = item.stock === 0;
-  return `<div class="trade-row" style="opacity:${soldOut ? 0.4 : 1}">
-    <span>${item.emoji} ${item.name}</span>
-    <span>${soldOut ? 'نفد من المخزون' : price + ' 🪙'}</span>
-    <span>x${item.stock}</span>
-    <button class="qty-btn" onclick="adjustQty('${item.id}',-1)" ${soldOut ? 'disabled' : ''}>−</button>
-    <span id="qty-${item.id}">0</span>
-    <button class="qty-btn" onclick="adjustQty('${item.id}',1)" ${soldOut ? 'disabled' : ''}>+</button>
-  </div>`;
-}
-
-// HUD coins — HTML element in #hud
-function updateCoinsHUD() {
-  document.getElementById('coinVal').textContent = `🪙 ${player.inventory.coins || 0}`;
-}
-
-function showToast(msg, color) {
-  const n = document.getElementById('notify');
-  n.textContent = msg;
-  n.style.color = color || '#ffd060';
-  n.style.display = 'block';
-  setTimeout(() => { n.style.display = 'none'; }, 2200);
-}
+window.trade = function(fromItem, fromAmt, toItem, toAmt) {
+  if ((player.inventory[fromItem] || 0) < fromAmt) {
+    notify('❌ لا يكفي', '#e74c3c'); return;
+  }
+  player.inventory[fromItem] -= fromAmt;
+  player.inventory[toItem] = (player.inventory[toItem] || 0) + toAmt;
+  recordBought(toItem);
+  GameState.save('inventory', player.inventory);
+  notify('✅ تم التبادل', '#6ddc6d');
+  openMerchant();
+};
 ```
 
 ## Verification & Acceptance Criteria
-- [ ] 3 merchants exist with distinct inventories
-- [ ] Buy/sell flow works correctly, coins update in HUD
-- [ ] Dynamic pricing responds to reputation and supply
-- [ ] Barter mode works when player has 0 coins
-- [ ] Insufficient funds shows warning toast
-- [ ] Merchant inventory has limited stock, resets after rest
-- [ ] Prices recalculate correctly with all multipliers
-- [ ] Trade UI renders correctly as HTML overlay over the canvas
+- [ ] Still **one** merchant NPC; HTML `.trade-row` UI only
+- [ ] Expanded barter table includes at least 2 new trades (e.g. night loot)
+- [ ] Failed trades show Arabic `#notify`; successful trades update inventory + HUD
+- [ ] `maps.city.boughtItems` records trades (or documented equivalent)
+- [ ] Optional coins (if added) are simple HUD + 1–2 rows — no dynamic economy
+- [ ] No Pixi; no 3-merchant market
