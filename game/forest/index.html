@@ -29,7 +29,8 @@
         }
         .world-layer {
             position: absolute;
-            overflow: hidden;
+            /* visible حتى يظهر تمويه الحواف خارج حدود الصندوق */
+            overflow: visible;
             pointer-events: none;
         }
         .world-layer > svg.clip-defs {
@@ -44,6 +45,15 @@
             background-repeat: repeat;
             background-size: 256px 256px;
             background-position: 0 0;
+        }
+        /* حواف مموّهة: نفس النسيج بشفافية + blur ليتداخل مع العشب/الجيران */
+        .region-fill--soft {
+            filter: blur(22px);
+            mix-blend-mode: normal;
+            will-change: filter;
+        }
+        .region-fill--soft-far {
+            filter: blur(38px);
         }
         .region-roads {
             position: absolute;
@@ -1308,7 +1318,7 @@
 
     <!-- Forest-specific modules (load order matters) -->
     <script src="../js/forest-config.js"></script>
-    <script src="../js/forest-world.js?v=layers4"></script>
+    <script src="../js/forest-world.js?v=layers5"></script>
     <script src="../js/forest-entities.js"></script>
     <script src="../js/forest-time.js"></script>
     <script src="../js/forest-weather.js"></script>

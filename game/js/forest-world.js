@@ -524,24 +524,45 @@ function _buildRegionHtml(region, key) {
     const uid = 'rg_' + key;
     let defs = '';
     let fills = '';
+    let clipSeq = 0;
 
-    region.layers.forEach((layer, li) => {
-        const clipId = `${uid}_clip${li}`;
-        const d = _scaledPathD(region.pathKey, layer.scale);
-        const opacity = layer.opacity != null ? layer.opacity : 1;
-        const tex = `../textures/${layer.texture}.png`;
+    function addClip(scale) {
+        const clipId = `${uid}_clip${clipSeq++}`;
+        const d = _scaledPathD(region.pathKey, scale);
         defs += `
             <clipPath id="${clipId}" clipPathUnits="objectBoundingBox">
                 <path d="${d}"></path>
             </clipPath>`;
+        return clipId;
+    }
+
+    function addFill(tex, clipId, opacity, z, extraClass) {
         fills += `
-            <div class="region-fill" style="
+            <div class="region-fill${extraClass ? ' ' + extraClass : ''}" style="
                 background-image: url('${tex}');
                 opacity: ${opacity};
                 clip-path: url(#${clipId});
                 -webkit-clip-path: url(#${clipId});
-                z-index: ${li + 1};
+                z-index: ${z};
             "></div>`;
+    }
+
+    region.layers.forEach((layer, li) => {
+        const baseScale = layer.scale;
+        const opacity = layer.opacity != null ? layer.opacity : 1;
+        const tex = `../textures/${layer.texture}.png`;
+        const zBase = (li + 1) * 10;
+
+        // حواف مموّهة خارجية (أكبر + blur) تمتزج مع العشب/الجيران
+        const softFarId = addClip(Math.min(1.08, baseScale * 1.10));
+        addFill(tex, softFarId, opacity * 0.22, zBase, 'region-fill--soft region-fill--soft-far');
+
+        const softNearId = addClip(Math.min(1.05, baseScale * 1.05));
+        addFill(tex, softNearId, opacity * 0.40, zBase + 1, 'region-fill--soft');
+
+        // اللب الواضح أصغر قليلاً حتى يبقى التمويه ظاهراً على الحافة
+        const hardId = addClip(baseScale * 0.94);
+        addFill(tex, hardId, opacity, zBase + 2, '');
     });
 
     let roads = '';
