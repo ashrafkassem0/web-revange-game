@@ -15,7 +15,8 @@ const player = {
     inventory: {
         stick: 0, stone: 0, meat: 0, horn: 0, teeth: 0, leather: 0, fish: 0, arrows: 15,
         rawMeat: 0, cookedMeat: 0, rawFish: 0, cookedFish: 0,
-        beastHide: 0, nightCrystal: 0, venomSac: 0, shadowEssence: 0
+        beastHide: 0, nightCrystal: 0, venomSac: 0, shadowEssence: 0,
+        herb: 0, honey: 0, herbSalve: 0, revitalTonic: 0
     },
     craftedItems: { axe: false, fishingRod: false, hornSpear: false, hornSword: false, leatherArmor: false, shadowArmor: false },
     attackCd: 0, hurtTimer: 0, chopCd: 0, repairCd: 0,
@@ -57,7 +58,8 @@ function updatePlayer(dt) {
         }
     }
 
-    const spd = player.isSprinting ? CFG.SPRINT_SPEED : CFG.PLAYER_SPEED;
+    const weatherMul = (typeof getWeatherSpeedMul === 'function') ? getWeatherSpeedMul() : 1;
+    const spd = (player.isSprinting ? CFG.SPRINT_SPEED : CFG.PLAYER_SPEED) * weatherMul;
     let nx = player.x + dx * spd;
     let ny = player.y + dy * spd;
 

@@ -35,13 +35,35 @@ const CFG = {
     NIGHT_START: 20 * 60,   // 20:00 ليل كامل
     NIGHT_END:   5 * 60,    // 05:00 ينتهي الليل
     NIGHT_MAX_DARKNESS: 0.72,
+    // مشعل اللاعب (نصف قطر ثابت — بدون اقتصاد وقود)
+    PLAYER_TORCH_RADIUS: 88,
+    PLAYER_TORCH_INTENSITY: 0.78,
+    // نجوم رخيصة على طبقة الظلام
+    STAR_COUNT: 48,
+    // تخفيف الظلام داخل/قرب الكوخ
+    INDOOR_DARKNESS_SCALE: 0.32,
+
+    // ===== الطقس =====
+    // ميزانية القطرات تُضبط ديناميكياً في forest-weather.js (~50–150)
+    WEATHER_PARTICLE_MAX: 150,
+    WEATHER_PARTICLE_MIN: 50,
 
     // ===== الغثيان (طعام نيء) =====
     NAUSEA_DURATION: 8000,
     NAUSEA_TICK_DMG: 2,
 
     // ===== البناء =====
-    BUILD_REACH: 260        // أقصى مسافة لوضع مبنى من اللاعب
+    BUILD_REACH: 260,       // أقصى مسافة لوضع مبنى من اللاعب
+
+    // ===== الموقد =====
+    CAMPFIRE_INTERACT_RANGE: 70,
+    CAMPFIRE_ENEMY_BLOCK: 200,
+    CAMPFIRE_REPEL_RANGE: 170,
+    CAMPFIRE_LIGHT_COST: { stick: 2 },
+    CAMPFIRE_REST_HP: 22,
+    CAMPFIRE_REST_STAMINA: 40,
+    CAMPFIRE_REST_HOURS: 1.5,
+    CAMPFIRE_RAIN_EXTINGUISH_MS: 45000   // مطر غزير/عاصفة تُطفئ بعد تأخير
 };
 
 // Tile type IDs

@@ -4,7 +4,7 @@
 Add a forest weather system as **plain JS particle arrays + `ctx` drawing** in the forest loop, integrated with day/night darkness and existing `SFX.startRain` / `stopRain` / `thunder`.
 
 ## Status
-**Not implemented in forest gameplay** (rain SFX exists; start scene has CSS rain only). This task adds runtime weather to the forest map.
+**Done.** Runtime weather in `game/js/forest-weather.js`: clear / light–heavy rain / fog / storm, HUD icon, pause-aware timers, optional snapshot persist, FPS particle clamp.
 
 ## Detailed Mechanics & User Stories
 
@@ -21,8 +21,8 @@ Add a forest weather system as **plain JS particle arrays + `ctx` drawing** in t
 
 ### Rain particles
 ```javascript
-// e.g. in forest-weather.js or section of forest-main.js
-particles: [{ x, y, vx, vy, len }, ...]  // screen-space or world+camera
+// forest-weather.js
+particles: [{ x, y, vx, vy, len }, ...]  // screen-space
 // each frame: update positions, wrap; draw with ctx.stroke thin lines
 ```
 
@@ -33,32 +33,31 @@ particles: [{ x, y, vx, vy, len }, ...]  // screen-space or world+camera
 ### Storm FX
 - Flash: short full-viewport white `fillRect` alpha decay
 - Thunder: `SFX.thunder()` with 0–2s delay after flash
-- Shake: temporary offset on `camera` or draw translation for <0.5s
+- Shake: temporary offset on `camera` for <0.5s
 
 ### Scheduling
-- Timer in forest update: roll next weather after duration; fade alphas 1–2s between states
-- Pause: do not advance weather timers when `gamePaused`
-- Persist optional: `maps.forest.weather = { state, remainingMs }` in snapshot
+- Timer in forest update: roll next weather after duration; fade alphas ~1–2s between states
+- Pause: do not advance weather timers when menus / `gamePaused` / build
+- Persist: `maps.forest.snapshot.weather = { state, remainingMs }`
 
 ### HUD
-- Small icon near clock (`☀️` / `🌧️` / `🌫️` / `⛈️`) in forest HUD HTML
+- Small icon near clock (`#weatherIcon`) in forest HUD HTML
 
 ### Integration
 - Start/stop `SFX.startRain` / `stopRain` when entering/leaving rainy states; respect TASK_003 mute
-- Do not require torch fuel 2× unless player torch exists from TASK_005
+- Player speed mul via `getWeatherSpeedMul()` (no torch fuel change)
 
 ## Canvas 2D Implementation Hints
-- Prefer new `game/js/forest-weather.js` included from `game/forest/index.html`, updated/drawn from `forest-main.js` after world / before or after night overlay (rain usually after world, flash last).
-- Day/night: `forest-time.js` `drawNightOverlay`; weather fog can draw just before/after it.
+- `game/js/forest-weather.js` included from `game/forest/index.html`, updated/drawn from `forest-main.js` after night overlay (flash last).
+- Day/night: `forest-time.js` `drawNightOverlay` + `getWeatherFogBoost()`.
 - Audio: `game/js/sounds.js` — reuse rain loop + thunder; do not fork SFX.
-- Keep counts in the 50–150 range; reuse one particles array (clear/rebuild on state change).
 
 ## Verification & Acceptance Criteria
-- [ ] Weather cycles Clear → rain/fog/storm without breaking the rAF loop
-- [ ] Rain uses JS particles + `ctx` strokes at ~50–150 count
-- [ ] Heavy rain / storm starts rain SFX; clear/fog stops it
-- [ ] Storm shows flash + thunder + brief shake
-- [ ] Fog visibly reduces contrast and stacks with night darkness
-- [ ] Weather pauses while menus pause the game
-- [ ] HUD weather icon updates
-- [ ] Low-FPS path can reduce particle count toward ~50
+- [x] Weather cycles Clear → rain/fog/storm without breaking the rAF loop
+- [x] Rain uses JS particles + `ctx` strokes at ~50–150 count
+- [x] Heavy rain / storm starts rain SFX; clear/fog stops it
+- [x] Storm shows flash + thunder + brief shake
+- [x] Fog visibly reduces contrast and stacks with night darkness
+- [x] Weather pauses while menus pause the game
+- [x] HUD weather icon updates
+- [x] Low-FPS path can reduce particle count toward ~50

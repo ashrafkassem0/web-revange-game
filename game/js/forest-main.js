@@ -38,6 +38,7 @@ function updateCamera() {
         camera.x += Math.sin(t) * 3.2;
         camera.y += Math.cos(t * 1.3) * 3.2;
     }
+    if (typeof applyWeatherCameraShake === 'function') applyWeatherCameraShake();
 }
 
 // ===== CITY PORTAL =====
@@ -49,11 +50,32 @@ let _portalPanelVisible = false;
 let _portalPanelDismissed = false;
 let _portalPanelTimer = null;
 
+function refreshPortalPanelCopy() {
+    const panel = document.getElementById('cityPortalPanel');
+    const hint = document.getElementById('cppHint');
+    const go = document.getElementById('cppGoBtn');
+    if (!panel || !hint) return;
+    if (gameCompleted) {
+        panel.classList.add('complete');
+        hint.innerHTML =
+            'أكملت تدريب الغابة! المدينة بانتظارك لرحلة <span>الانتقام</span>.<br>' +
+            'يمكنك العودة للغابة من البوابة الشمالية في أي وقت.';
+        if (go) go.textContent = 'متابعة إلى المدينة ←';
+    } else {
+        panel.classList.remove('complete');
+        hint.innerHTML =
+            '<span>تدريبك لم يكتمل بعد</span> — يُفضّل إنهاء القتلى والمسافة والتحديات أولاً.<br>' +
+            'يمكنك المغادرة مبكراً، ولن يُسجَّل إكمال الغابة. يمكنك العودة لاحقاً.';
+        if (go) go.textContent = 'مغادرة مبكرة إلى المدينة ←';
+    }
+}
+
 function updatePortalPanel() {
     const panel = document.getElementById('cityPortalPanel');
     if (!panel) return;
     const near = gameRunning && isNearCityPortal();
     if (near && !_portalPanelDismissed && !_portalPanelVisible) {
+        refreshPortalPanelCopy();
         panel.style.display = 'block';
         _portalPanelVisible = true;
         // يختفي التنبيه تلقائياً بعد 10 ثوانٍ
@@ -68,6 +90,8 @@ function updatePortalPanel() {
         }
         _portalPanelDismissed = false; // إعادة الضبط عند الابتعاد ليظهر مجدداً عند العودة
         if (_portalPanelTimer) { clearTimeout(_portalPanelTimer); _portalPanelTimer = null; }
+    } else if (near && _portalPanelVisible) {
+        refreshPortalPanelCopy();
     }
 }
 
@@ -79,13 +103,15 @@ function dismissPortalPanel() {
 }
 
 function enterCity() {
-    if (_forestRafId) { cancelAnimationFrame(_forestRafId); _forestRafId = 0; }
+    if (typeof stopWeatherAudio === 'function') stopWeatherAudio();
     if (gameCompleted) {
-        finishForest();     // يحفظ الإنجاز وينتقل للمدينة
+        finishForest();     // يحفظ الإنجاز + لقطة الغابة ثم المدينة
     } else {
+        // مغادرة مبكرة — لا تُعلّم completedForest
+        if (_forestRafId) { cancelAnimationFrame(_forestRafId); _forestRafId = 0; }
         GameState.save('fromCity', false);
         navigateToScene('city', {
-            skipPrereq: true, // portal visit before full completion is allowed
+            skipPrereq: true,
             save: () => saveForestProgress({ force: true })
         });
     }
@@ -128,6 +154,7 @@ function respawn() {
 
 function goToMenu() {
     if (_forestRafId) { cancelAnimationFrame(_forestRafId); _forestRafId = 0; }
+    if (typeof stopWeatherAudio === 'function') stopWeatherAudio();
     navigateToScene('menu', {
         skipPrereq: true,
         save: () => saveProgress()
@@ -136,6 +163,11 @@ function goToMenu() {
 
 function checkCompletion() {
     if (gameCompleted) return;
+    // إن كان التقدم محفوظاً مسبقاً — لا تُعد عرض بانر النصر
+    if (typeof GameState !== 'undefined' && GameState.load) {
+        const prog = GameState.load('completedForest', false);
+        if (prog) { gameCompleted = true; return; }
+    }
     const kills = player.killCount >= CFG.KILLS_NEEDED;
     const dist  = player.distanceTraveled >= CFG.DIST_NEEDED;
     const chals = (player.craftedItems.axe ? 1 : 0) + (player.craftedItems.fishingRod ? 1 : 0) >= CFG.CHALLENGES_NEEDED;
@@ -147,7 +179,7 @@ function checkCompletion() {
 
 function showCompletion() {
     // اللعبة تستمر — لا نوقفها، فقط نُظهر إشعاراً وشريطاً يختفي بعد 5 ثوانٍ
-    SFX.victory();
+    if (typeof SFX !== 'undefined' && SFX.victory) SFX.victory();
     notify('🏆 أكملت تدريب الغابة! توجّه إلى بوابة المدينة جنوباً 🏙️', '#f0c040');
     setTimeout(() => notify('⬇️ البوابة في الجنوب — ادخلها للمضي نحو الانتقام!', '#2ecc71'), 3000);
     const banner = document.getElementById('completionBanner');
@@ -163,11 +195,53 @@ function showCompletion() {
             }, 600);
         }, 5000);
     }
+    if (_portalPanelVisible) refreshPortalPanelCopy();
+}
+
+const GRADUATION_LINES = [
+    'تدرب أشرف في الغابة لأيام...',
+    'تعلّم الصيد والصناعة والقتال...',
+    'حان الوقت لمواصلة الرحلة نحو الانتقام...'
+];
+
+function playGraduationThen(goCity) {
+    const ov = document.getElementById('graduationOverlay');
+    const el = document.getElementById('graduationText');
+    if (!ov || !el) { goCity(); return; }
+
+    gameRunning = false;
+    if (_forestRafId) { cancelAnimationFrame(_forestRafId); _forestRafId = 0; }
+    ov.classList.add('show');
+    el.innerHTML = '';
+
+    let lineIdx = 0;
+    let charIdx = 0;
+    let full = '';
+
+    function typeNext() {
+        if (lineIdx >= GRADUATION_LINES.length) {
+            setTimeout(goCity, 900);
+            return;
+        }
+        const line = GRADUATION_LINES[lineIdx];
+        if (charIdx <= line.length) {
+            el.innerHTML = full + line.slice(0, charIdx) + '<span class="grad-cursor">|</span>';
+            charIdx++;
+            setTimeout(typeNext, 38);
+        } else {
+            full += line + '<br>';
+            el.innerHTML = full;
+            lineIdx++;
+            charIdx = 0;
+            setTimeout(typeNext, 420);
+        }
+    }
+    typeNext();
 }
 
 function finishForest() {
-    if (_forestRafId) { cancelAnimationFrame(_forestRafId); _forestRafId = 0; }
-    // Persist inventory / crafted / hero BEFORE clearing forest map snapshot
+    if (typeof stopWeatherAudio === 'function') stopWeatherAudio();
+    // احفظ لقطة الغابة (لا تمسحها) حتى تبقى العودة من المدينة ممكنة
     if (typeof saveForestProgress === 'function') {
         saveForestProgress({ force: true });
     } else {
@@ -183,11 +257,15 @@ function finishForest() {
         });
     }
     GameState.save('completedForest', true);
-    GameState.saveForestState(null);
-    SFX.click();
-    navigateToScene('city', {
-        skipPrereq: true,
-        save: () => GameState.autoSave(true)
+    if (typeof GameState.setCurrentMap === 'function') GameState.setCurrentMap('city');
+    if (typeof SFX !== 'undefined' && SFX.click) SFX.click();
+
+    playGraduationThen(() => {
+        if (_forestRafId) { cancelAnimationFrame(_forestRafId); _forestRafId = 0; }
+        navigateToScene('city', {
+            skipPrereq: true,
+            save: () => GameState.autoSave(true)
+        });
     });
 }
 
@@ -254,6 +332,7 @@ function startGame() {
         updateHUD();
         focusGameCanvas();
         if (typeof initWildlife === 'function') initWildlife();
+        if (typeof initWeather === 'function') initWeather(null);
         _forestRafId = requestAnimationFrame(gameLoop);
         setTimeout(() => notify('💡 اضغط F للصناعة، Q للأكل', '#f0c040'), 2000);
         setTimeout(() => notify('🏹 اضغط 2 للقوس — انقر لإطلاق السهم', '#c8a040'), 5000);
@@ -445,8 +524,10 @@ function gameLoop(ts) {
         lastTime = ts;
         waveTime = ts;
 
-        if (!craftMenuOpen && !backpackOpen && !(typeof sleepMenuOpen !== 'undefined' && sleepMenuOpen)) {
-            if (!gamePaused) {
+        if (!craftMenuOpen && !backpackOpen
+            && !(typeof sleepMenuOpen !== 'undefined' && sleepMenuOpen)
+            && !(typeof campfireMenuOpen !== 'undefined' && campfireMenuOpen)) {
+            if (!gamePaused && !buildMode) {
                 updatePlayer(dt);
                 updateEnemies(dt);
                 updateArrows();
@@ -455,10 +536,21 @@ function gameLoop(ts) {
                 updateDayNight(dt);
                 if (typeof updateWildlife === 'function') updateWildlife(dt);
                 if (typeof updateStructures === 'function') updateStructures(dt);
+                if (typeof updateWeather === 'function') updateWeather(dt);
+            } else {
+                if (typeof updateDayNight === 'function') updateDayNight(0);
+                // الطقس: لا يتقدّم المؤقت أثناء الإيقاف (حارس داخلي) لكن يحدّث التلاشي/الرسم
+                if (typeof updateWeather === 'function') updateWeather(dt);
             }
-            updateFishing(dt);
-            updateDroppedItems(dt);
+            if (!gamePaused) {
+                updateFishing(dt);
+                updateDroppedItems(dt);
+            }
+        } else {
+            if (typeof updateDayNight === 'function') updateDayNight(0);
+            if (typeof updateWeather === 'function') updateWeather(dt);
         }
+        if (typeof updateCampfireHint === 'function') updateCampfireHint();
         updateIdlePoem(dt);
         updateCamera();
 
@@ -484,6 +576,7 @@ function gameLoop(ts) {
 
         ctx.restore();
         drawNightOverlay();
+        if (typeof drawWeather === 'function') drawWeather();
         drawMinimap();
         updatePortalPanel();
     } catch (err) {
@@ -514,6 +607,7 @@ function resetInputState() {
     craftMenuOpen = false;
     backpackOpen = false;
     buildMode = false;
+    if (typeof campfireMenuOpen !== 'undefined' && campfireMenuOpen) closeCampfireMenu();
     if (typeof sleepMenuOpen !== 'undefined' && sleepMenuOpen) closeSleepMenu();
     player.isFishing = false;
     player.fishingBite = false;
@@ -577,26 +671,57 @@ function handleKeyDown(e) {
             if (gameRunning && !craftMenuOpen && !backpackOpen) startFishing();
             break;
         case 'KeyE':
-            if (gameRunning && !craftMenuOpen && !backpackOpen && !(typeof sleepMenuOpen !== 'undefined' && sleepMenuOpen)) {
+            if (gameRunning && !craftMenuOpen && !backpackOpen && !buildMode
+                && !(typeof sleepMenuOpen !== 'undefined' && sleepMenuOpen)
+                && !(typeof campfireMenuOpen !== 'undefined' && campfireMenuOpen)) {
                 const nearDamaged = (typeof findNearbyDamagedStructure === 'function') ? findNearbyDamagedStructure() : null;
+                const nearGate = (typeof findNearbyGate === 'function') ? findNearbyGate() : null;
                 const nearHut = (typeof findNearbyHut === 'function') ? findNearbyHut() : null;
+                const nearFire = (typeof findNearbyCampfire === 'function') ? findNearbyCampfire(false) : null;
                 const nearDrop = droppedItems.find(i => i.isNearPlayer());
                 const nearRes  = resources.find(r => r.isNearPlayer());
                 const nearTree = trees.find(t => !t.chopped &&
                     Math.hypot(player.x - t.x, player.y - t.y) < t.r + 32);
-                if (nearDamaged && typeof tryRepairStructure === 'function') tryRepairStructure();
-                else if (nearHut && (!nearHut.hp || nearHut.hp >= nearHut.maxHp)) openSleepMenu();
-                else if (nearDrop) nearDrop.pickup();
+
+                // إصلاح المباني المتضررة أولاً
+                if (nearDamaged && typeof tryRepairStructure === 'function') {
+                    tryRepairStructure();
+                    break;
+                }
+
+                // اختر أقرب تفاعل بين بوابة / كوخ / موقد
+                const candidates = [];
+                if (nearGate) candidates.push({
+                    kind: 'gate', d: Math.hypot(player.x - nearGate.x, player.y - nearGate.y), ref: nearGate
+                });
+                if (nearHut && (!nearHut.hp || nearHut.hp >= nearHut.maxHp)) candidates.push({
+                    kind: 'hut', d: Math.hypot(player.x - nearHut.x, player.y - nearHut.y), ref: nearHut
+                });
+                if (nearFire) candidates.push({
+                    kind: 'fire', d: Math.hypot(player.x - nearFire.x, player.y - nearFire.y), ref: nearFire
+                });
+                candidates.sort((a, b) => a.d - b.d);
+
+                if (candidates.length) {
+                    const top = candidates[0];
+                    if (top.kind === 'gate' && typeof toggleNearbyGate === 'function') toggleNearbyGate(top.ref);
+                    else if (top.kind === 'hut') openSleepMenu();
+                    else if (top.kind === 'fire' && typeof openCampfireMenu === 'function') openCampfireMenu(top.ref);
+                } else if (nearDrop) nearDrop.pickup();
                 else if (nearRes) nearRes.pickup();
                 else if (nearTree) chopTree(nearTree);
                 else if (player.weapon === 'sword') playerAttack();
             }
             break;
         case 'Space':
-            if (gameRunning && !craftMenuOpen && !backpackOpen && !(typeof sleepMenuOpen !== 'undefined' && sleepMenuOpen) && player.weapon === 'sword') playerAttack();
+            if (gameRunning && !craftMenuOpen && !backpackOpen
+                && !(typeof sleepMenuOpen !== 'undefined' && sleepMenuOpen)
+                && !(typeof campfireMenuOpen !== 'undefined' && campfireMenuOpen)
+                && player.weapon === 'sword') playerAttack();
             break;
         case 'Escape':
             if (typeof audioPanelOpen !== 'undefined' && audioPanelOpen && typeof closeAudioPanel === 'function') closeAudioPanel();
+            else if (typeof campfireMenuOpen !== 'undefined' && campfireMenuOpen) closeCampfireMenu();
             else if (typeof sleepMenuOpen !== 'undefined' && sleepMenuOpen) closeSleepMenu();
             else if (craftMenuOpen) closeCraftingMenu();
             else if (backpackOpen) closeBackpack();
@@ -632,7 +757,9 @@ document.addEventListener('visibilitychange', () => {
         const pack = document.getElementById('backpackPanel');
         const craftOpen = craft && !craft.classList.contains('hidden');
         const packOpen = pack && !pack.classList.contains('hidden');
-        if (!craftOpen && !packOpen && !(typeof sleepMenuOpen !== 'undefined' && sleepMenuOpen)) {
+        if (!craftOpen && !packOpen
+            && !(typeof sleepMenuOpen !== 'undefined' && sleepMenuOpen)
+            && !(typeof campfireMenuOpen !== 'undefined' && campfireMenuOpen)) {
             gamePaused = false;
             lastTime = performance.now();
         }
@@ -754,7 +881,8 @@ function init() {
         : Object.assign({
             stick: 0, stone: 0, meat: 0, horn: 0, teeth: 0, leather: 0, fish: 0, arrows: 15,
             rawMeat: 0, cookedMeat: 0, rawFish: 0, cookedFish: 0,
-            beastHide: 0, nightCrystal: 0, venomSac: 0, shadowEssence: 0
+            beastHide: 0, nightCrystal: 0, venomSac: 0, shadowEssence: 0,
+            herb: 0, honey: 0, herbSalve: 0, revitalTonic: 0
         }, savedInv);
 
     const savedCraft = GameState.getCraftedItems();

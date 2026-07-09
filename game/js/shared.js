@@ -25,7 +25,8 @@ const DEFAULT_HERO_STATS = {
 const DEFAULT_INVENTORY = {
     stick: 0, stone: 0, meat: 0, horn: 0, teeth: 0, leather: 0, fish: 0, arrows: 15,
     rawMeat: 0, cookedMeat: 0, rawFish: 0, cookedFish: 0,
-    beastHide: 0, nightCrystal: 0, venomSac: 0, shadowEssence: 0
+    beastHide: 0, nightCrystal: 0, venomSac: 0, shadowEssence: 0,
+    herb: 0, honey: 0, herbSalve: 0, revitalTonic: 0
 };
 
 const DEFAULT_CRAFTED = {
@@ -755,7 +756,17 @@ const GameState = {
 
     /** Merge any partial bag onto DEFAULT_INVENTORY (canonical schema). */
     normalizeInventory(inv) {
-        return Object.assign({}, DEFAULT_INVENTORY, inv || {});
+        const out = Object.assign({}, DEFAULT_INVENTORY);
+        if (!inv || typeof inv !== 'object') return out;
+        // انسخ فقط مفاتيح العناصر المعروفة — تجاهل مفاتيح دخيلة مثل maxSlots
+        for (const k of Object.keys(DEFAULT_INVENTORY)) {
+            if (inv[k] != null && typeof inv[k] === 'number') out[k] = inv[k];
+            else if (inv[k] != null && typeof inv[k] !== 'object') {
+                const n = Number(inv[k]);
+                if (!Number.isNaN(n)) out[k] = n;
+            }
+        }
+        return out;
     },
 
     /**

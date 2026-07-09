@@ -25,11 +25,14 @@ function toggleBuildMode() { buildMode ? exitBuildMode() : enterBuildMode(); }
 function enterBuildMode() {
     if (typeof craftMenuOpen !== 'undefined' && craftMenuOpen) closeCraftingMenu();
     if (typeof backpackOpen !== 'undefined' && backpackOpen) closeBackpack();
+    if (typeof campfireMenuOpen !== 'undefined' && campfireMenuOpen) closeCampfireMenu();
+    if (typeof sleepMenuOpen !== 'undefined' && sleepMenuOpen) closeSleepMenu();
     buildMode = true;
+    // وضع البناء يوقف القتال/الحركة (soft-pause عبر gameLoop) مع بقاء الرسم
     const bar = document.getElementById('buildBar');
     if (bar) bar.style.display = 'flex';
     updateBuildBar();
-    notify('🔨 وضع البناء: انقر للوضع، زر أيمن للإزالة، عجلة للتبديل، B/Esc للخروج', '#ffd060');
+    notify('🔨 وضع البناء: انقر للوضع · يمين للإزالة · عجلة للتبديل · B/Esc للخروج', '#ffd060');
 }
 
 function exitBuildMode() {
@@ -64,18 +67,26 @@ function _missingText(def) {
     return miss.join('، ');
 }
 
+const PLACE_REASON_AR = {
+    water: 'فوق الماء',
+    rock: 'على الصخر',
+    reach: 'خارج مدى البناء',
+    tree: 'يتداخل مع شجرة',
+    overlap: 'يتداخل مع مبنى آخر'
+};
+
 function canPlaceAt(def, x, y) {
-    if (isWater(x, y)) return { ok: false, reason: 'ماء' };
+    if (isWater(x, y)) return { ok: false, reason: 'water' };
     const tile = getTile(Math.floor(x / CFG.TILE_SIZE), Math.floor(y / CFG.TILE_SIZE));
-    if (tile === T.ROCK) return { ok: false, reason: 'صخر' };
-    if (Math.hypot(x - player.x, y - player.y) > CFG.BUILD_REACH) return { ok: false, reason: 'بعيد جداً' };
+    if (tile === T.ROCK) return { ok: false, reason: 'rock' };
+    if (Math.hypot(x - player.x, y - player.y) > CFG.BUILD_REACH) return { ok: false, reason: 'reach' };
     for (const t of trees) {
         if (t.chopped) continue;
-        if (Math.hypot(t.x - x, t.y - y) < t.r + def.r) return { ok: false, reason: 'شجرة' };
+        if (Math.hypot(t.x - x, t.y - y) < t.r + def.r) return { ok: false, reason: 'tree' };
     }
     for (const s of structures) {
         const sd = BUILDABLES[s.type];
-        if (Math.hypot(s.x - x, s.y - y) < (sd ? sd.r : 18) + def.r - 6) return { ok: false, reason: 'مبنى آخر' };
+        if (Math.hypot(s.x - x, s.y - y) < (sd ? sd.r : 18) + def.r - 6) return { ok: false, reason: 'overlap' };
     }
     return { ok: true };
 }
@@ -85,9 +96,17 @@ function tryPlaceBuild(wx, wy) {
     const def = BUILDABLES[id];
     if (!def) return;
     const x = _snap(wx), y = _snap(wy);
-    if (!_canAfford(def)) { notify(`🔒 ناقص: ${_missingText(def)}`, '#e74c3c'); return; }
+    if (!_canAfford(def)) {
+        notify(`المواد غير كافية: ${_missingText(def)}`, '#e74c3c');
+        return;
+    }
     const chk = canPlaceAt(def, x, y);
-    if (!chk.ok) { notify(`⛔ لا يمكن الوضع هنا (${chk.reason})`, '#e74c3c'); return; }
+    if (!chk.ok) {
+        const why = PLACE_REASON_AR[chk.reason] || chk.reason;
+        if (chk.reason === 'reach') notify(`⛔ خارج مدى البناء — اقترب أكثر`, '#e74c3c');
+        else notify(`⛔ لا يمكن الوضع هنا (${why})`, '#e74c3c');
+        return;
+    }
 
     for (const [k, v] of Object.entries(def.cost)) player.inventory[k] -= v;
     structures.push({
@@ -142,25 +161,39 @@ function resolveStructureCollision(x, y, radius, isEnemy) {
 }
 
 // ===== SIEGE: المفترسات الليلية تكسر الجدران =====
+let _structDmgNotifyCd = 0;
+
 function updateStructures(dt) {
+    if (typeof updateCampfireWeather === 'function') updateCampfireWeather(dt);
+    if (_structDmgNotifyCd > 0) _structDmgNotifyCd -= dt;
     // ومضة الموقد (لا حاجة لحالة، الرسم يستخدم Date.now)
     _siegeTimer += dt;
     if (_siegeTimer < 700) return;
     _siegeTimer = 0;
     if (!structures.length || typeof enemies === 'undefined') return;
 
+    let damaged = null;
     for (const s of structures) {
         const def = BUILDABLES[s.type];
         if (!def || !def.solid) continue;
         for (const e of enemies) {
             if (e.isDead || !e.nocturnal || e.behavior !== 'aggressive') continue;
             if (Math.hypot(e.x - s.x, e.y - s.y) < s.r + e.radius + 8) {
-                s.hp -= Math.max(4, Math.floor((e.attackDmg || 10) * 0.5));
+                const dmg = Math.max(4, Math.floor((e.attackDmg || 10) * 0.5));
+                s.hp -= dmg;
                 s.shakeTimer = 260;
+                damaged = s;
                 if (typeof SFX !== 'undefined' && SFX.hit) SFX.hit();
                 break;
             }
         }
+    }
+    if (damaged && _structDmgNotifyCd <= 0) {
+        const def = BUILDABLES[damaged.type];
+        const pct = Math.max(0, Math.floor((damaged.hp / damaged.maxHp) * 100));
+        notify(`💥 ${def ? def.name : 'مبنى'} تحت الهجوم! (${pct}%)`, '#e74c3c',
+            damaged.x, damaged.y - damaged.r - 10);
+        _structDmgNotifyCd = 1800;
     }
     const before = structures.length;
     structures = structures.filter(s => s.hp > 0);
@@ -174,14 +207,287 @@ function getLightSources() {
         if (s.type === 'campfire' && s.lit) out.push({ x: s.x, y: s.y, radius: 150, intensity: 0.95, warm: true });
         else if (s.type === 'hut')          out.push({ x: s.x, y: s.y, radius: 100, intensity: 0.6, warm: false });
     }
+    // مشعل اللاعب ليلاً (نصف قطر ثابت — بدون وقود)
+    if (typeof player !== 'undefined' && typeof computeDarkness === 'function'
+        && typeof gameClock !== 'undefined') {
+        const d = computeDarkness(gameClock.minutes);
+        if (d > 0.05) {
+            out.push({
+                x: player.x,
+                y: player.y,
+                radius: CFG.PLAYER_TORCH_RADIUS || 88,
+                intensity: CFG.PLAYER_TORCH_INTENSITY || 0.78,
+                warm: true
+            });
+        }
+    }
     return out;
 }
 
 function isNearLitCampfire() {
+    return !!findNearbyCampfire(true);
+}
+
+function findNearbyCampfire(litOnly) {
+    const range = (CFG && CFG.CAMPFIRE_INTERACT_RANGE) || 70;
+    let best = null, bestD = Infinity;
     for (const s of structures) {
-        if (s.type === 'campfire' && s.lit && Math.hypot(s.x - player.x, s.y - player.y) < 70) return true;
+        if (s.type !== 'campfire') continue;
+        if (litOnly && !s.lit) continue;
+        const d = Math.hypot(s.x - player.x, s.y - player.y);
+        if (d < range && d < bestD) { bestD = d; best = s; }
+    }
+    return best;
+}
+
+function campfireHostileNearby(fire) {
+    if (!fire || typeof enemies === 'undefined') return false;
+    const block = (CFG && CFG.CAMPFIRE_ENEMY_BLOCK) || 200;
+    for (const e of enemies) {
+        if (e.isDead || e.behavior !== 'aggressive') continue;
+        if (Math.hypot(e.x - fire.x, e.y - fire.y) < block) return true;
     }
     return false;
+}
+
+function countRawFood() {
+    let n = 0;
+    const raws = (typeof RAW_FOODS !== 'undefined') ? Object.keys(RAW_FOODS) : ['rawMeat', 'rawFish', 'meat', 'fish'];
+    for (const k of raws) n += (player.inventory[k] || 0);
+    return n;
+}
+
+// ===== CAMPFIRE MENU =====
+let campfireMenuOpen = false;
+let _campfireTarget = null;
+let _campfireExtinguishAcc = 0;
+
+function openCampfireMenu(fire) {
+    if (campfireMenuOpen) return;
+    const target = fire || findNearbyCampfire(false);
+    if (!target) return;
+    if (typeof craftMenuOpen !== 'undefined' && craftMenuOpen) return;
+    if (typeof backpackOpen !== 'undefined' && backpackOpen) return;
+    if (typeof buildMode !== 'undefined' && buildMode) return;
+    if (typeof sleepMenuOpen !== 'undefined' && sleepMenuOpen) return;
+
+    _campfireTarget = target;
+    campfireMenuOpen = true;
+    gamePaused = true;
+    const panel = document.getElementById('campfirePanel');
+    if (panel) panel.style.display = 'flex';
+    updateCampfireMenuUI();
+}
+
+function closeCampfireMenu() {
+    campfireMenuOpen = false;
+    _campfireTarget = null;
+    gamePaused = false;
+    const panel = document.getElementById('campfirePanel');
+    if (panel) panel.style.display = 'none';
+}
+
+function updateCampfireMenuUI() {
+    const fire = _campfireTarget;
+    if (!fire) return;
+    const warn = document.getElementById('campfireWarn');
+    const sub = document.getElementById('campfireSub');
+    const btnLight = document.getElementById('cfBtnLight');
+    const btnSave = document.getElementById('cfBtnSave');
+    const btnRest = document.getElementById('cfBtnRest');
+    const btnCook = document.getElementById('cfBtnCook');
+
+    const hostile = campfireHostileNearby(fire);
+    const lit = !!fire.lit;
+    const rawN = countRawFood();
+    const cost = (CFG && CFG.CAMPFIRE_LIGHT_COST) || { stick: 2 };
+    const stickNeed = cost.stick || 2;
+    const canLight = !lit && (player.inventory.stick || 0) >= stickNeed;
+
+    if (sub) {
+        sub.textContent = lit
+            ? 'نقطة راحة وحفظ وطهي'
+            : `الموقد مطفأ — أضرمه بـ ${stickNeed} عود`;
+    }
+    if (warn) {
+        warn.textContent = hostile
+            ? 'لا يمكن الاسترخاء مع وجود أعداء قريبين'
+            : '';
+    }
+    if (btnLight) {
+        btnLight.style.display = lit ? 'none' : 'block';
+        btnLight.disabled = !canLight;
+        btnLight.textContent = canLight
+            ? `🪵 أضرم النار (${stickNeed} عود)`
+            : `🪵 أضرم النار (تحتاج ${stickNeed} عود)`;
+    }
+    if (btnSave) {
+        btnSave.style.display = lit ? 'block' : 'none';
+        btnSave.disabled = hostile;
+    }
+    if (btnRest) {
+        btnRest.style.display = lit ? 'block' : 'none';
+        btnRest.disabled = hostile;
+    }
+    if (btnCook) {
+        btnCook.style.display = lit ? 'block' : 'none';
+        btnCook.disabled = !lit || rawN <= 0;
+        btnCook.textContent = rawN > 0 ? `🍳 طبخ (${rawN})` : '🍳 طبخ — لا يوجد طعام نيء';
+    }
+}
+
+function campfireLight() {
+    const fire = _campfireTarget || findNearbyCampfire(false);
+    if (!fire || fire.lit) return;
+    const cost = (CFG && CFG.CAMPFIRE_LIGHT_COST) || { stick: 2 };
+    for (const [k, v] of Object.entries(cost)) {
+        if ((player.inventory[k] || 0) < v) {
+            const name = (typeof ITEM_NAMES !== 'undefined' && ITEM_NAMES[k]) || k;
+            notify(`تحتاج ${v} ${name} لإضرام النار!`, '#e74c3c');
+            updateCampfireMenuUI();
+            return;
+        }
+    }
+    for (const [k, v] of Object.entries(cost)) player.inventory[k] -= v;
+    fire.lit = true;
+    fire.extinguishTimer = 0;
+    _campfireExtinguishAcc = 0;
+    if (typeof SFX !== 'undefined' && SFX.xp) SFX.xp();
+    notify('🔥 اشتعل الموقد!', '#ff8040');
+    updateHUD();
+    updateCampfireMenuUI();
+    if (typeof saveForestProgress === 'function') saveForestProgress({ debounce: true });
+}
+
+function campfireSave() {
+    const fire = _campfireTarget;
+    if (!fire || !fire.lit) return;
+    if (campfireHostileNearby(fire)) {
+        notify('لا يمكن الاسترخاء مع وجود أعداء قريبين', '#e74c3c');
+        updateCampfireMenuUI();
+        return;
+    }
+    const camp = { x: Math.round(fire.x), y: Math.round(fire.y) };
+    if (typeof GameState !== 'undefined') {
+        const doc = GameState._ensure();
+        doc.meta.lastCampfire = camp;
+    }
+    let ok = false;
+    if (typeof saveForestProgress === 'function') {
+        ok = saveForestProgress({ force: true, manual: true, campfire: camp });
+    } else if (typeof GameState !== 'undefined' && GameState.autoSave) {
+        ok = GameState.autoSave(true);
+    }
+    if (typeof SFX !== 'undefined' && SFX.click) SFX.click();
+    notify(ok !== false ? 'تم الحفظ!' : 'تعذّر الحفظ', ok !== false ? '#2ecc71' : '#e74c3c');
+}
+
+function campfireRest() {
+    const fire = _campfireTarget;
+    if (!fire || !fire.lit) return;
+    if (campfireHostileNearby(fire)) {
+        notify('لا يمكن الاسترخاء مع وجود أعداء قريبين', '#e74c3c');
+        updateCampfireMenuUI();
+        return;
+    }
+    const hpGain = Math.min(
+        player.maxHp - player.hp,
+        (CFG && CFG.CAMPFIRE_REST_HP) || 22
+    );
+    const stamGain = Math.min(
+        CFG.STAMINA_MAX - player.stamina,
+        (CFG && CFG.CAMPFIRE_REST_STAMINA) || 40
+    );
+    player.hp = Math.min(player.maxHp, player.hp + hpGain);
+    player.stamina = Math.min(CFG.STAMINA_MAX, player.stamina + stamGain);
+
+    // تقدّم خفيف للساعة (أخف من نوم الكوخ)
+    const hours = (CFG && CFG.CAMPFIRE_REST_HOURS) || 1.5;
+    if (typeof gameClock !== 'undefined') {
+        gameClock.minutes += hours * 60;
+        while (gameClock.minutes >= 1440) {
+            gameClock.minutes -= 1440;
+            if (typeof dayCount !== 'undefined') dayCount++;
+        }
+        if (typeof getPhaseFor === 'function') {
+            const p = getPhaseFor(gameClock.minutes);
+            if (p !== dayNightPhase) {
+                const prev = dayNightPhase;
+                dayNightPhase = p;
+                if (typeof onDayNightPhaseChange === 'function') onDayNightPhaseChange(prev, p);
+            }
+            isNight = (p === 'night' || p === 'dusk');
+        }
+        if (typeof updateClockHUD === 'function') updateClockHUD();
+    }
+
+    if (typeof SFX !== 'undefined' && SFX.xp) SFX.xp();
+    notify(`😌 استرحت عند الموقد — +${Math.floor(hpGain)}❤️ +${Math.floor(stamGain)}⚡`, '#4caf70');
+    updateHUD();
+    closeCampfireMenu();
+    if (typeof saveForestProgress === 'function') saveForestProgress({ debounce: true });
+}
+
+function campfireCook() {
+    const fire = _campfireTarget;
+    if (!fire || !fire.lit) {
+        notify('🔥 الموقد مطفأ!', '#ff8040');
+        return;
+    }
+    if (countRawFood() <= 0) {
+        notify('لا يوجد طعام نيء', '#e74c3c');
+        updateCampfireMenuUI();
+        return;
+    }
+    // طهي أول صنف نيء متاح عبر cookFood الموجود
+    const order = ['rawMeat', 'rawFish', 'meat', 'fish'];
+    let cooked = false;
+    for (const type of order) {
+        if ((player.inventory[type] || 0) > 0 && typeof cookFood === 'function') {
+            cooked = cookFood(type);
+            if (cooked) break;
+        }
+    }
+    if (!cooked) notify('لا يوجد طعام نيء', '#e74c3c');
+    updateCampfireMenuUI();
+}
+
+function updateCampfireHint() {
+    const el = document.getElementById('campfireHint');
+    if (!el) return;
+    if (!gameRunning || campfireMenuOpen || sleepMenuOpen
+        || (typeof craftMenuOpen !== 'undefined' && craftMenuOpen)
+        || (typeof backpackOpen !== 'undefined' && backpackOpen)
+        || (typeof buildMode !== 'undefined' && buildMode)) {
+        el.style.display = 'none';
+        return;
+    }
+    const fire = findNearbyCampfire(false);
+    if (!fire) { el.style.display = 'none'; return; }
+    el.textContent = fire.lit ? 'اضغط E عند الموقد' : 'اضغط E — أضرم الموقد';
+    el.style.display = 'block';
+}
+
+/** مطر غزير/عاصفة تُطفئ المواقد بعد تأخير */
+function updateCampfireWeather(dt) {
+    if (typeof weatherState === 'undefined') return;
+    const wet = (weatherState === 'heavyRain' || weatherState === 'storm');
+    if (!wet) {
+        _campfireExtinguishAcc = 0;
+        return;
+    }
+    _campfireExtinguishAcc += dt;
+    const need = (CFG && CFG.CAMPFIRE_RAIN_EXTINGUISH_MS) || 45000;
+    if (_campfireExtinguishAcc < need) return;
+    _campfireExtinguishAcc = 0;
+    let any = false;
+    for (const s of structures) {
+        if (s.type === 'campfire' && s.lit) {
+            s.lit = false;
+            any = true;
+        }
+    }
+    if (any) notify('🌧️ أخمد المطر المواقد!', '#7f9bb8');
 }
 
 // ===== REPAIR FENCE / GATE =====
@@ -247,11 +553,32 @@ function findNearbyHut() {
     return best;
 }
 
+function findNearbyGate() {
+    let best = null, bestD = Infinity;
+    for (const s of structures) {
+        if (s.type !== 'gate') continue;
+        const d = Math.hypot(s.x - player.x, s.y - player.y);
+        if (d < s.r + 40 && d < bestD) { bestD = d; best = s; }
+    }
+    return best;
+}
+
+function toggleNearbyGate(gate) {
+    const g = gate || findNearbyGate();
+    if (!g) return false;
+    g.open = !g.open;
+    if (typeof SFX !== 'undefined' && SFX.click) SFX.click();
+    notify(g.open ? '🚪 فُتحت البوابة' : '🚪 أُغلقت البوابة', '#ffd060', g.x, g.y - g.r - 8);
+    if (typeof saveForestProgress === 'function') saveForestProgress({ debounce: true });
+    return true;
+}
+
 function openSleepMenu() {
     if (sleepMenuOpen || !findNearbyHut()) return;
     if (typeof craftMenuOpen !== 'undefined' && craftMenuOpen) closeCraftingMenu();
     if (typeof backpackOpen !== 'undefined' && backpackOpen) closeBackpack();
     if (typeof buildMode !== 'undefined' && buildMode) exitBuildMode();
+    if (typeof campfireMenuOpen !== 'undefined' && campfireMenuOpen) closeCampfireMenu();
     sleepMenuOpen = true;
     gamePaused = true;
     _sleepHours = 4;
@@ -366,7 +693,18 @@ function drawStructure(s, camX, camY) {
         }
         if (s.type === 'gate') {
             ctx.font = '10px Cairo'; ctx.textAlign = 'center'; ctx.fillStyle = '#ffd060';
-            ctx.fillText(open ? 'مفتوحة' : '🚪', 0, -26);
+            ctx.fillText(open ? 'مفتوحة' : 'مغلقة', 0, -26);
+            if (typeof player !== 'undefined' &&
+                Math.hypot(s.x - player.x, s.y - player.y) < s.r + 40 &&
+                !(typeof buildMode !== 'undefined' && buildMode)) {
+                ctx.font = 'bold 11px Cairo';
+                ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+                ctx.lineWidth = 3;
+                const tip = open ? '[E] أغلق' : '[E] افتح';
+                ctx.strokeText(tip, 0, -40);
+                ctx.fillStyle = '#ffd060';
+                ctx.fillText(tip, 0, -40);
+            }
         }
     } else if (s.type === 'campfire') {
         // حجارة
@@ -483,7 +821,10 @@ function drawBuildGhost(camX, camY) {
     ctx.font = 'bold 11px Cairo'; ctx.textAlign = 'center';
     ctx.fillStyle = ok ? '#2ecc71' : '#e74c3c';
     ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.lineWidth = 3;
-    const label = !afford ? '🔒 مواد ناقصة' : (chk.ok ? `${def.emoji} ${def.name}` : `⛔ ${chk.reason}`);
+    let label;
+    if (!afford) label = `المواد غير كافية: ${_missingText(def)}`;
+    else if (!chk.ok) label = `⛔ ${PLACE_REASON_AR[chk.reason] || chk.reason}`;
+    else label = `${def.emoji} ${def.name}`;
     ctx.strokeText(label, sx, sy - def.r - 10);
     ctx.fillText(label, sx, sy - def.r - 10);
     ctx.restore();
@@ -519,19 +860,36 @@ function updateBuildBar() {
 
 // ===== SAVE / RESTORE =====
 function serializeStructures() {
-    return structures.map(s => ({ type: s.type, x: s.x, y: s.y, hp: s.hp, open: !!s.open, lit: !!s.lit }));
+    return structures.map(s => ({
+        type: s.type,
+        x: s.x,
+        y: s.y,
+        hp: s.hp,
+        maxHp: s.maxHp != null ? s.maxHp : (BUILDABLES[s.type] ? BUILDABLES[s.type].hp : s.hp),
+        open: !!s.open,
+        lit: !!s.lit,
+        uid: s.uid || 0
+    }));
 }
 function restoreStructures(arr) {
     structures = [];
     _structUid = 1;
+    let maxUid = 0;
     for (const s of arr) {
         const def = BUILDABLES[s.type];
         if (!def) continue;
+        const uid = (typeof s.uid === 'number' && s.uid > 0) ? s.uid : _structUid++;
+        if (uid > maxUid) maxUid = uid;
         structures.push({
             type: s.type, x: s.x, y: s.y, r: def.r,
-            hp: (typeof s.hp === 'number') ? s.hp : def.hp, maxHp: def.hp,
-            open: !!s.open, lit: (s.lit != null) ? !!s.lit : !!def.light,
-            gate: !!def.gate, uid: _structUid++, shakeTimer: 0
+            hp: (typeof s.hp === 'number') ? s.hp : def.hp,
+            maxHp: (typeof s.maxHp === 'number' && s.maxHp > 0) ? s.maxHp : def.hp,
+            open: !!s.open,
+            lit: (s.lit != null) ? !!s.lit : !!def.light,
+            gate: !!def.gate,
+            uid: uid,
+            shakeTimer: 0
         });
     }
+    _structUid = Math.max(_structUid, maxUid + 1);
 }

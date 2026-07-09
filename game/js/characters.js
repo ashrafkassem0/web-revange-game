@@ -82,7 +82,7 @@ const ENEMY_TEMPLATES = {
         attackDmg: 8,
         behavior: 'aggressive',
         fleeRange: 0,
-        aggroRange: 120,
+        aggroRange: 145,
         attackRange: 28,
         attackCooldown: 2000,
         speed: 2.9,
@@ -105,7 +105,7 @@ const ENEMY_TEMPLATES = {
         attackDmg: 5,
         behavior: 'aggressive',
         fleeRange: 0,
-        aggroRange: 90,
+        aggroRange: 105,
         attackRange: 22,
         attackCooldown: 2000,
         speed: 2.5,
@@ -129,7 +129,7 @@ const ENEMY_TEMPLATES = {
         attackDmg: 12,
         behavior: 'aggressive',
         fleeRange: 0,
-        aggroRange: 110,
+        aggroRange: 125,
         attackRange: 30,
         attackCooldown: 2000,
         speed: 2.8,
@@ -152,7 +152,7 @@ const ENEMY_TEMPLATES = {
         attackDmg: 20,
         behavior: 'aggressive',
         fleeRange: 0,
-        aggroRange: 130,
+        aggroRange: 150,
         attackRange: 38,
         attackCooldown: 2000,
         speed: 2.2,
@@ -241,7 +241,7 @@ const ENEMY_TEMPLATES = {
         attackDmg: 22,
         behavior: 'aggressive',
         fleeRange: 0,
-        aggroRange: 230,
+        aggroRange: 250,
         attackRange: 34,
         attackCooldown: 2000,
         speed: 3.4,
@@ -266,7 +266,7 @@ const ENEMY_TEMPLATES = {
         attackDmg: 26,
         behavior: 'aggressive',
         fleeRange: 0,
-        aggroRange: 260,
+        aggroRange: 275,
         attackRange: 32,
         attackCooldown: 2000,
         speed: 4.2,
@@ -352,6 +352,11 @@ const ITEM_NAMES = {
     nightCrystal:  'بلورة ليلية',
     venomSac:      'كيس سم',
     shadowEssence: 'جوهر الظلال',
+    // موارد متقدمة (جمع)
+    herb:          'عشبة',
+    honey:         'عسل',
+    herbSalve:     'مرهم أعشاب',
+    revitalTonic:  'منشط منعش',
     // مصنوعات
     axe:        'فأس',
     fishingRod: 'سنارة',
@@ -380,6 +385,10 @@ const ITEM_EMOJIS = {
     nightCrystal:  '🔮',
     venomSac:      '🧪',
     shadowEssence: '🌑',
+    herb:          '🌿',
+    honey:         '🍯',
+    herbSalve:     '💊',
+    revitalTonic:  '🧴',
     axe:        '🪓',
     fishingRod: '🎣',
     hornSpear:  '🗡️',
@@ -389,8 +398,11 @@ const ITEM_EMOJIS = {
     shadowArmor: '🛡️'
 };
 
-// أصناف تُعدّ طعاماً (للحقيبة/الطهي/الأكل)
-const FOOD_ITEMS = ['rawMeat', 'cookedMeat', 'rawFish', 'cookedFish', 'meat', 'fish'];
+// أصناف تُعدّ طعاماً (للحقيبة/الطهي/الأكل) — تشمل مستهلكات الأعشاب/العسل
+const FOOD_ITEMS = [
+    'rawMeat', 'cookedMeat', 'rawFish', 'cookedFish', 'meat', 'fish',
+    'honey', 'herbSalve', 'revitalTonic'
+];
 const RAW_FOODS  = { rawMeat: 'cookedMeat', rawFish: 'cookedFish', meat: 'cookedMeat', fish: 'cookedFish' };
 const COOKED_FOODS = ['cookedMeat', 'cookedFish'];
 

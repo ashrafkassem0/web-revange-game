@@ -38,7 +38,8 @@ function shootArrow() {
 // قيم الشفاء لكل صنف طعام
 const FOOD_HEAL = {
     cookedMeat: 26, cookedFish: 20,
-    rawMeat: 5, rawFish: 4, meat: 5, fish: 4
+    rawMeat: 5, rawFish: 4, meat: 5, fish: 4,
+    honey: 10, herbSalve: 18, revitalTonic: 28
 };
 const RAW_SET = { rawMeat: 1, rawFish: 1, meat: 1, fish: 1 };
 
@@ -69,7 +70,10 @@ function eatFood(type) {
 
 // مفتاح Q: يأكل أفضل طعام متاح (يفضّل المطهو)
 function eatMeat() {
-    const order = ['cookedMeat', 'cookedFish', 'rawMeat', 'rawFish', 'meat', 'fish'];
+    const order = [
+        'revitalTonic', 'herbSalve', 'cookedMeat', 'cookedFish',
+        'honey', 'rawMeat', 'rawFish', 'meat', 'fish'
+    ];
     for (const t of order) {
         if ((player.inventory[t] || 0) > 0) { eatFood(t); return; }
     }

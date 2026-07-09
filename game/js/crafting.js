@@ -73,6 +73,24 @@ const CRAFTING_RECIPES = [
         requires: { shadowEssence: 1, beastHide: 3, leather: 2 },
         isUnique: true,
         defenseBonus: 35
+    },
+    {
+        id: 'herbSalve',
+        name: 'مرهم أعشاب',
+        emoji: '💊',
+        description: 'مستهلك — يعيد قدراً متواضعاً من الصحة عند الأكل',
+        requires: { herb: 2 },
+        isUnique: false,
+        givesItem: { herbSalve: 1 }
+    },
+    {
+        id: 'revitalTonic',
+        name: 'منشط منعش',
+        emoji: '🧴',
+        description: 'مستهلك — أعشاب + عسل لشفاء أفضل',
+        requires: { herb: 1, honey: 1 },
+        isUnique: false,
+        givesItem: { revitalTonic: 1 }
     }
 ];
 

@@ -73,8 +73,10 @@ function updateHUD() {
     document.getElementById('weaponLabel2').textContent = p.weapon === 'sword' ? '⚔️ السيف' : '🏹 القوس';
     document.getElementById('atkVal').textContent       = Math.floor(p.attack);
 
-    for (const k of ['stick', 'stone', 'horn', 'teeth', 'leather'])
-        document.getElementById('inv-' + k).textContent = p.inventory[k] || 0;
+    for (const k of ['stick', 'stone', 'horn', 'teeth', 'leather', 'herb', 'honey']) {
+        const el = document.getElementById('inv-' + k);
+        if (el) el.textContent = p.inventory[k] || 0;
+    }
     // اللحم/السمك في الشريط العلوي = مجموع النيء + المطهو
     const meatEl = document.getElementById('inv-meat');
     if (meatEl) meatEl.textContent = (p.inventory.rawMeat || 0) + (p.inventory.cookedMeat || 0) + (p.inventory.meat || 0);
@@ -88,7 +90,8 @@ function updateHUD() {
     const chals = (p.craftedItems.axe ? 1 : 0) + (p.craftedItems.fishingRod ? 1 : 0);
     document.getElementById('killProg').textContent    = `${kills} / ${CFG.KILLS_NEEDED} قتلى`;
     document.getElementById('killBar').style.width     = (kills / CFG.KILLS_NEEDED * 100) + '%';
-    document.getElementById('distProg').textContent    = `${(dist / 1000).toFixed(1)} / 3 كم`;
+    // مسافة العالم نحو CFG.DIST_NEEDED (ليست كيلومترات حقيقية)
+    document.getElementById('distProg').textContent    = `${Math.floor(dist)} / ${CFG.DIST_NEEDED} مسافة`;
     document.getElementById('distBar').style.width     = (dist / CFG.DIST_NEEDED * 100) + '%';
     document.getElementById('chalProg').textContent    = `${chals} / ${CFG.CHALLENGES_NEEDED} تحديات`;
     document.getElementById('chalBar').style.width     = (chals / CFG.CHALLENGES_NEEDED * 100) + '%';
@@ -108,9 +111,11 @@ function drawMinimap() {
         }
     }
 
-    minimapCtx.fillStyle = '#2ecc71';
     for (const res of resources) {
         if (res.collected) continue;
+        if (res.type === 'herb') minimapCtx.fillStyle = '#5ecf66';
+        else if (res.type === 'honey') minimapCtx.fillStyle = '#ffd060';
+        else minimapCtx.fillStyle = '#2ecc71';
         minimapCtx.fillRect(res.x / sx - 1, res.y / sy - 1, 2, 2);
     }
 
@@ -260,12 +265,15 @@ function renderBackpack() {
     const inv = player.inventory;
     const order = [
         'cookedMeat', 'rawMeat', 'cookedFish', 'rawFish', 'meat', 'fish',
+        'revitalTonic', 'herbSalve', 'honey', 'herb',
         'stick', 'stone', 'horn', 'teeth', 'leather', 'arrows',
         'beastHide', 'nightCrystal', 'venomSac', 'shadowEssence'
     ];
-    // Include any extra keys present on the bag (future-proof)
+    // عناصر إضافية معروفة فقط (لها اسم عربي) — تجاهل مفاتيح دخيلة مثل maxSlots
     for (const k of Object.keys(inv)) {
-        if (!order.includes(k) && (inv[k] || 0) > 0) order.push(k);
+        if (order.includes(k)) continue;
+        if ((inv[k] || 0) <= 0) continue;
+        if (typeof ITEM_NAMES !== 'undefined' && ITEM_NAMES[k]) order.push(k);
     }
     let any = false;
     for (const key of order) {

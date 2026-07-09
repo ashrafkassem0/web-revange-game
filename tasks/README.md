@@ -35,13 +35,13 @@ No task depends on a later unfinished task.
 | 2 | TASK_002 SceneManager | 001 *(done — see `completed/`)* |
 | 3 | TASK_003 Sound engine | — *(done — see `completed/`)* |
 | 4 | TASK_004 Cross-scene inventory | 001, 002 *(done — see `completed/`)* |
-| 5 | TASK_005 Day/night cycle | 001 |
-| 6 | TASK_006 Weather system | 005 (optional polish with 003) |
-| 7 | TASK_007 Campfire save points | 001, 005 |
-| 8 | TASK_008 Advanced resources | 004 |
-| 9 | TASK_009 Building system | 007, 008 |
-| 10 | TASK_010 Enemy AI refinement | 005 |
-| 11 | TASK_011 Forest completion flow | 002, 004, 010 |
+| 5 | TASK_005 Day/night cycle | 001 *(done — see `completed/`)* |
+| 6 | TASK_006 Weather system | 005 (optional polish with 003) *(done — see `completed/`)* |
+| 7 | TASK_007 Campfire save points | 001, 005 *(done — see `completed/`)* |
+| 8 | TASK_008 Advanced resources | 004 *(done — see `completed/`)* |
+| 9 | TASK_009 Building system | 007, 008 *(done — see `completed/`)* |
+| 10 | TASK_010 Enemy AI refinement | 005 *(done — see `completed/`)* |
+| 11 | TASK_011 Forest completion flow | 002, 004, 010 *(done — see `completed/`)* |
 | 12 | TASK_012 City map | 002 |
 | 13 | TASK_013 NPC system | 012 |
 | 14 | TASK_014 Economy / merchant | 013, 004 |
@@ -67,8 +67,8 @@ No task depends on a later unfinished task.
 | 34 | TASK_037 Client integration | 001, ~~034–036~~ (done) |
 | 35 | TASK_038 Leaderboard UI | 037, 029 |
 
-> **Completed (skip implementation):** TASK_001–004, TASK_034, TASK_035, TASK_036 → see [`completed/`](./completed/)  
-> Weather tasks **006** and **022** remain in the plan.  
+> **Completed (skip implementation):** TASK_001–011, TASK_034, TASK_035, TASK_036 → see [`completed/`](./completed/)  
+> Weather extremes **022** remain in the plan.  
 > TASK_019 remains in the execution table (Death Valley hazards).
 
 ## Audit notes (current codebase)

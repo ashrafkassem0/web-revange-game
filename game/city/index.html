@@ -93,6 +93,8 @@
     <div class="inv-item"><span class="inv-icon">🪨</span><span class="inv-count" id="inv-stone">0</span></div>
     <div class="inv-item"><span class="inv-icon">🥩</span><span class="inv-count" id="inv-meat">0</span></div>
     <div class="inv-item"><span class="inv-icon">🧥</span><span class="inv-count" id="inv-leather">0</span></div>
+    <div class="inv-item"><span class="inv-icon">🌿</span><span class="inv-count" id="inv-herb">0</span></div>
+    <div class="inv-item"><span class="inv-icon">🍯</span><span class="inv-count" id="inv-honey">0</span></div>
     <div class="inv-item"><span class="inv-icon">🐟</span><span class="inv-count" id="inv-fish">0</span></div>
     <div class="inv-item"><span class="inv-icon">🏹</span><span class="inv-count" id="inv-arrows">0</span></div>
     <div class="inv-item"><span class="inv-icon">🦷</span><span class="inv-count" id="inv-teeth">0</span></div>
@@ -171,7 +173,8 @@ const player = {
         : Object.assign({
             stick:0, stone:0, meat:0, horn:0, teeth:0, leather:0, fish:0, arrows:15,
             rawMeat:0, cookedMeat:0, rawFish:0, cookedFish:0,
-            beastHide:0, nightCrystal:0, venomSac:0, shadowEssence:0
+            beastHide:0, nightCrystal:0, venomSac:0, shadowEssence:0,
+            herb:0, honey:0, herbSalve:0, revitalTonic:0
         }, inv),
     walkTimer: 0, isMoving: false, facing: 'down',
 };
@@ -398,6 +401,10 @@ function updateHUD() {
     document.getElementById('inv-horn').textContent = inv.horn || 0;
     document.getElementById('inv-teeth').textContent = inv.teeth || 0;
     document.getElementById('inv-leather').textContent = inv.leather || 0;
+    const herbEl = document.getElementById('inv-herb');
+    if (herbEl) herbEl.textContent = inv.herb || 0;
+    const honeyEl = document.getElementById('inv-honey');
+    if (honeyEl) honeyEl.textContent = inv.honey || 0;
     document.getElementById('inv-fish').textContent = foodCount('fish');
     document.getElementById('inv-arrows').textContent = inv.arrows || 0;
 }

@@ -32,6 +32,7 @@ function restoreEnemies(arr) {
         e.homeY = s.homeY != null ? s.homeY : s.y;
         e.leashRadius = s.leashRadius || 400;
         e.provoked = !!s.provoked;
+        if (e.provoked && typeof e.applyProvokedStats === 'function') e.applyProvokedStats();
         enemies.push(e);
     }
 }
@@ -60,7 +61,10 @@ function restoreDroppedItems(arr) {
 }
 
 /** Closest lit campfire (or any campfire) for combat-load respawn. */
-function getLastCampfirePos() {
+function getLastCampfirePos(preferred) {
+    if (preferred && preferred.x != null && preferred.y != null) {
+        return { x: Math.round(preferred.x), y: Math.round(preferred.y) };
+    }
     if (typeof structures === 'undefined' || !structures.length || !player) return null;
     const fires = structures.filter(s => s && s.type === 'campfire');
     if (!fires.length) return null;
@@ -85,7 +89,7 @@ function saveForestProgress(opts) {
         ? trees.map((t, i) => t.chopped ? i : -1).filter(i => i >= 0) : [];
 
     const structuresData = (typeof serializeStructures === 'function') ? serializeStructures() : undefined;
-    const camp = getLastCampfirePos();
+    const camp = getLastCampfirePos(opts.campfire || null);
 
     // Batch into one document write (avoids 5× localStorage thrash)
     const doc = GameState._ensure();
@@ -112,6 +116,7 @@ function saveForestProgress(opts) {
         choppedTrees: choppedTrees,
         clockMinutes: (typeof gameClock !== 'undefined') ? gameClock.minutes : undefined,
         dayCount: (typeof dayCount !== 'undefined') ? dayCount : undefined,
+        weather: (typeof serializeWeather === 'function') ? serializeWeather() : undefined,
         structures: structuresData,
         enemies: serializeEnemies(),
         droppedItems: serializeDroppedItems(),
@@ -246,6 +251,9 @@ function resumeGame(savedState, opts) {
     player.nauseaTimer = savedState.nauseaTimer || 0;
 
     if (savedState.gameCompleted) gameCompleted = true;
+    else if (typeof GameState !== 'undefined' && GameState.load && GameState.load('completedForest', false)) {
+        gameCompleted = true;
+    }
 
     if (savedState.collectedResources) {
         for (const idx of savedState.collectedResources) {
@@ -270,11 +278,15 @@ function resumeGame(savedState, opts) {
     }
     if (savedState.enemies && savedState.enemies.length) {
         restoreEnemies(savedState.enemies);
+        if (typeof syncNightWildlifeFlag === 'function') syncNightWildlifeFlag();
     } else if (typeof initWildlife === 'function') {
         initWildlife();
     }
     if (savedState.droppedItems) {
         restoreDroppedItems(savedState.droppedItems);
+    }
+    if (typeof initWeather === 'function') {
+        initWeather(savedState.weather || null);
     }
 
     gameRunning = true;

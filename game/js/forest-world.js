@@ -319,6 +319,26 @@ function spawnResources() {
         } while (isWater(x, y) && tries < 10);
         resources.push(new ResourceNode('stone', x, y));
     }
+    // أعشاب نادرة على العشب (لا تستجيب — تُجمع مرة)
+    for (let i = 0; i < 10; i++) {
+        let x, y, tries = 0;
+        do {
+            x = 350 + seededRand(i * 31 + 200) * 2500;
+            y = 350 + seededRand(i * 37 + 210) * 2500;
+            tries++;
+        } while ((isWater(x, y) || getTile(Math.floor(x / CFG.TILE_SIZE), Math.floor(y / CFG.TILE_SIZE)) === T.ROCK) && tries < 14);
+        resources.push(new ResourceNode('herb', x, y));
+    }
+    // خلايا عسل قليلة (3–8)
+    for (let i = 0; i < 6; i++) {
+        let x, y, tries = 0;
+        do {
+            x = 450 + seededRand(i * 41 + 300) * 2300;
+            y = 450 + seededRand(i * 43 + 310) * 2300;
+            tries++;
+        } while (isWater(x, y) && tries < 14);
+        resources.push(new ResourceNode('honey', x, y));
+    }
 }
 
 // ===== PRE-RENDERED TERRAIN =====

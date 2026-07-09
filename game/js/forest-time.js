@@ -27,8 +27,24 @@ function computeDarkness(min) {
     return 1; // ليل كامل
 }
 
+// إيقاف الساعة عند الإيقاف أو القوائم الحاجبة (صناعة / حقيبة / نوم / بناء)
+function isClockPaused() {
+    if (typeof gamePaused !== 'undefined' && gamePaused) return true;
+    if (typeof craftMenuOpen !== 'undefined' && craftMenuOpen) return true;
+    if (typeof backpackOpen !== 'undefined' && backpackOpen) return true;
+    if (typeof sleepMenuOpen !== 'undefined' && sleepMenuOpen) return true;
+    if (typeof campfireMenuOpen !== 'undefined' && campfireMenuOpen) return true;
+    if (typeof buildMode !== 'undefined' && buildMode) return true;
+    return false;
+}
+
 // ===== UPDATE =====
 function updateDayNight(dt) {
+    if (isClockPaused()) {
+        updateClockHUD();
+        return;
+    }
+
     gameClock.minutes += (dt / 1000) * CFG.GAME_MIN_PER_REAL_SEC;
     while (gameClock.minutes >= 1440) { gameClock.minutes -= 1440; dayCount++; }
 
@@ -45,8 +61,44 @@ function updateDayNight(dt) {
 // ===== NIGHT OVERLAY (طبقة ظلام + ثقوب إضاءة) =====
 let _nightCanvas = null, _nightCtx = null;
 
+// نجوم رخيصة (مواقع ثابتة لنفس الساعة/اليوم + وميض خفيف)
+function _drawStars(nc, W, H, darkFactor) {
+    if (darkFactor < 0.35) return;
+    const count = CFG.STAR_COUNT || 48;
+    const alpha = Math.min(1, (darkFactor - 0.35) / 0.45) * 0.9;
+    let seed = ((typeof dayCount === 'number' ? dayCount : 1) * 9973
+        + Math.floor(gameClock.minutes / 60) * 131) | 0;
+    if (seed <= 0) seed = 1;
+    const rnd = () => {
+        seed = (seed * 16807) % 2147483647;
+        return (seed - 1) / 2147483646;
+    };
+    const t = performance.now() * 0.001;
+    for (let i = 0; i < count; i++) {
+        const x = rnd() * W;
+        const y = rnd() * (H * 0.92);
+        const base = 0.4 + rnd() * 0.6;
+        const r = 0.5 + rnd() * 1.25;
+        const tw = base * (0.55 + 0.45 * Math.sin(t * (1.1 + (i % 7) * 0.37) + i * 1.7));
+        nc.fillStyle = `rgba(255,248,220,${alpha * tw})`;
+        nc.beginPath();
+        nc.arc(x, y, r, 0, Math.PI * 2);
+        nc.fill();
+    }
+}
+
 function drawNightOverlay() {
-    const dark = computeDarkness(gameClock.minutes) * CFG.NIGHT_MAX_DARKNESS;
+    let dark = computeDarkness(gameClock.minutes) * CFG.NIGHT_MAX_DARKNESS;
+    // الضباب يزيد التعتيم الفعّال قليلاً (فوق الليل)
+    if (typeof getWeatherFogBoost === 'function') {
+        dark = Math.min(0.92, dark + getWeatherFogBoost() * 0.22);
+    }
+    // داخل/قرب الكوخ: تخفيف الظلام (الكوخ يضيء أيضاً عبر getLightSources)
+    const indoors = (typeof findNearbyHut === 'function' && findNearbyHut())
+        || (typeof sleepMenuOpen !== 'undefined' && sleepMenuOpen);
+    if (indoors) {
+        dark *= (CFG.INDOOR_DARKNESS_SCALE != null ? CFG.INDOOR_DARKNESS_SCALE : 0.32);
+    }
     if (dark <= 0.012) return;
 
     const W = canvas.width, H = canvas.height;
@@ -68,7 +120,10 @@ function drawNightOverlay() {
     nc.fillStyle = `rgba(${col},${dark})`;
     nc.fillRect(0, 0, W, H);
 
-    // ثقوب إضاءة (المواقد/الكوخ) على الطبقة المنفصلة
+    // نجوم قبل ثقوب الإضاءة حتى تُمحى قرب المواقد
+    _drawStars(nc, W, H, dark);
+
+    // ثقوب إضاءة (مواقد / كوخ / مشعل اللاعب)
     const lights = (typeof getLightSources === 'function') ? getLightSources() : null;
     if (lights && lights.length) {
         nc.globalCompositeOperation = 'destination-out';
@@ -88,7 +143,7 @@ function drawNightOverlay() {
 
     ctx.drawImage(_nightCanvas, 0, 0);
 
-    // توهّج دافئ حول النيران فوق كل شيء
+    // توهّج دافئ حول النيران / المشعل فوق كل شيء
     if (lights && lights.length) {
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
@@ -185,6 +240,17 @@ function despawnNightPredators() {
     if (typeof notify === 'function') notify('🌅 أشرق النهار... انسحبت الوحوش الليلية', '#f0c040');
 }
 
+// مزامنة علم المفترسات بعد تحميل الحفظ (تفادي تكرار التوليد ليلاً)
+function syncNightWildlifeFlag() {
+    if (typeof enemies === 'undefined' || !enemies) {
+        _nightPredatorsActive = false;
+        return;
+    }
+    const p = getPhaseFor(gameClock.minutes);
+    const nightLike = (p === 'night' || p === 'dusk');
+    _nightPredatorsActive = nightLike && enemies.some(e => e.nocturnal && !e.isDead);
+}
+
 // تقليل الحيوانات النهارية (الطرائد) لتبدو الغابة أهدأ نهاراً
 function cullDiurnalAnimals(keepFraction) {
     const prey = enemies.filter(e => !e.nocturnal && !e.isDead && e.behavior === 'flee');
@@ -230,7 +296,10 @@ function initWildlife() {
     dayNightPhase = p;
     isNight = (p === 'night' || p === 'dusk');
     if (isNight) { spawnNightPredators(); spawnNightPrey(); }
-    else cullDiurnalAnimals(0.45);
+    else {
+        _nightPredatorsActive = false;
+        cullDiurnalAnimals(0.45);
+    }
     updateClockHUD();
 }
 
