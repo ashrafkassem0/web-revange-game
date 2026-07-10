@@ -40,6 +40,7 @@
         background: linear-gradient(135deg,#1e2a1a,#2a3020);
         border: 2px solid #6a8040; border-radius: 16px;
         padding: 28px 32px; min-width: 340px; max-width: 480px;
+        max-height: 80vh; overflow-y: auto;
         color: #e8e0c0; position: relative;
     }
     #modalTitle { font-size: 1.3rem; font-weight: 900; margin-bottom: 16px; color: #ffd060; }
@@ -64,6 +65,12 @@
     }
     .close-btn:hover { color: #fff; }
 
+    #questHint {
+        position: fixed; bottom: 60px; left: 50%; transform: translateX(-50%);
+        background: rgba(0,0,0,0.8); border: 1px solid #5a5a3a; border-radius: 10px;
+        padding: 6px 18px; color: #ffd060; font-size: 0.78rem; z-index: 19;
+        display: none; pointer-events: none; white-space: nowrap; bottom: 95px;
+    }
     #hint {
         position: fixed; bottom: 58px; left: 50%; transform: translateX(-50%);
         background: rgba(0,0,0,0.7); color: #aaa; font-size: 0.75rem;
@@ -89,6 +96,7 @@
 </div>
 
 <div id="invPanel">
+    <div class="inv-item" style="border-left:1px solid #555;padding-left:0;padding-right:12px"><span class="inv-icon">🪙</span><span class="inv-count" id="inv-coins" style="color:#ffd060">0</span></div>
     <div class="inv-item"><span class="inv-icon">🪵</span><span class="inv-count" id="inv-stick">0</span></div>
     <div class="inv-item"><span class="inv-icon">🪨</span><span class="inv-count" id="inv-stone">0</span></div>
     <div class="inv-item"><span class="inv-icon">🥩</span><span class="inv-count" id="inv-meat">0</span></div>
@@ -101,7 +109,9 @@
     <div class="inv-item"><span class="inv-icon">🦴</span><span class="inv-count" id="inv-horn">0</span></div>
 </div>
 
-<div id="hint">WASD / ↑↓←→ للحركة &nbsp;|&nbsp; E للتفاعل &nbsp;|&nbsp; اقترب من البوابة الشمالية للعودة للغابة</div>
+<div id="questHint"></div>
+
+<div id="hint">WASD / ↑↓←→ للحركة &nbsp;|&nbsp; E للتفاعل &nbsp;|&nbsp; بوابة الشمال ← الغابة &nbsp;|&nbsp; بوابة الجنوب ← الغابة (مقفلة)</div>
 <div id="notify"></div>
 
 <div id="modal">
@@ -115,6 +125,7 @@
 <div class="fade-overlay"></div>
 
 <script src="../js/shared.js"></script>
+<script src="../js/sounds.js"></script>
 <script>
 // ─────────────── CONFIG ───────────────
 const CFG = {
@@ -131,25 +142,26 @@ const T = { STONE: 0, ROAD: 1, BUILDING: 2, GRASS: 3, WATER: 4, SAND: 5 };
 
 // City map (22 cols × 18 rows)
 // B=building, S=stone, R=road, G=grass, W=water, D=sand/dirt
+// Districts: NORTH commerce (rows 2-4), CENTRAL plaza (rows 8-10), SOUTH (rows 14-15)
 const MAP_STR = [
     'BBBBBBBBBBBBBBBBBBBBBB',
     'BSSSSSSSSSSSSSSSSSSSBB',
-    'BSGBBBSSSSBBBSSSGSSSGB',
-    'BSGBBBSSSSBBBSSSGSSSGB',
-    'BSGBBBSSSSBBBSSSGSSSGB',
-    'BSSSSSSRRRRSSSSSSSSSBB',
-    'BSSRRRRRRRRRRRRRRSSSBB',
-    'BSSRRSSSSSSSSSRRSSSSGB',
-    'BSSRRSSGGGSSRRSSSSGGGB',
-    'BSSRRSSGGGSSRRSSSSGGGB',
-    'BSSRRSSGGGSSRRSSSSGGGG',
-    'BSSRRSSSSSSSRRSSSSSGGB',
-    'BSSRRRRRRRRRRRRRRSSSBB',
-    'BSSSSSSRRRRSSSSSSSSSBB',
-    'BSGBBBSSSSBBBSSSGSSSGB',
-    'BSGBBBSSSSBBBSSSGSSSGB',
-    'BSSSSSSSSSSSSSSSSSSSBB',
-    'BBBBBBBSSSBBBBBBBBBBBB',
+    'BSBBBSBBBSBBBSBBBSBBB',
+    'BSBBBSBBBSBBBSBBBSBBB',
+    'BSBBBSBBBSBBBSBBBSBBB',
+    'BSSSSSRRRRRRRRRSSSSSBB',
+    'BSGGGGSRGGGGGGRSGGGBB',
+    'BSGGGGSRGGGGGGRSGGGBB',
+    'BSRRSSSSSSWWSSSSSSRRSB',
+    'BSRRSSSSSSSSSSSSSSRRSB',
+    'BSRRSSSSSSSSSSSSSSRRSB',
+    'BSRRRRRRSSSSSSRRRRRRSB',
+    'BSSSSSSSRGGGGGRSSSSSSB',
+    'BSRRRRRRRGGGGGRRRRRRSB',
+    'BSBBBSBBSSSSSSBBBSBBB',
+    'BSBBBSBBSSSSSSBBBSBBB',
+    'BSSSSSSSDDDDDDDSSSSSSB',
+    'BBBBBBBDDDDDDDDBBBBBBB',
 ].map(row => [...row].map(c => ({'B':T.BUILDING,'S':T.STONE,'R':T.ROAD,'G':T.GRASS,'W':T.WATER,'D':T.SAND}[c]??T.STONE)));
 
 function getTile(c, r) {
@@ -160,12 +172,17 @@ function isBlocked(wx, wy) {
     return getTile(Math.floor(wx / CFG.TILE), Math.floor(wy / CFG.TILE)) === T.BUILDING;
 }
 
+const FOREST_PORTAL = { x: W / 2, y: CFG.TILE * 1.5, radius: 52 };
+const SOUTH_GATE = { x: W / 2, y: H - CFG.TILE * 1.5, radius: 52 };
+
 // ─────────────── STATE ───────────────
 const inv = GameState.getInventory();
 const stats = GameState.getHeroStats();
+const fromForest = GameState.load('fromCity') === false;
+if (fromForest) GameState.save('fromCity', null);
 const player = {
-    x: W / 2,
-    y: H - CFG.TILE * 2.5,
+    x: fromForest ? FOREST_PORTAL.x : W / 2,
+    y: fromForest ? FOREST_PORTAL.y + 64 : H - CFG.TILE * 2.5,
     hp: Math.min(stats.hp || 100, stats.maxHp || 100),
     maxHp: stats.maxHp || 100,
     inventory: (typeof GameState.normalizeInventory === 'function')
@@ -174,7 +191,7 @@ const player = {
             stick:0, stone:0, meat:0, horn:0, teeth:0, leather:0, fish:0, arrows:15,
             rawMeat:0, cookedMeat:0, rawFish:0, cookedFish:0,
             beastHide:0, nightCrystal:0, venomSac:0, shadowEssence:0,
-            herb:0, honey:0, herbSalve:0, revitalTonic:0
+            herb:0, honey:0, herbSalve:0, revitalTonic:0, coins:0
         }, inv),
     walkTimer: 0, isMoving: false, facing: 'down',
 };
@@ -201,28 +218,168 @@ function persistCityInventory() {
 const NPCS = [
     {
         id: 'merchant',
-        x: CFG.TILE * 5.5,  y: CFG.TILE * 8.5,
+        x: CFG.TILE * 11.5, y: CFG.TILE * 5.5,
         emoji: '🧑‍💼', label: 'التاجر',
         color: '#8060a0',
-        onInteract() { openMerchant(); }
+        greetFirst: 'أهلاً أيها المسافر… لدي سهام مقابل مواردك.',
+        greetReturn: 'عدت؟ حسناً، لنرَ ما لديك.',
+        onInteract() { openNpcIntro(this, openMerchant); }
     },
     {
         id: 'healer',
-        x: CFG.TILE * 16.5, y: CFG.TILE * 8.5,
+        x: CFG.TILE * 7, y: CFG.TILE * 5.5,
         emoji: '🧑‍⚕️', label: 'المعالج',
         color: '#2080a0',
-        onInteract() { openHealer(); }
+        greetFirst: 'الجروح كثيرة في هذه البلاد… هل تحتاج علاجاً؟',
+        greetReturn: 'الصحة أولاً. ماذا تحتاج؟',
+        onInteract() { openNpcIntro(this, openHealer); }
     },
     {
         id: 'blacksmith',
-        x: CFG.TILE * 10.5, y: CFG.TILE * 3.5,
+        x: CFG.TILE * 3, y: CFG.TILE * 5.5,
         emoji: '⚒️', label: 'الحداد',
         color: '#a06020',
-        onInteract() { openBlacksmith(); }
+        greetFirst: 'أرى معداتك… أصنع في الغابة، وأراجع هنا.',
+        greetReturn: 'أظهر لي ما صنعت.',
+        onInteract() { openNpcIntro(this, openBlacksmith); }
     },
 ];
 
-const FOREST_PORTAL = { x: W / 2, y: CFG.TILE * 1.5, radius: 52 };
+// ─────────────── NPC DIALOGUE ───────────────
+function getCityMapState() {
+    const st = GameState.getMapState('city');
+    return st || { completedQuests: [], spokenToNpcs: [], boughtItems: [] };
+}
+
+function persistCityMapState(st) {
+    GameState.setMapState('city', st || getCityMapState());
+}
+
+function markSpoken(npcId) {
+    const st = getCityMapState();
+    if (!Array.isArray(st.spokenToNpcs)) st.spokenToNpcs = [];
+    if (!st.spokenToNpcs.includes(npcId)) {
+        st.spokenToNpcs.push(npcId);
+        persistCityMapState(st);
+    }
+}
+
+function isSpoken(npcId) {
+    const st = getCityMapState();
+    return Array.isArray(st.spokenToNpcs) && st.spokenToNpcs.includes(npcId);
+}
+
+function openNpcIntro(npc, thenOpenService) {
+    const first = !isSpoken(npc.id);
+    const text = first ? npc.greetFirst : npc.greetReturn;
+    const extraButtons = first
+        ? `<button class="trade-btn" onclick="(function(){ markSpoken('${npc.id}'); ${thenOpenService.name}(); })();" style="margin-top:10px">متابعة</button>`
+        : `<button class="trade-btn" onclick="${thenOpenService.name}();" style="margin-top:10px">فتح الخدمة</button>`;
+
+    let loreBtn = '';
+    if (npc.id === 'blacksmith') {
+        loreBtn = `<button class="trade-btn" onclick="openSouthLore()" style="margin-top:10px;margin-right:8px">🗺️ عن البوابة الجنوبية</button>`;
+    }
+
+    openModal(`${npc.emoji} ${npc.label}`, `
+        <p style="margin-bottom:14px;color:#ccc;line-height:1.8">${text}</p>
+        <div style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap">
+            ${extraButtons}
+            ${loreBtn}
+        </div>
+    `);
+}
+
+function openSouthLore() {
+    openModal('🗺️ البوابة الجنوبية', `
+        <p style="margin-bottom:14px;color:#ccc;line-height:1.8">
+            البوابة الجنوبية تؤدي إلى غابة كثيفة جنوب المدينة… طريق وعِر لكنه مليء بالموارد.
+            يقول الحراس إن البوابة مغلقة بإحكام، ولا تفتح إلا لمن أثبت جدارته.
+        </p>
+        <div style="display:flex;justify-content:center">
+            <button class="trade-btn" onclick="openBlacksmith()">🔙 العودة</button>
+        </div>
+    `);
+}
+
+// Expose dialogue helpers for modal onclick handlers
+window.markSpoken = markSpoken;
+window.openSouthLore = openSouthLore;
+
+// ─────────────── TRADE TRACKING ───────────────
+function recordBought(itemId) {
+    const st = getCityMapState();
+    if (!Array.isArray(st.boughtItems)) st.boughtItems = [];
+    st.boughtItems.push({ id: itemId, at: Date.now() });
+    persistCityMapState(st);
+}
+window.recordBought = recordBought;
+
+function persistHp() {
+    const st = GameState.getHeroStats();
+    st.hp = player.hp;
+    st.maxHp = player.maxHp;
+    GameState.save('heroStats', st);
+}
+
+// ─────────────── QUESTS ───────────────
+function isQuestDone(id) {
+    const st = getCityMapState();
+    return Array.isArray(st.completedQuests) && st.completedQuests.includes(id);
+}
+
+function completeQuest(id, rewardFn) {
+    const st = getCityMapState();
+    if (!Array.isArray(st.completedQuests)) st.completedQuests = [];
+    if (!st.completedQuests.includes(id)) st.completedQuests.push(id);
+    if (typeof rewardFn === 'function') rewardFn();
+    persistCityMapState(st);
+    notify(`✔️ اكتملت: ${id}`, '#6ddc6d', 3500);
+}
+window.completeQuest = completeQuest;
+
+function isSouthGateUnlocked() {
+    return isQuestDone('quest_valley_path');
+}
+
+function persistFullCityState() {
+    persistCityInventory();
+    persistCityMapState(getCityMapState());
+    persistHp();
+}
+
+// ─────────────── PORTAL CONSTANTS ───────────────
+let portalCooldownUntil = 0;
+
+function isNearPortal(portal) {
+    return Math.hypot(player.x - portal.x, player.y - portal.y) < portal.radius;
+}
+
+function tryPortal(goFn) {
+    const now = Date.now();
+    if (now < portalCooldownUntil) return;
+    if (document.getElementById('modal').classList.contains('open')) return;
+    portalCooldownUntil = now + 1000;
+    goFn();
+}
+
+function saveAndGoSouthForest() {
+    if (typeof SFX !== 'undefined' && SFX.portalWhoosh) SFX.portalWhoosh();
+    stopCityAmbient();
+    persistFullCityState();
+    if (typeof GameState.save === 'function') GameState.save('completedCity', true);
+    if (typeof GameState.setCurrentMap === 'function') GameState.setCurrentMap('forest');
+    if (typeof navigateToScene === 'function') {
+        navigateToScene('forest', {
+            skipPrereq: true,
+            save: () => GameState.autoSave(true)
+        });
+    } else if (typeof navigateTo === 'function') {
+        navigateTo('../forest/index.html');
+    } else {
+        window.location.href = '../forest/index.html';
+    }
+}
 
 // ─────────────── CANVAS ───────────────
 const canvas = document.getElementById('canvas');
@@ -381,6 +538,25 @@ document.addEventListener('keydown', e => {
 });
 document.addEventListener('keyup', e => { keys[e.key] = false; });
 
+// ─────────────── AMBIENT AUDIO ───────────────
+let _cityAmbientStarted = false;
+function startCityAmbient() {
+    if (_cityAmbientStarted) return;
+    if (typeof SFX === 'undefined' || !SFX.startCityAmbient) return;
+    SFX.startCityAmbient();
+    _cityAmbientStarted = true;
+}
+function stopCityAmbient() {
+    _cityAmbientStarted = false;
+    if (typeof SFX === 'undefined' || !SFX.stopCityAmbient) return;
+    SFX.stopCityAmbient();
+}
+// Start after first user gesture (click / keydown)
+document.addEventListener('click', () => startCityAmbient(), { once: true });
+document.addEventListener('keydown', () => startCityAmbient(), { once: true });
+// Stop on page unload
+window.addEventListener('pagehide', stopCityAmbient);
+
 // ─────────────── HELPERS ───────────────
 function notify(msg, color = '#ffd060', duration = 2200) {
     const el = document.getElementById('notify');
@@ -395,6 +571,7 @@ function updateHUD() {
     document.getElementById('hpBar').style.width = (player.hp / player.maxHp * 100) + '%';
     document.getElementById('hpVal').textContent = `${Math.ceil(player.hp)}/${player.maxHp}`;
     const inv = player.inventory;
+    document.getElementById('inv-coins').textContent = inv.coins || 0;
     document.getElementById('inv-stick').textContent = inv.stick || 0;
     document.getElementById('inv-stone').textContent = inv.stone || 0;
     document.getElementById('inv-meat').textContent = foodCount('meat');
@@ -407,13 +584,37 @@ function updateHUD() {
     if (honeyEl) honeyEl.textContent = inv.honey || 0;
     document.getElementById('inv-fish').textContent = foodCount('fish');
     document.getElementById('inv-arrows').textContent = inv.arrows || 0;
+    refreshCityQuestHint();
+}
+
+function refreshCityQuestHint() {
+    const el = document.getElementById('questHint');
+    if (!el) return;
+    if (isQuestDone('quest_valley_path')) {
+        if (GameState.load('completedCity', false)) {
+            el.style.display = 'none';
+        } else {
+            el.textContent = '🔓 البوابة الجنوبية مفتوحة — الغابة الجنوبية';
+            el.style.display = 'block';
+        }
+        return;
+    }
+    if (isQuestDone('quest_traveler_supplies')) {
+        el.textContent = '📋 مهمة: طريق الوادي — سلّم للحداد 🐺 جلد وحشي + 🦷 3 أسنان';
+        el.style.display = 'block';
+        return;
+    }
+    const st = getCityMapState();
+    const barters = Array.isArray(st.boughtItems) ? st.boughtItems.length : 0;
+    el.textContent = `📋 مهمة: ذخيرة المسافر — مقايضات ${barters}/2 أو 🏹 سهام ≥20`;
+    el.style.display = 'block';
 }
 
 function saveAndExit() {
-    // Zone transition save — inventory + hero + crafted stay canonical in GameState
-    persistCityInventory();
+    if (typeof SFX !== 'undefined' && SFX.portalWhoosh) SFX.portalWhoosh();
+    stopCityAmbient();
+    persistFullCityState();
     if (typeof GameState.getCraftedItems === 'function') {
-        // ensure crafted flags remain (city does not mutate them, but re-persist)
         GameState.save('craftedItems', GameState.getCraftedItems());
     }
     GameState.save('fromCity', true);
@@ -433,9 +634,35 @@ function saveAndExit() {
 // ─────────────── INTERACTION ───────────────
 function handleInteract() {
     if (document.getElementById('modal').classList.contains('open')) return;
-    // Forest portal
-    if (Math.hypot(player.x - FOREST_PORTAL.x, player.y - FOREST_PORTAL.y) < FOREST_PORTAL.radius) {
-        saveAndExit(); return;
+    const now = Date.now();
+    if (now < portalCooldownUntil) return;
+    // Forest portal — always open (hub rule)
+    if (isNearPortal(FOREST_PORTAL)) {
+        portalCooldownUntil = now + 1000;
+        openModal('🌲 العودة للغابة', `
+            <p style="margin-bottom:14px;color:#ccc;line-height:1.8">العودة إلى الغابة؟ الغابة تربط كل المناطق.</p>
+            <div style="display:flex;justify-content:center;gap:8px">
+                <button class="trade-btn" onclick="closeModal(); saveAndExit();">نعم</button>
+                <button class="trade-btn" onclick="closeModal();">لا</button>
+            </div>
+        `);
+        return;
+    }
+    // South gate
+    if (isNearPortal(SOUTH_GATE)) {
+        portalCooldownUntil = now + 1000;
+        if (!isSouthGateUnlocked()) {
+            notify('🚧 البوابة الجنوبية مغلقة — أكمل مهام المدينة أولاً', '#e74c3c');
+        } else {
+            openModal('🚪 البوابة الجنوبية', `
+                <p style="margin-bottom:14px;color:#ccc;line-height:1.8">البوابة مفتوحة. هل أنت مستعد للذهاب إلى الغابة الجنوبية؟</p>
+                <div style="display:flex;justify-content:center;gap:8px">
+                    <button class="trade-btn" onclick="closeModal(); saveAndGoSouthForest();">🗡️ اذهب إلى الغابة</button>
+                    <button class="trade-btn" onclick="closeModal()">إلغاء</button>
+                </div>
+            `);
+        }
+        return;
     }
     // NPC
     const npc = NPCS.find(n => Math.hypot(player.x - n.x, player.y - n.y) < 55);
@@ -461,43 +688,111 @@ function tradeRow(label, cost, costIcon, give, giveIcon, action) {
     </div>`;
 }
 
+function coinSellRow(label, cost, costIcon, coinAmt, action) {
+    return `<div class="trade-row">
+        <span>${costIcon} ${label} ← +${coinAmt} 🪙</span>
+        <button class="trade-btn" onclick="${action}">بيع</button>
+    </div>`;
+}
+function coinBuyRow(label, give, giveIcon, coinAmt, action) {
+    return `<div class="trade-row">
+        <span>🪙 ${coinAmt} ← ${giveIcon} +${give} ${label}</span>
+        <button class="trade-btn" onclick="${action}">شراء</button>
+    </div>`;
+}
+
 function openMerchant() {
     const meatN = foodCount('meat');
     const fishN = foodCount('fish');
+    const coins = player.inventory.coins || 0;
+    const questDone = isQuestDone('quest_traveler_supplies');
+    const qProgress = questDone ? 'مكتملة ✔' : `تم التبادل ${getCityMapState().boughtItems?.length || 0}/2`;
+    const qBtn = questDone
+        ? `<p style="margin-top:14px;color:#6ddc6d;font-size:0.85rem">✔️ ذخيرة المسافر — مكتملة</p>`
+        : `<div class="trade-row" style="margin-top:14px">
+            <span>📦 ذخيرة المسافر — ${qProgress}</span>
+            <button class="trade-btn" onclick="checkTravelerQuest()">مهمة</button>
+          </div>`;
     openModal('🧑‍💼 التاجر', `
-        <p style="margin-bottom:12px;color:#ccc">بادل مواردك بالسهام:</p>
+        <p style="margin-bottom:12px;color:#ccc">💳 رصيدك: 🪙 ${coins} دينار</p>
+        <p style="margin-bottom:8px;color:#ccc">بادل مواردك بالسهام:</p>
         ${tradeRow('جلد', 2, '🧥', 8, '🏹', 'trade("leather",2,"arrows",8)')}
+        ${tradeRow('جلد وحشي', 1, '🐺', 15, '🏹', 'trade("beastHide",1,"arrows",15)')}
+        ${tradeRow('كيس سم', 1, '🧪', 12, '🏹', 'trade("venomSac",1,"arrows",12)')}
         ${tradeRow('لحم (' + meatN + ')', 3, '🥩', 6, '🏹', 'tradeFood("meat",3,"arrows",6)')}
         ${tradeRow('سمكة (' + fishN + ')', 2, '🐟', 5, '🏹', 'tradeFood("fish",2,"arrows",5)')}
         ${tradeRow('أسنان', 1, '🦷', 10, '🏹', 'trade("teeth",1,"arrows",10)')}
         <hr style="border-color:#555;margin:14px 0">
-        <p style="color:#ccc;margin-bottom:10px">بيع موارد مقابل سهام:</p>
-        ${tradeRow('عصا', 5, '🪵', 3, '🏹', 'trade("stick",5,"arrows",3)')}
+        <p style="color:#aaa;margin-bottom:10px">💰 بيع مواردك — اكسب دنانير:</p>
+        ${coinSellRow('2 🧥 جلد', 2, '🧥', 3, 'sellForCoins("leather",2,3)')}
+        ${coinSellRow('3 🦷 أسنان', 3, '🦷', 2, 'sellForCoins("teeth",3,2)')}
+        ${coinSellRow('1 🐺 جلد وحشي', 1, '🐺', 5, 'sellForCoins("beastHide",1,5)')}
+        <hr style="border-color:#555;margin:14px 0">
+        <p style="color:#aaa;margin-bottom:10px">🛒 اشترِ بالدنانير:</p>
+        ${coinBuyRow('🏹 سهام', 5, '🏹', 2, 'buyWithCoins("arrows",5,2)')}
+        ${coinBuyRow('🌿 عشبة', 2, '🌿', 1, 'buyWithCoins("herb",2,1)')}
+        ${coinBuyRow('🧪 مرهم', 1, '🧪', 3, 'buyWithCoins("herbSalve",1,3)')}
+        ${qBtn}
     `);
 }
+
+function checkTravelerQuest() {
+    if (isQuestDone('quest_traveler_supplies')) {
+        notify('✔️ أنجزت ذخيرة المسافر من قبل', '#6ddc6d');
+        openMerchant();
+        return;
+    }
+    const barters = getCityMapState().boughtItems?.length || 0;
+    const arrows = player.inventory.arrows || 0;
+    if (barters >= 2 || arrows >= 20) {
+        completeQuest('quest_traveler_supplies', () => {
+            player.inventory.arrows = (player.inventory.arrows || 0) + 10;
+            persistCityInventory();
+        });
+        notify('✔️ اكتملت: ذخيرة المسافر +10 🏹', '#6ddc6d');
+        if (typeof SFX !== 'undefined' && SFX.cityChime) SFX.cityChime();
+        updateHUD();
+        openMerchant();
+    } else {
+        const needBarters = Math.max(0, 2 - barters);
+        const needArrows = Math.max(0, 20 - arrows);
+        notify(`❌ تحتاج ${needBarters} مقايضات إضافية أو ${needArrows} 🏹 سهماً`, '#e74c3c');
+    }
+}
+window.checkTravelerQuest = checkTravelerQuest;
 
 function openHealer() {
     const healCost = 2;
     const meatN = foodCount('meat');
     const fishN = foodCount('fish');
+    const fullHp = player.hp >= player.maxHp;
+    const rested = hasRested();
     openModal('🧑‍⚕️ المعالج', `
-        <p style="margin-bottom:12px;color:#ccc">الصحة الحالية: ❤️ ${Math.ceil(player.hp)}/${player.maxHp}</p>
+        <p style="margin-bottom:12px;color:#ccc">الصحة الحالية: ❤️ ${Math.ceil(player.hp)}/${player.maxHp}${fullHp ? ' ✔' : ''}</p>
         <div class="trade-row">
             <span>🥩 ${healCost} لحم (لديك ${meatN}) → استعادة كاملة للصحة</span>
-            <button class="trade-btn" onclick="heal()">علاج</button>
+            <button class="trade-btn" onclick="heal()" ${fullHp || meatN < healCost ? 'disabled' : ''}>علاج</button>
         </div>
         <div class="trade-row" style="margin-top:8px">
             <span>🐟 ${healCost} سمكة (لديك ${fishN}) → استعادة نصف الصحة</span>
-            <button class="trade-btn" onclick="healFish()">علاج جزئي</button>
+            <button class="trade-btn" onclick="healFish()" ${fullHp || fishN < healCost ? 'disabled' : ''}>علاج جزئي</button>
         </div>
         <div class="trade-row" style="margin-top:8px">
-            <span>💤 راحة في المدينة (مجانية) → +20❤️</span>
-            <button class="trade-btn" onclick="rest()">استراح</button>
+            <span>💤 راحة في المدينة${rested ? ' — استرحت مسبقاً' : ' (مجانية) → +20❤️'}</span>
+            <button class="trade-btn" onclick="rest()" ${rested || fullHp ? 'disabled' : ''}>${rested ? '✔ تم' : 'استراح'}</button>
         </div>
     `);
 }
 
 function openBlacksmith() {
+    const upgraded = hasWeaponUpgraded();
+    const questDone = isQuestDone('quest_valley_path');
+    const qBtn = questDone
+        ? `<p style="margin-top:14px;color:#6ddc6d;font-size:0.85rem">✔️ طريق الوادي — البوابة مفتوحة</p>`
+        : `<div class="trade-row" style="margin-top:14px">
+            <span>🗺️ طريق الوادي — 🐺 جلد وحشي 1 + 🦷 أسنان 3</span>
+            <button class="trade-btn" onclick="checkValleyQuest()">تسليم</button>
+          </div>`;
     openModal('⚒️ الحداد', `
         <p style="margin-bottom:12px;color:#ccc">المعدات المصنوعة حتى الآن:</p>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
@@ -507,10 +802,43 @@ function openBlacksmith() {
             ${craftItem('⚔️','السيف','hornSword')}
             ${craftItem('🛡️','الدرع الجلدي','leatherArmor')}
             ${craftItem('🌑','درع الظلال','shadowArmor')}
+            ${craftItem('🌙','نصل الليل','nightBlade')}
         </div>
+        <hr style="border-color:#555;margin:14px 0">
+        <p style="color:#ccc;margin-bottom:10px">تطوير:</p>
+        <div class="trade-row">
+            <span>🔪 شحذ السلاح — 🪨 2 + 🦴 1 → +5 هجوم</span>
+            <button class="trade-btn" onclick="weaponSharpen()" ${upgraded ? 'disabled' : ''}>${upgraded ? '✔ تم' : 'شحذ'}</button>
+        </div>
+        <hr style="border-color:#555;margin:14px 0">
+        ${qBtn}
         <p style="margin-top:14px;color:#888;font-size:0.8rem">اضغط F في الغابة لفتح قائمة الصناعة</p>
     `);
 }
+
+function checkValleyQuest() {
+    if (isQuestDone('quest_valley_path')) {
+        notify('✔️ أنجزت طريق الوادي من قبل — البوابة مفتوحة', '#6ddc6d');
+        openBlacksmith();
+        return;
+    }
+    const hide = player.inventory.beastHide || 0;
+    const teeth = player.inventory.teeth || 0;
+    if (hide < 1) { notify('❌ تحتاج 🐺 جلد وحشي 1 على الأقل', '#e74c3c'); return; }
+    if (teeth < 3) { notify('❌ تحتاج 🦷 أسنان 3 على الأقل', '#e74c3c'); return; }
+    player.inventory.beastHide -= 1;
+    player.inventory.teeth -= 3;
+    completeQuest('quest_valley_path', () => {
+        persistCityInventory();
+        if (typeof GameState.save === 'function') GameState.save('completedCity', true);
+        notify('🗺️ البوابة الجنوبية فُتحت! يمكنك الذهاب إلى الغابة الجنوبية', '#ffd060', 4000);
+    });
+    if (typeof SFX !== 'undefined' && SFX.cityChime) SFX.cityChime();
+    persistCityInventory();
+    updateHUD();
+    openBlacksmith();
+}
+window.checkValleyQuest = checkValleyQuest;
 
 function craftItem(emoji, name, id) {
     const crafted = GameState.getCraftedItems();
@@ -528,6 +856,7 @@ window.trade = function(fromItem, fromAmt, toItem, toAmt) {
     }
     player.inventory[fromItem] -= fromAmt;
     player.inventory[toItem] = (player.inventory[toItem] || 0) + toAmt;
+    recordBought(toItem);
     notify(`✅ حصلت على ${toAmt} 🏹`, '#6ddc6d');
     persistCityInventory();
     updateHUD();
@@ -546,13 +875,43 @@ window.tradeFood = function(kind, fromAmt, toItem, toAmt) {
         player.inventory[kind] = (player.inventory[kind] || 0) - fromAmt;
     }
     player.inventory[toItem] = (player.inventory[toItem] || 0) + toAmt;
+    recordBought(toItem);
     notify(`✅ حصلت على ${toAmt} 🏹`, '#6ddc6d');
     persistCityInventory();
     updateHUD();
     openMerchant();
 };
 
+window.sellForCoins = function(item, qty, coinAmt) {
+    const inv = player.inventory;
+    if ((inv[item] || 0) < qty) {
+        notify(`❌ ليس لديك ما يكفي من ${item}`, '#e74c3c');
+        return;
+    }
+    inv[item] = (inv[item] || 0) - qty;
+    inv.coins = (inv.coins || 0) + coinAmt;
+    persistCityInventory();
+    updateHUD();
+    openMerchant();
+    notify(`💰 ربحت ${coinAmt} دينار`, '#ffd060');
+};
+
+window.buyWithCoins = function(item, qty, coinAmt) {
+    const inv = player.inventory;
+    if ((inv.coins || 0) < coinAmt) {
+        notify(`❌ تحتاج ${coinAmt} دينار`, '#e74c3c');
+        return;
+    }
+    inv.coins = (inv.coins || 0) - coinAmt;
+    inv[item] = (inv[item] || 0) + qty;
+    persistCityInventory();
+    updateHUD();
+    openMerchant();
+    notify(`✅ اشتريت ${qty} ${item}`, '#6ddc6d');
+};
+
 window.heal = function() {
+    if (player.hp >= player.maxHp) { notify('❤️ صحتك كاملة!', '#6ddc6d'); closeModal(); return; }
     if (foodCount('meat') < 2) { notify('❌ تحتاج 2 لحمة', '#e74c3c'); return; }
     if (typeof GameState !== 'undefined' && GameState.takeFood) {
         GameState.takeFood(player.inventory, 'meat', 2);
@@ -561,11 +920,13 @@ window.heal = function() {
     }
     player.hp = player.maxHp;
     persistCityInventory();
+    persistHp();
     notify('❤️ استعدت صحتك كاملة!', '#e74c3c');
     closeModal();
 };
 
 window.healFish = function() {
+    if (player.hp >= player.maxHp) { notify('❤️ صحتك كاملة!', '#6ddc6d'); closeModal(); return; }
     if (foodCount('fish') < 2) { notify('❌ تحتاج 2 سمكة', '#e74c3c'); return; }
     if (typeof GameState !== 'undefined' && GameState.takeFood) {
         GameState.takeFood(player.inventory, 'fish', 2);
@@ -574,15 +935,58 @@ window.healFish = function() {
     }
     player.hp = Math.min(player.maxHp, player.hp + Math.floor(player.maxHp / 2));
     persistCityInventory();
+    persistHp();
     notify('❤️ تعافيت جزئياً!', '#5dade2');
     closeModal();
 };
 
+function hasRested() {
+    const st = getCityMapState();
+    return !!(st._restedOnce);
+}
+
+function markRested() {
+    const st = getCityMapState();
+    st._restedOnce = true;
+    persistCityMapState(st);
+}
+
 window.rest = function() {
+    if (player.hp >= player.maxHp) { notify('❤️ صحتك كاملة!', '#6ddc6d'); closeModal(); return; }
+    if (hasRested()) { notify('💤 استرحت مسبقاً اليوم', '#aaddff'); closeModal(); return; }
     const before = player.hp;
     player.hp = Math.min(player.maxHp, player.hp + 20);
+    markRested();
     persistCityInventory();
+    persistHp();
     notify(`💤 استرحت! +${Math.round(player.hp - before)}❤️`, '#aaddff');
+    closeModal();
+};
+
+// ─────────────── WEAPON SHARPEN ───────────────
+function hasWeaponUpgraded() {
+    const st = getCityMapState();
+    return !!(st._weaponUpgraded);
+}
+
+function markWeaponUpgraded() {
+    const st = getCityMapState();
+    st._weaponUpgraded = true;
+    persistCityMapState(st);
+}
+
+window.weaponSharpen = function() {
+    if (hasWeaponUpgraded()) { notify('✅ سبق وشحذت سلاحك', '#aaddff'); closeModal(); return; }
+    if ((player.inventory.stone || 0) < 2) { notify('❌ تحتاج 2 🪨 حجر', '#e74c3c'); return; }
+    if ((player.inventory.horn || 0) < 1) { notify('❌ تحتاج 1 🦴 قرن', '#e74c3c'); return; }
+    player.inventory.stone -= 2;
+    player.inventory.horn -= 1;
+    markWeaponUpgraded();
+    const stats = GameState.getHeroStats();
+    stats.absorbedAttack = (stats.absorbedAttack || 0) + 5;
+    GameState.save('heroStats', stats);
+    persistCityInventory();
+    notify('🗡️ شحذت سلاحك! +5 هجوم', '#ffd060');
     closeModal();
 };
 
@@ -676,15 +1080,15 @@ function drawBuildings() {
     ctx.save();
     // Top buildings row — row 2-4
     const bldgs = [
-        { c:1, r:2, w:3, h:3, color:'#604828', label:'⚒️ الحداد', npcId:'blacksmith' },
+        { c:1, r:2, w:4, h:3, color:'#604828', label:'⚒️ الحداد', npcId:'blacksmith' },
         { c:5, r:2, w:4, h:3, color:'#284860', label:'🏥 المشفى', npcId:'healer' },
-        { c:10, r:2, w:4, h:3, color:'#284828', label:'🛒 التاجر', npcId:'merchant' },
-        { c:15, r:2, w:3, h:3, color:'#482848', label:'🏨 النزل', npcId:null },
-        { c:18, r:2, w:3, h:3, color:'#483020', label:'📚 المكتبة', npcId:null },
-        { c:1, r:14, w:3, h:3, color:'#405030', label:'🌾 المزرعة', npcId:null },
-        { c:5, r:14, w:4, h:3, color:'#503040', label:'🏺 الحرفي', npcId:null },
-        { c:15, r:14, w:3, h:3, color:'#304050', label:'⚗️ العالم', npcId:null },
-        { c:18, r:14, w:3, h:3, color:'#504020', label:'🍺 الحانة', npcId:null },
+        { c:9, r:2, w:5, h:3, color:'#284828', label:'🛒 التاجر', npcId:'merchant' },
+        { c:14, r:2, w:4, h:3, color:'#482848', label:'🏨 النزل', npcId:null },
+        { c:18, r:2, w:4, h:3, color:'#483020', label:'📚 المكتبة', npcId:null },
+        { c:1, r:14, w:4, h:2, color:'#405030', label:'🌾 المزرعة', npcId:null },
+        { c:5, r:14, w:4, h:2, color:'#503040', label:'🏺 الحرفي', npcId:null },
+        { c:14, r:14, w:4, h:2, color:'#304050', label:'⚗️ العالم', npcId:null },
+        { c:18, r:14, w:4, h:2, color:'#504020', label:'🍺 الحانة', npcId:null },
     ];
     for (const b of bldgs) {
         const bx = b.c * ts, by = b.r * ts, bw = b.w * ts, bh = b.h * ts;
@@ -710,7 +1114,11 @@ function drawBuildings() {
 function drawNPCs() {
     for (const npc of NPCS) {
         const near = Math.hypot(player.x - npc.x, player.y - npc.y) < 55;
+        const spoken = isSpoken(npc.id);
         ctx.save();
+        // Ground marker (building accent)
+        ctx.fillStyle = npc.color + '40';
+        ctx.beginPath(); ctx.ellipse(npc.x, npc.y + 4, 20, 10, 0, 0, Math.PI*2); ctx.fill();
         // Shadow
         ctx.fillStyle = 'rgba(0,0,0,0.25)';
         ctx.beginPath(); ctx.ellipse(npc.x, npc.y + 12, 14, 6, 0, 0, Math.PI*2); ctx.fill();
@@ -718,7 +1126,7 @@ function drawNPCs() {
         const pulse = near ? 1 + Math.sin(Date.now() * 0.005) * 0.08 : 1;
         ctx.beginPath(); ctx.arc(npc.x, npc.y, 18 * pulse, 0, Math.PI*2);
         ctx.fillStyle = npc.color; ctx.fill();
-        ctx.strokeStyle = near ? '#ffd060' : 'rgba(255,255,255,0.3)';
+        ctx.strokeStyle = near ? '#ffd060' : (spoken ? 'rgba(255,208,96,0.25)' : 'rgba(255,255,255,0.3)');
         ctx.lineWidth = near ? 2 : 1; ctx.stroke();
         // Emoji
         ctx.font = `${18*pulse}px serif`;
@@ -729,6 +1137,13 @@ function drawNPCs() {
         ctx.font = `bold ${near?11:9}px Cairo`;
         ctx.fillStyle = near ? '#ffd060' : '#cccccc';
         ctx.fillText(npc.label, npc.x, npc.y - 24 * pulse);
+        // Spoken checkmark
+        if (spoken && !near) {
+            ctx.font = '10px Cairo';
+            ctx.fillStyle = 'rgba(255,208,96,0.5)';
+            ctx.textAlign = 'center';
+            ctx.fillText('✓', npc.x + 20, npc.y - 28);
+        }
         // Interaction hint
         if (near) {
             ctx.fillStyle = 'rgba(0,0,0,0.65)';
@@ -781,7 +1196,7 @@ function drawPlayer() {
 
 function drawWell() {
     // Central decorative well
-    const wx = W/2, wy = H/2;
+    const wx = W/2, wy = CFG.TILE * 8.5;
     ctx.save();
     ctx.fillStyle = '#7a7060';
     ctx.beginPath(); ctx.ellipse(wx, wy+5, 22, 10, 0, 0, Math.PI*2); ctx.fill();
@@ -801,6 +1216,238 @@ function drawWell() {
     ctx.restore();
 }
 
+// ─────────────── DISTRICT LABELS ───────────────
+function drawDistrictLabels() {
+    const ts = CFG.TILE;
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    // North commerce district
+    ctx.font = 'bold 14px Cairo';
+    ctx.fillStyle = 'rgba(255,208,96,0.85)';
+    ctx.shadowColor = 'rgba(0,0,0,0.6)';
+    ctx.shadowBlur = 6;
+    ctx.fillText('ـــ حي التجارة ـــ', W / 2, 1.6 * ts);
+    ctx.shadowBlur = 0;
+
+    // Central plaza label — above well
+    ctx.font = 'bold 16px Cairo';
+    ctx.fillStyle = 'rgba(255,208,96,0.9)';
+    ctx.shadowColor = 'rgba(0,0,0,0.6)';
+    ctx.shadowBlur = 8;
+    ctx.fillText('✦ ساحة المدينة ✦', W / 2, 7.3 * ts);
+    ctx.shadowBlur = 0;
+
+    // South district
+    ctx.font = 'bold 14px Cairo';
+    ctx.fillStyle = 'rgba(255,208,96,0.8)';
+    ctx.shadowColor = 'rgba(0,0,0,0.5)';
+    ctx.shadowBlur = 6;
+    ctx.fillText('ـــ الحي الجنوبي ـــ', W / 2, 13.5 * ts);
+    ctx.shadowBlur = 0;
+
+    // South gate directional hint
+    ctx.font = '11px Cairo';
+    ctx.fillStyle = isSouthGateUnlocked() ? 'rgba(160,255,128,0.75)' : 'rgba(200,160,80,0.65)';
+    ctx.shadowColor = 'rgba(0,0,0,0.5)';
+    ctx.shadowBlur = 4;
+    ctx.fillText(isSouthGateUnlocked() ? '↓ الغابة الجنوبية — مفتوح' : '↓ بوابة الغابة الجنوبية (مقفلة)', W / 2, 16 * ts);
+    ctx.shadowBlur = 0;
+
+    ctx.restore();
+}
+
+// ─────────────── SOUTH GATE ───────────────
+function drawSouthGate() {
+    const ts = CFG.TILE;
+    const gx = SOUTH_GATE.x;
+    const gy = SOUTH_GATE.y;
+    const unlocked = isSouthGateUnlocked();
+    const near = isNearPortal(SOUTH_GATE);
+    const pulse = 0.85 + Math.sin(Date.now() * (unlocked ? 0.003 : 0.004)) * 0.15;
+
+    ctx.save();
+    // Left pillar
+    ctx.fillStyle = '#5a4a38';
+    ctx.fillRect(gx - 3.5 * ts - 5, gy - 48, 16, 64);
+    ctx.fillStyle = '#6a5a48';
+    ctx.fillRect(gx - 3.5 * ts - 3, gy - 46, 6, 60);
+    // Right pillar
+    ctx.fillStyle = '#5a4a38';
+    ctx.fillRect(gx + 3.5 * ts - 11, gy - 48, 16, 64);
+    ctx.fillStyle = '#6a5a48';
+    ctx.fillRect(gx + 3.5 * ts - 9, gy - 46, 6, 60);
+
+    if (unlocked) {
+        // Arch glow — green
+        const grd = ctx.createRadialGradient(gx, gy - 10, 4, gx, gy - 10, 50);
+        grd.addColorStop(0, `rgba(80,220,120,${0.4 * pulse})`);
+        grd.addColorStop(1, 'rgba(40,180,80,0)');
+        ctx.fillStyle = grd;
+        ctx.beginPath();
+        ctx.ellipse(gx, gy - 10, 60, 30, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // Sign — open
+        const signY = gy - 50;
+        ctx.fillStyle = '#3a2808';
+        ctx.fillRect(gx - 72, signY - 10, 144, 22);
+        ctx.strokeStyle = '#806020';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(gx - 72, signY - 10, 144, 22);
+        ctx.fillStyle = '#a0ff80';
+        ctx.font = 'bold 11px Cairo';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('🚪 الغابة الجنوبية — مفتوح', gx, signY + 2);
+    } else {
+        // Cross beam
+        ctx.fillStyle = '#4a3a28';
+        ctx.fillRect(gx - 3.5 * ts - 5, gy - 50, 7 * ts + 10, 10);
+        ctx.strokeStyle = '#6a5a3a';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(gx - 3.5 * ts - 5, gy - 50, 7 * ts + 10, 10);
+        // Chains
+        ctx.strokeStyle = '#8a7a6a';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(gx - 3.2 * ts, gy - 40);
+        ctx.lineTo(gx - ts * 1.2, gy + 8);
+        ctx.moveTo(gx + 3.2 * ts, gy - 40);
+        ctx.lineTo(gx + ts * 1.2, gy + 8);
+        ctx.stroke();
+        // Lock
+        ctx.font = '24px serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.shadowColor = 'rgba(200,0,0,0.5)';
+        ctx.shadowBlur = 8 * pulse;
+        const r = Math.floor(180 + 75 * (1 - pulse));
+        ctx.fillStyle = `rgb(${r},60,40)`;
+        ctx.fillText('🔒', gx, gy - 6);
+        ctx.shadowBlur = 0;
+        // Sign
+        const signY = gy + 28;
+        ctx.fillStyle = 'rgba(0,0,0,0.65)';
+        ctx.beginPath();
+        ctx.roundRect(gx - 72, signY - 10, 144, 22, 6);
+        ctx.fill();
+        ctx.fillStyle = '#ffd060';
+        ctx.font = 'bold 11px Cairo';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('🚧 بوابة الغابة الجنوبية — مقفلة', gx, signY + 2);
+    }
+    // Proximity hint
+    if (near) {
+        if (unlocked) {
+            ctx.fillStyle = 'rgba(0,0,0,0.65)';
+            ctx.beginPath();
+            ctx.roundRect(gx - 72, gy + (unlocked ? 30 : 50), 144, 20, 6);
+            ctx.fill();
+            ctx.fillStyle = '#a0ff80';
+            ctx.font = 'bold 10px Cairo';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('[E] اذهب إلى الغابة الجنوبية 🗡️', gx, gy + (unlocked ? 40 : 60));
+        } else {
+            ctx.fillStyle = 'rgba(200,60,40,0.1)';
+            ctx.beginPath();
+            ctx.roundRect(gx - 80, gy + 50, 160, 20, 6);
+            ctx.fill();
+        }
+    }
+    ctx.restore();
+}
+
+// ─────────────── WALKERS ───────────────
+const WALKER_WAYPOINTS = [
+    {
+        pts: [
+            { x: CFG.TILE * 6 + 12, y: CFG.TILE * 5 + CFG.TILE / 2 },
+            { x: CFG.TILE * 14 + 12, y: CFG.TILE * 5 + CFG.TILE / 2 },
+        ],
+        emoji: '👤', color: '#7a9a6a', speed: 0.03
+    },
+    {
+        pts: [
+            { x: W / 2, y: CFG.TILE * 7 + CFG.TILE / 2 },
+            { x: W / 2, y: CFG.TILE * 12 + CFG.TILE / 2 },
+        ],
+        emoji: '🧑', color: '#6a7a9a', speed: 0.025
+    },
+    {
+        pts: [
+            { x: CFG.TILE * 3 + 12, y: CFG.TILE * 13 + CFG.TILE / 2 },
+            { x: CFG.TILE * 20 + 12, y: CFG.TILE * 13 + CFG.TILE / 2 },
+        ],
+        emoji: '👩', color: '#9a7a6a', speed: 0.028
+    },
+];
+
+const walkers = WALKER_WAYPOINTS.map(w => ({
+    pts: w.pts,
+    emoji: w.emoji,
+    color: w.color,
+    speed: w.speed,
+    idx: 0,
+    t: 0,
+    x: w.pts[0].x,
+    y: w.pts[0].y,
+    pauseTimer: 0,
+}));
+
+function updateWalkers(dt) {
+    for (const w of walkers) {
+        if (w.pauseTimer > 0) {
+            w.pauseTimer -= dt;
+            continue;
+        }
+        const a = w.pts[w.idx];
+        const b = w.pts[(w.idx + 1) % w.pts.length];
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist < 1) continue;
+        w.t += w.speed * dt * 0.06;
+        if (w.t >= 1) {
+            w.t = 0;
+            w.idx = (w.idx + 1) % w.pts.length;
+            w.pauseTimer = 500 + Math.random() * 1000;
+            // Snap to endpoint before next lerp
+            w.x = b.x;
+            w.y = b.y;
+        } else {
+            w.x = a.x + (b.x - a.x) * w.t;
+            w.y = a.y + (b.y - a.y) * w.t;
+        }
+    }
+}
+
+function drawWalkers() {
+    for (const w of walkers) {
+        ctx.save();
+        // Shadow
+        ctx.fillStyle = 'rgba(0,0,0,0.2)';
+        ctx.beginPath();
+        ctx.ellipse(w.x, w.y + 10, 10, 4, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // Body circle
+        ctx.beginPath();
+        ctx.arc(w.x, w.y, 14, 0, Math.PI * 2);
+        ctx.fillStyle = w.color;
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        // Emoji
+        ctx.font = '16px serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(w.emoji, w.x, w.y);
+        ctx.restore();
+    }
+}
+
 // ─────────────── GAME LOOP ───────────────
 let cityPaused = false;
 let _cityRafId = 0;
@@ -813,13 +1460,17 @@ function gameLoop(ts) {
     lastTime = ts;
 
     updatePlayer(dt);
+    updateWalkers(dt);
 
     ctx.clearRect(0, 0, W, H);
     drawTerrain();
     drawBuildings();
     drawWell();
+    drawDistrictLabels();
     drawPortal();
+    drawSouthGate();
     drawNPCs();
+    drawWalkers();
     drawPlayer();
 }
 

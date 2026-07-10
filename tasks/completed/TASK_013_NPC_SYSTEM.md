@@ -1,5 +1,8 @@
 # TASK_013 — NPC_SYSTEM
 
+## Status
+**Done.** Three NPCs with first/return Arabic greetings, `maps.city.spokenToNpcs` persistence, spoken checkmark, blacksmith Death Valley lore button. Service UIs open after intro.
+
 ## Objective
 Extend the existing three city NPCs (`merchant`, `healer`, `blacksmith` in `game/city/index.html`) with light Arabic dialogue lines and persistence via `maps.city.spokenToNpcs`. Keep the HTML `#modal` pattern — **no** full reputation RPG, quest-log HUD, or night despawn system.
 
@@ -73,9 +76,9 @@ onInteract() { openNpcIntro(this, openMerchant); }
 ```
 
 ## Verification & Acceptance Criteria
-- [ ] Still exactly **3** interactive NPCs (merchant, healer, blacksmith)
-- [ ] E opens `#modal` with Arabic greeting then existing service UI
-- [ ] First visit recorded in `maps.city.spokenToNpcs` and survives save/reload
-- [ ] Return visits use shorter line or skip intro
-- [ ] Escape / close button still works; no Pixi
-- [ ] No reputation system, no dialogue-tree engine, no quest log in this task
+- [x] Still exactly **3** interactive NPCs (merchant, healer, blacksmith)
+- [x] E opens `#modal` with Arabic greeting then existing service UI
+- [x] First visit recorded in `maps.city.spokenToNpcs` and survives save/reload
+- [x] Return visits use shorter line or skip intro
+- [x] Escape / close button still works; no Pixi
+- [x] No reputation system, no dialogue-tree engine, no quest log in this task

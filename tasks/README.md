@@ -1,4 +1,4 @@
-# لعبة الانتقام — Development Tasks
+﻿# لعبة الانتقام — Development Tasks
 
 > Production-ready task breakdown for **Revenge** (الانتقام), a browser-based 2D Arabic revenge RPG.  
 > Stack: **HTML5 Canvas 2D** · **Vanilla JS** · **CSS3** · **Node.js + Express + SQLite** (backend)
@@ -49,12 +49,16 @@ No task depends on a later unfinished task.
 | 15 | TASK_042 Forest quest giver (A) | 041 → done ([`TASK_042`](./PHASE_02B_FOREST_LEVELS/TASK_042_FOREST_QUEST_GIVER.md)) |
 | 16 | TASK_043 Forest hunt board (B) | 041 → done ([`TASK_043`](./PHASE_02B_FOREST_LEVELS/TASK_043_FOREST_HUNT_BOARD.md)) |
 | 17 | TASK_044 Forest radiant quests (C) | 042, 043 → done ([`completed/TASK_044`](./completed/TASK_044_FOREST_RADIANT_QUESTS.md)) |
-| 18 | TASK_012 City map | 002 |
-| 19 | TASK_013 NPC system | 012 |
-| 20 | TASK_014 Economy / merchant | 013, 004 |
-| 21 | TASK_015 Healer & blacksmith | 013, 004 |
-| 22 | TASK_016 City quests | 013, 014 |
-| 23 | TASK_017 City portal integration | 002, 011, 016 |
+| 18 | TASK_012 City map | 002 → done ([`completed/TASK_012`](./completed/TASK_012_CITY_MAP_GENERATION.md)) |
+| 19 | TASK_013 NPC system | 012 → done ([`completed/TASK_013`](./completed/TASK_013_NPC_SYSTEM.md)) |
+| 20 | TASK_014 Economy / merchant | 013, 004 → done ([`completed/TASK_014`](./completed/TASK_014_ECONOMY_MERCHANT.md)) |
+| 21 | TASK_015 Healer & blacksmith | 013, 004 → done ([`completed/TASK_015`](./completed/TASK_015_HEALER_AND_UPGRADES.md)) |
+| 22 | TASK_016 City quests | 013, 014 → done ([`completed/TASK_016`](./completed/TASK_016_CITY_QUESTS.md)) |
+| 23 | TASK_017 City portal integration | 002, 011, 016 → **partial** ([`PHASE_03`](./PHASE_03_CITY/TASK_017_CITY_PORTAL_INTEGRATION.md)) |
+| 23a | TASK_045 City quest hint HUD | 016 → done ([`completed/TASK_045`](./completed/TASK_045_CITY_QUEST_HINT_HUD.md)) |
+| 23b | TASK_046 City ambient audio | 003, 012 → done ([`completed/TASK_046`](./completed/TASK_046_CITY_AMBIENT_AUDIO.md)) |
+| 23c | TASK_047 City NPC building align | 012, 013 |
+| 23d | TASK_048 City NPC place + slow walk | 012, 013 → done ([`completed/TASK_048`](./completed/TASK_048_CITY_NPC_PLACEMENT_AND_SLOW_WALK.md)) |
 | 24 | TASK_018 Death Valley map | 017 |
 | 25 | TASK_019 Hazardous terrain | 018 |
 | 26 | TASK_020 Elite enemies | 018 |
@@ -74,19 +78,20 @@ No task depends on a later unfinished task.
 | 40 | TASK_037 Client integration | 001, ~~034–036~~ (done) |
 | 41 | TASK_038 Leaderboard UI | 037, 029 |
 
-> **Completed (skip implementation):** TASK_001–011, TASK_034, TASK_035, TASK_036 → see [`completed/`](./completed/); **TASK_039–044** (levels, XP HUD, quests A/B/C) → [`PHASE_02B_FOREST_LEVELS/`](./PHASE_02B_FOREST_LEVELS/) (done in place)  
-> **PHASE_02B** complete. City / Death Valley / etc. continue from TASK_012+.  
+> **Completed (skip implementation):** TASK_001–016, TASK_034–036, TASK_039–046, TASK_048 → see [completed/](./completed/)  
+> **PHASE_02B** complete. **PHASE_03** hub 012–016 + 045/046/048 done; finish **017** or start **TASK_018** Death Valley.  
 > Weather extremes **022** remain in the plan.  
 > TASK_019 remains in the execution table (Death Valley hazards).
 
 ## Audit notes (current codebase)
 
-- **Forest** (full) + **city** (stub) + **start** (intro) + **index** (menu): Canvas 2D + HTML/CSS overlays.
-- `SaveManager.mapUrlFor` currently stubs `deathValley` / `darkKingdom` → forest until those pages exist.
+- **Forest** (full) + **city** (hub mostly done; portal polish open)  + **start** (intro) + **index** (menu): Canvas 2D + HTML/CSS overlays.
+- `SaveManager.mapUrlFor('deathValley')` points at `death-valley/index.html` (page missing until TASK_018); `darkKingdom` still stubs to forest.
 - Boss / ending should be **new pages** (e.g. `game/boss/index.html`, `game/ending/index.html`, `game/dark-kingdom/index.html`) mirroring `start/` and `forest/`.
 - Enemies: `characters.js` + `forest-entities.js` style objects drawn with `ctx`.
 - Skills: `heroStats.skills` + XP/level in `GameState` — level-up = simple HTML 3-choice panel (028), not a Pixi tree.
 - Forest enemy **levels** (**039**) + **XP HUD** (**040**) + **quest foundation** (**041**) + **gate guard** (**042**) + **hunt board** (**043**) + **radiant** (**044 done**). PHASE_02B complete.
+- City hub **012–016 done**; **017** partial (north spawn, DV missing-page guard, combat block, `completedCity`). Follow-ups **045–046, 048** in [PHASE_03_CITY](./PHASE_03_CITY/).
 - Backend auth + saves + leaderboard **API**: **done** (034–036).
 - Client sync / auth UI / leaderboard UI: **not started** (037–038).
 - Early tasks may be partially implemented — leave open until acceptance criteria pass (except completed/).
@@ -114,8 +119,12 @@ All world rendering uses HTML5 Canvas 2D (`canvas.getContext('2d')`) with a `req
 
 ## Totals
 
-- **~44 tasks** in the plan (IDs 001–033 + 037–044; server 034–036 live under `completed/`)
-- **Completed:** 001–011, 034, 035, 036, 039, 040, 041, 042, 043, 044
-- **Open:** 012–033, 037–038 (weather extremes 022 still open)
+- **~48 tasks** in the plan (IDs 001–033 + 037–048; server 034–036 under completed/)
+- **Completed:** 001–016, 034–036, 039–046, 048
+- **Open:** 017–033, 037–038 (weather extremes 022 still open; city portal 017 partial)
 - **Phases:** 8 execution phases + **PHASE_02B** + `completed/`
 - **Pixi:** none
+
+
+
+

@@ -1,5 +1,8 @@
 # TASK_012 — CITY_MAP_GENERATION
 
+## Status
+**Done.** Single-screen 22×18 hub with district labels, labeled rooftops, walkers, central well, north forest portal, and south gate stub. Terrain via offscreen `terrainCanvas`. No enterable interiors.
+
 ## Objective
 Expand the existing single-file city hub in `game/city/index.html` (~750 lines) so districts read clearly on one Canvas 2D screen. Keep the current architecture: one HTML page, tile map, offscreen `prerenderTerrain`, WASD/arrows top-down movement, decorative building labels — **not** seven enterable building interiors.
 
@@ -88,11 +91,11 @@ function drawDistrictLabels(ctx) {
 ```
 
 ## Verification & Acceptance Criteria
-- [ ] City still loads as **one** page: `game/city/index.html` + `shared.js`
-- [ ] Map remains single-screen (Option A ~1056×864 or modest Option B)
-- [ ] Districts are visually identifiable via layout + Arabic rooftop / district labels
-- [ ] `BUILDING` collision still works; WASD/arrows top-down unchanged
-- [ ] North forest portal still works (`saveAndExit` → `../forest/index.html`)
-- [ ] South road/gate stub exists for later Death Valley wiring
-- [ ] **No** seven enterable interiors; decorative buildings only
-- [ ] Terrain still uses offscreen `terrainCanvas` blit each frame
+- [x] City still loads as **one** page: `game/city/index.html` + `shared.js`
+- [x] Map remains single-screen (Option A ~1056×864 or modest Option B)
+- [x] Districts are visually identifiable via layout + Arabic rooftop / district labels
+- [x] `BUILDING` collision still works; WASD/arrows top-down unchanged
+- [x] North forest portal still works (`saveAndExit` → `../forest/index.html`)
+- [x] South road/gate stub exists for later Death Valley wiring
+- [x] **No** seven enterable interiors; decorative buildings only
+- [x] Terrain still uses offscreen `terrainCanvas` blit each frame

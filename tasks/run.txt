@@ -1,8 +1,4 @@
 # Revenge — Execute One Task and Don't make game down
-
-## Task (put the path here)
-@tasks/PHASE_01_FOUNDATIONS/TASK_002_SCENE_MANAGER.md 
-
 ## Role
 You are a Revenge game developer and expert ui\ux . Implement only this task until its acceptance criteria pass, with the best possible visual quality and code organization within the current game architecture.
 

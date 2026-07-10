@@ -1,5 +1,8 @@
 # TASK_015 — HEALER_AND_UPGRADES
 
+## Status
+**Done.** Healer full/partial/rest with once-per-visit rest flag (`_restedOnce`); HP persists via `GameState`. Blacksmith checklist includes `nightBlade` / `shadowArmor`; one-time `weaponSharpen` (+5 `absorbedAttack`).
+
 ## Objective
 Polish the existing healer and blacksmith services in `game/city/index.html` (`openHealer`, `openBlacksmith`, `heal` / `healFish` / `rest`, craft checklist). Small upgrades only — **no** durability system, reputation discounts, or large weapon shop.
 
@@ -71,8 +74,8 @@ function persistHp() {
 ```
 
 ## Verification & Acceptance Criteria
-- [ ] Healer full / partial / rest still work with Arabic feedback
-- [ ] HP persists through `GameState` after heal and when leaving city
-- [ ] Blacksmith checklist shows forest crafts including nightBlade / shadowArmor when owned
-- [ ] At most one small material upgrade (if added); no durability / rep systems
-- [ ] UI remains `#modal` + `.trade-row` / craft grid — Canvas 2D world unchanged
+- [x] Healer full / partial / rest still work with Arabic feedback
+- [x] HP persists through `GameState` after heal and when leaving city
+- [x] Blacksmith checklist shows forest crafts including nightBlade / shadowArmor when owned
+- [x] At most one small material upgrade (if added); no durability / rep systems
+- [x] UI remains `#modal` + `.trade-row` / craft grid — Canvas 2D world unchanged

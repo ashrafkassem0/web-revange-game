@@ -26,7 +26,8 @@ const DEFAULT_INVENTORY = {
     stick: 0, stone: 0, meat: 0, horn: 0, teeth: 0, leather: 0, fish: 0, arrows: 15,
     rawMeat: 0, cookedMeat: 0, rawFish: 0, cookedFish: 0,
     beastHide: 0, nightCrystal: 0, venomSac: 0, shadowEssence: 0,
-    herb: 0, honey: 0, herbSalve: 0, revitalTonic: 0
+    herb: 0, honey: 0, herbSalve: 0, revitalTonic: 0,
+    coins: 0
 };
 
 const DEFAULT_CRAFTED = {
@@ -109,7 +110,7 @@ const MAP_URLS = {
     intro: 'start/index.html',
     forest: 'forest/index.html',
     city: 'city/index.html',
-    deathValley: 'forest/index.html', // stub until Death Valley page exists
+    deathValley: 'forest/index.html',
     darkKingdom: 'forest/index.html'  // stub until Dark Kingdom page exists
 };
 
@@ -959,7 +960,8 @@ const SCENES = {
     menu:   { url: 'index.html',        label: 'القائمة',         prereq: null,               mapId: null },
     start:  { url: MAP_URLS.intro,      label: 'المقدمة',         prereq: null,               mapId: 'intro' },
     forest: { url: MAP_URLS.forest,     label: 'الغابة',          prereq: 'completedIntro',   mapId: 'forest' },
-    city:   { url: MAP_URLS.city,       label: 'المدينة',         prereq: 'completedForest',  mapId: 'city' }
+    city:   { url: MAP_URLS.city,       label: 'المدينة',         prereq: 'completedForest',  mapId: 'city' },
+    deathValley: { url: MAP_URLS.deathValley, label: 'وادي الموت', prereq: null,               mapId: 'deathValley' }
     // deathValley / darkKingdom: add when pages exist — mapUrlFor already stubs to forest
 };
 

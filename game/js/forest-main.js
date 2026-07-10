@@ -113,6 +113,11 @@ function dismissPortalPanel() {
 
 function enterCity() {
     if (typeof stopWeatherAudio === 'function') stopWeatherAudio();
+    // Combat proximity block
+    if (enemies && enemies.some(e => !e.isDead && Math.hypot(e.x - player.x, e.y - player.y) < 200)) {
+        notify('لا يمكنك المغادرة أثناء المعركة!', '#e74c3c');
+        return;
+    }
     if (gameCompleted) {
         finishForest();     // يحفظ الإنجاز + لقطة الغابة ثم المدينة
     } else {

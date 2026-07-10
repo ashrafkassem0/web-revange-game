@@ -1,5 +1,8 @@
 # TASK_016 — CITY_QUESTS
 
+## Status
+**Done.** Quest A `quest_traveler_supplies` (merchant: 2 barters or ≥20 arrows → +10 arrows). Quest B `quest_valley_path` (blacksmith: turn in beastHide+teeth → unlocks south gate). Progress in `maps.city.completedQuests`.
+
 ## Objective
 Add **1–2** city quests tracked in `maps.city.completedQuests`, delivered through the existing three NPCs + `#modal`. Unlock the south gate for Death Valley. Avoid cellars / well caves unless a tiny same-canvas sub-area is unavoidable — prefer inventory + talk objectives.
 
@@ -76,9 +79,9 @@ function isSouthGateUnlocked() {
 ```
 
 ## Verification & Acceptance Criteria
-- [ ] 1–2 quests only; IDs stored in `maps.city.completedQuests`
-- [ ] Quests start/turn in via existing `#modal` + NPC E interact
-- [ ] Quest B unlocks south gate (flag or completedQuests check)
-- [ ] Rewards apply to inventory / HP and persist through `GameState`
-- [ ] No rat cellar / well cave required; Arabic strings throughout
-- [ ] Reload mid-quest restores progress from `maps.city`
+- [x] 1–2 quests only; IDs stored in `maps.city.completedQuests`
+- [x] Quests start/turn in via existing `#modal` + NPC E interact
+- [x] Quest B unlocks south gate (flag or completedQuests check)
+- [x] Rewards apply to inventory / HP and persist through `GameState`
+- [x] No rat cellar / well cave required; Arabic strings throughout
+- [x] Reload mid-quest restores progress from `maps.city`

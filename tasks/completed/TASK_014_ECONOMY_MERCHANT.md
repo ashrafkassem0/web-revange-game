@@ -1,5 +1,8 @@
 # TASK_014 — ECONOMY_MERCHANT
 
+## Status
+**Done.** Expanded barter table (`beastHide`, `venomSac` + existing rows), simple `coins` HUD + sell/buy rows, `maps.city.boughtItems` tracking via `recordBought`. Single merchant `#modal` only.
+
 ## Objective
 Expand the **single** merchant barter UI in `game/city/index.html` (`openMerchant`, `.trade-row`, `trade()`). Keep HTML trade rows over Canvas — **no** three-merchant dynamic economy, reputation pricing, or stock simulation.
 
@@ -77,9 +80,9 @@ window.trade = function(fromItem, fromAmt, toItem, toAmt) {
 ```
 
 ## Verification & Acceptance Criteria
-- [ ] Still **one** merchant NPC; HTML `.trade-row` UI only
-- [ ] Expanded barter table includes at least 2 new trades (e.g. night loot)
-- [ ] Failed trades show Arabic `#notify`; successful trades update inventory + HUD
-- [ ] `maps.city.boughtItems` records trades (or documented equivalent)
-- [ ] Optional coins (if added) are simple HUD + 1–2 rows — no dynamic economy
-- [ ] No Pixi; no 3-merchant market
+- [x] Still **one** merchant NPC; HTML `.trade-row` UI only
+- [x] Expanded barter table includes at least 2 new trades (e.g. night loot)
+- [x] Failed trades show Arabic `#notify`; successful trades update inventory + HUD
+- [x] `maps.city.boughtItems` records trades (or documented equivalent)
+- [x] Optional coins (if added) are simple HUD + 1–2 rows — no dynamic economy
+- [x] No Pixi; no 3-merchant market

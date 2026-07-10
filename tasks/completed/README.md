@@ -1,26 +1,37 @@
-# Completed Tasks
+﻿# Completed Tasks
 
 Tasks whose acceptance criteria are met.
 
 | Task | Title | Evidence |
 |------|-------|----------|
-| TASK_001 | GameState Refactor | `SaveManager` + versioned slots in `game/js/shared.js`; legacy `GameState` API preserved *(file kept; may still appear under foundations for history — treat as done)* |
-| TASK_002 | Scene Manager | Thin `SCENES` + `navigateToScene` / `guardSceneAccess` in `shared.js`; fade debounce; forest/city visibility pause+save; no SPA |
-| TASK_003 | Sound Engine | Extended `SFX` volumes/mute/ambient bus + forest/menu audio UI; persists `flags.audio` |
-| TASK_004 | Cross-Scene Inventory | Canonical `GameState` inventory sync forest↔city; food aliases; finishForest persists bag |
-| TASK_005 | Day/Night Cycle | Pause-aware clock, persist time, torch/stars/indoor polish; `forest-time.js` authority |
-| TASK_006 | Weather System | Forest particles + fog/storm FX; `SFX` rain/thunder; HUD icon; pause + snapshot |
-| TASK_007 | Campfire Save Points | E-menu Save/Rest/Cook/Light; lastCampfire; enemy block; rain extinguish |
-| TASK_008 | Advanced Resources | Herb/honey nodes + herbSalve/revitalTonic crafts; inventory sync |
-| TASK_009 | Building System | Placement UX, gate E-toggle, repair prompts, structure persist + siege feedback |
-| TASK_010 | Enemy AI Refinement | Stuck recovery, provoked pulse, alert/pack cues, aggro tune |
-| TASK_011 | Forest Completion Flow | CFG thresholds, portal copy, graduation beat, keep forest snapshot |
-| TASK_034 | Backend Foundation | Express + SQLite + Knex + CORS + rate limit + `.env.example` |
-| TASK_035 | Auth System | Register / login / refresh / logout / me + bcrypt + JWT + Zod |
-| TASK_036 | Game State API | Save CRUD + sync + conflict 409 + 1MB limit |
+| TASK_001 | GameState Refactor | `SaveManager` + versioned slots in `game/js/shared.js`; legacy `GameState` API preserved |
+| TASK_002 | Scene Manager | Thin `SCENES` + `navigateToScene` / `guardSceneAccess` in `shared.js` |
+| TASK_003 | Sound Engine | Extended `SFX` volumes/mute/ambient bus + forest/menu audio UI |
+| TASK_004 | Cross-Scene Inventory | Canonical `GameState` inventory sync forest↔city |
+| TASK_005 | Day/Night Cycle | Pause-aware clock; `forest-time.js` authority |
+| TASK_006 | Weather System | Forest particles + fog/storm FX; HUD icon |
+| TASK_007 | Campfire Save Points | E-menu Save/Rest/Cook/Light |
+| TASK_008 | Advanced Resources | Herb/honey nodes + crafts |
+| TASK_009 | Building System | Placement UX, gate, repair, persist |
+| TASK_010 | Enemy AI Refinement | Stuck recovery, alert/pack cues |
+| TASK_011 | Forest Completion Flow | CFG thresholds, portal, graduation |
+| TASK_012 | City Map Generation | Districts + rooftops + walkers in `game/city/index.html` |
+| TASK_013 | NPC System | 3 NPCs greetings + `spokenToNpcs` |
+| TASK_014 | Economy / Merchant | Expanded barter + coins + `boughtItems` |
+| TASK_015 | Healer & Upgrades | Rest-once + night crafts + weapon sharpen |
+| TASK_016 | City Quests | Traveler supplies + valley path unlocks south gate |
+| TASK_034 | Backend Foundation | Express + SQLite + Knex |
+| TASK_035 | Auth System | Register / login / refresh / JWT |
+| TASK_036 | Game State API | Save CRUD + sync + conflict 409 |
+| TASK_045 | City Quest Hint HUD | `#questHint` + `refreshCityQuestHint` |
+| TASK_046 | City Ambient Audio | `SFX.startCityAmbient` / stop + portal whoosh |
+| TASK_048 | City NPC Place + Slow Walk | Static talking NPCs at buildings; slow ambient walkers |
+
+**Also completed (forest levels):** TASK_039–044 — see files in this folder.
 
 **Not moved here (still open):**
+- TASK_017 — portal leftovers vs Death Valley page (south currently → forest hub)
 - TASK_037 — client `auth.js` / `sync.js` + auth modal wiring
-- TASK_038 — client leaderboard HTML panel (API exists; UI does not)
+- TASK_038 — client leaderboard HTML panel
 
-Remaining phase tasks (002–033, etc.) were **rewritten for Canvas multi-page compatibility**, not deleted. See [`../README.md`](../README.md).
+See [`../README.md`](../README.md).

@@ -18,7 +18,9 @@ const SFX = (() => {
     };
 
     let rainLoop = null;
-    let rainWanted = false; // true while weather/story wants rain (for tab resume)
+    let rainWanted = false;
+    let cityAmbientLoop = null;
+    let cityAmbientWanted = false;
     let pageHidden = false;
 
     const cooldownUntil = { arrow: 0, sword: 0 };
@@ -64,13 +66,23 @@ const SFX = (() => {
         // Soft-mute rain while tab is hidden without tearing down the loop
         if (rainLoop && rainLoop.gain) {
             const c = ctx;
-            // Base rain level; ambientBus already applies ambient volume
             const target = pageHidden ? 0.0001 : 0.06;
             if (c) {
                 rainLoop.gain.gain.cancelScheduledValues(c.currentTime);
                 rainLoop.gain.gain.setTargetAtTime(target, c.currentTime, 0.05);
             } else {
                 rainLoop.gain.gain.value = target;
+            }
+        }
+        // Soft-mute city ambient while tab is hidden
+        if (cityAmbientLoop && cityAmbientLoop.gain) {
+            const c = ctx;
+            const target = pageHidden ? 0.0001 : 0.025;
+            if (c) {
+                cityAmbientLoop.gain.gain.cancelScheduledValues(c.currentTime);
+                cityAmbientLoop.gain.gain.setTargetAtTime(target, c.currentTime, 0.05);
+            } else {
+                cityAmbientLoop.gain.gain.value = target;
             }
         }
     }
@@ -226,7 +238,63 @@ const SFX = (() => {
         }
     }
 
-    // Visibility: quiet ambient while hidden; resume if rain still wanted
+    function startCityAmbientInternal() {
+        if (cityAmbientLoop) {
+            applyGains();
+            return;
+        }
+        const c = getCtx();
+        if (!c || !ambientBus) return;
+        try {
+            const bufferSize = c.sampleRate * 2;
+            const buffer = c.createBuffer(1, bufferSize, c.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+                data[i] = Math.random() * 2 - 1;
+            }
+            const source = c.createBufferSource();
+            source.buffer = buffer;
+            source.loop = true;
+
+            const filter = c.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.value = 400;
+            filter.Q.value = 1.5;
+
+            const gain = c.createGain();
+            const level = (pageHidden || state.muted) ? 0.0001 : 0.025;
+            gain.gain.value = level;
+
+            source.connect(filter);
+            filter.connect(gain);
+            gain.connect(ambientBus);
+            source.start();
+            cityAmbientLoop = { source, gain };
+            applyGains();
+        } catch (_) { /* silent */ }
+    }
+
+    function stopCityAmbientInternal(immediate) {
+        if (!cityAmbientLoop) return;
+        try {
+            const c = getCtx();
+            const loop = cityAmbientLoop;
+            cityAmbientLoop = null;
+            if (immediate || !c) {
+                try { loop.source.stop(); } catch (_) {}
+                return;
+            }
+            loop.gain.gain.cancelScheduledValues(c.currentTime);
+            loop.gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 1);
+            setTimeout(() => {
+                try { loop.source.stop(); } catch (_) {}
+            }, 1000);
+        } catch (_) {
+            cityAmbientLoop = null;
+        }
+    }
+
+    // Visibility: quiet ambient while hidden; resume if rain/city still wanted
     if (typeof document !== 'undefined') {
         document.addEventListener('visibilitychange', () => {
             pageHidden = !!document.hidden;
@@ -235,6 +303,7 @@ const SFX = (() => {
             } else {
                 applyGains();
                 if (rainWanted && !rainLoop) startRainInternal();
+                if (cityAmbientWanted && !cityAmbientLoop) startCityAmbientInternal();
             }
         });
     }
@@ -394,6 +463,55 @@ const SFX = (() => {
         stopRain() {
             rainWanted = false;
             stopRainInternal(false);
+        },
+
+        // City ambient — soft wind/plaza hum
+        startCityAmbient() {
+            cityAmbientWanted = true;
+            if (pageHidden) return;
+            startCityAmbientInternal();
+        },
+        stopCityAmbient() {
+            cityAmbientWanted = false;
+            stopCityAmbientInternal(false);
+        },
+
+        // One-shot: quest completion chime
+        cityChime() {
+            if (!canPlaySfx()) return;
+            playTone(880, 0.15, 'sine', 0.12);
+            setTimeout(() => playTone(1108, 0.2, 'sine', 0.1), 120);
+            setTimeout(() => playTone(1318, 0.3, 'sine', 0.08), 240);
+        },
+
+        // One-shot: portal whoosh
+        portalWhoosh() {
+            if (!canPlaySfx()) return;
+            const c = getCtx();
+            if (!c) return;
+            try {
+                const bufferSize = c.sampleRate * 0.4;
+                const buffer = c.createBuffer(1, bufferSize, c.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize);
+                }
+                const source = c.createBufferSource();
+                source.buffer = buffer;
+                const filter = c.createBiquadFilter();
+                filter.type = 'bandpass';
+                filter.frequency.setValueAtTime(2000, c.currentTime);
+                filter.frequency.exponentialRampToValueAtTime(200, c.currentTime + 0.3);
+                filter.Q.value = 1;
+                const gain = c.createGain();
+                gain.gain.setValueAtTime(0.15, c.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.35);
+                source.connect(filter);
+                filter.connect(gain);
+                gain.connect(ambientBus);
+                source.start();
+                source.stop(c.currentTime + 0.4);
+            } catch (_) { /* silent */ }
         },
 
         // صوت هجوم ملك الرعب
