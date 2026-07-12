@@ -8,24 +8,35 @@
 <link rel="stylesheet" href="../css/shared.css">
 <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { background: #1a1a2e; font-family: 'Cairo', sans-serif; overflow: hidden; }
+    body {
+        background: radial-gradient(circle at 50% 0%, #354153 0%, #1a1d29 48%, #0d1018 100%);
+        font-family: 'Cairo', sans-serif; overflow: hidden;
+    }
     canvas { display: block; }
 
     #hud {
         position: fixed; top: 10px; left: 50%; transform: translateX(-50%);
-        background: rgba(0,0,0,0.75); border: 1px solid #555; border-radius: 12px;
-        padding: 8px 18px; color: #eee; font-size: 0.85rem; display: flex;
-        align-items: center; gap: 16px; z-index: 20;
+        min-width: min(460px, calc(100vw - 24px)); justify-content: space-between;
+        background: linear-gradient(135deg, rgba(19,26,36,.94), rgba(39,46,53,.90));
+        border: 1px solid rgba(255,208,96,.45); border-radius: 12px;
+        box-shadow: 0 8px 25px rgba(0,0,0,.34), inset 0 1px rgba(255,255,255,.08);
+        padding: 8px 16px; color: #eee; font-size: .85rem; display: flex;
+        align-items: center; gap: 16px; z-index: 20; backdrop-filter: blur(8px);
     }
+    .city-title { color:#ffd060; font-weight:900; letter-spacing:.3px; }
+    .hero-attributes { display:flex; align-items:center; gap:10px; color:#dce6f2; font-size:.76rem; }
+    .hero-attributes strong { color:#ffe49a; }
     .bar-wrap { display: flex; align-items: center; gap: 6px; }
-    .bar-bg { width: 90px; height: 10px; background: #333; border-radius: 5px; overflow: hidden; }
+    .bar-bg { width: 100px; height: 9px; background: #111820; border:1px solid rgba(255,255,255,.12); border-radius: 5px; overflow: hidden; }
     #hpBar  { height: 100%; background: linear-gradient(90deg,#e74c3c,#c0392b); border-radius: 5px; width: 100%; transition: width 0.2s; }
 
     #invPanel {
         position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%);
-        background: rgba(0,0,0,0.8); border: 1px solid #555; border-radius: 12px;
-        padding: 8px 16px; display: flex; gap: 14px; align-items: center; z-index: 20;
-        color: #ddd; font-size: 0.8rem;
+        max-width: calc(100vw - 24px); overflow-x: auto;
+        background: linear-gradient(135deg, rgba(15,21,30,.94), rgba(32,37,42,.90));
+        border: 1px solid rgba(255,255,255,.18); border-radius: 12px;
+        box-shadow: 0 8px 24px rgba(0,0,0,.35); padding: 8px 16px; display: flex; gap: 14px; align-items: center; z-index: 20;
+        color: #ddd; font-size: 0.8rem; backdrop-filter: blur(8px);
     }
     .inv-item { display: flex; flex-direction: column; align-items: center; gap: 2px; }
     .inv-icon { font-size: 1.1rem; }
@@ -37,22 +48,24 @@
     }
     #modal.open { display: flex; }
     #modalBox {
-        background: linear-gradient(135deg,#1e2a1a,#2a3020);
-        border: 2px solid #6a8040; border-radius: 16px;
-        padding: 28px 32px; min-width: 340px; max-width: 480px;
-        max-height: 80vh; overflow-y: auto;
-        color: #e8e0c0; position: relative;
+        background: linear-gradient(145deg,#18241d 0%,#252a25 58%,#171b1e 100%);
+        border: 1px solid #c9a751; outline: 1px solid rgba(255,255,255,.08); border-radius: 16px;
+        box-shadow: 0 22px 65px rgba(0,0,0,.62), inset 0 1px rgba(255,255,255,.07);
+        padding: 28px 32px; min-width: 340px; max-width: 510px;
+        max-height: 80vh; overflow-y: auto; color: #e8e0c0; position: relative;
     }
     #modalTitle { font-size: 1.3rem; font-weight: 900; margin-bottom: 16px; color: #ffd060; }
     #modalBody { font-size: 0.9rem; line-height: 1.7; }
     .trade-row {
         display: flex; align-items: center; justify-content: space-between;
-        background: rgba(255,255,255,0.06); border-radius: 8px;
-        padding: 8px 14px; margin-bottom: 8px; gap: 10px;
+        background: linear-gradient(90deg, rgba(255,255,255,.075), rgba(255,255,255,.025));
+        border: 1px solid rgba(255,255,255,.08); border-radius: 9px;
+        padding: 9px 12px; margin-bottom: 8px; gap: 10px;
     }
     .trade-btn {
-        background: linear-gradient(135deg,#5a7a20,#3a5010); color: #ffd060;
-        border: none; border-radius: 8px; padding: 6px 14px;
+        background: linear-gradient(135deg,#789d30,#3f681d); color: #fff0b2;
+        border: 1px solid rgba(255,226,136,.35); border-radius: 8px; padding: 6px 14px;
+        box-shadow: inset 0 1px rgba(255,255,255,.16), 0 2px 5px rgba(0,0,0,.22);
         font-family: 'Cairo',sans-serif; font-size: 0.82rem; cursor: pointer;
         transition: transform 0.1s, filter 0.1s;
     }
@@ -64,6 +77,52 @@
         font-size: 1.4rem; cursor: pointer; line-height: 1;
     }
     .close-btn:hover { color: #fff; }
+    .shop-section { color:#d9c17a; font-size:.78rem; letter-spacing:.2px; margin:14px 0 8px; }
+    .shop-balance { margin-bottom:12px; color:#f7dc88; background:rgba(255,208,96,.08); border:1px solid rgba(255,208,96,.16); border-radius:8px; padding:7px 10px; }
+    #cityMinimap {
+        position:fixed; top:78px; right:14px; z-index:21; width:154px; height:126px;
+        background:rgba(12,18,23,.9); border:1px solid rgba(255,208,96,.55); border-radius:10px;
+        box-shadow:0 8px 22px rgba(0,0,0,.38); padding:5px;
+    }
+    #cityMinimap::before { content:'خريطة المدينة'; position:absolute; top:5px; right:9px; color:#ffe49a; font:700 10px Cairo,sans-serif; text-shadow:0 1px #000; }
+    #cityMapCanvas { width:142px; height:108px; margin-top:10px; border-radius:5px; display:block; }
+    /* Forest-style city HUD: materials and hero state left, tools/map/missions right. */
+    #hud { position:fixed; inset:0; transform:none; min-width:0; width:auto; padding:12px 14px; background:none; border:0; box-shadow:none; backdrop-filter:none; pointer-events:none; display:flex; justify-content:space-between; align-items:flex-start; direction:ltr; }
+    #cityHudLeft, #cityHudCenter, #cityHudRight { direction:rtl; pointer-events:none; }
+    #cityHudLeft { display:flex; flex-direction:column; gap:8px; align-items:flex-start; }
+    #cityHudCenter { flex:1; text-align:center; padding-top:4px; }
+    #cityHudRight { display:flex; flex-direction:column; align-items:flex-end; gap:8px; }
+    .city-hud-panel { background:rgba(10,15,22,.82); border:1px solid rgba(255,255,255,.12); border-radius:11px; box-shadow:0 7px 20px rgba(0,0,0,.32); backdrop-filter:blur(7px); }
+    #invPanel { position:static; transform:none; max-width:430px; overflow-x:auto; border-radius:11px; padding:7px 10px; box-shadow:none; }
+    #cityStatus { padding:9px 12px; color:#e8e0c0; min-width:245px; }
+    #cityStatus .stat-line { display:flex; align-items:center; gap:7px; font-size:.72rem; }
+    #cityStatus .bar-bg { width:128px; }
+    #cityStatus .city-stat-numbers { display:flex; gap:12px; margin-top:7px; padding-top:6px; border-top:1px solid rgba(255,208,96,.16); font-size:.72rem; color:#d8dde5; }
+    #cityStatus strong { color:#ffe49a; }
+    #cityHudTitle { color:#ffe49a; font-size:1rem; font-weight:900; text-shadow:0 2px 7px #000; }
+    #cityHudTop { display:flex; align-items:flex-start; gap:8px; direction:ltr; }
+    #cityMinimap { position:relative; top:auto; right:auto; width:154px; height:126px; }
+    #cityHudTools { display:flex; flex-direction:column; gap:6px; pointer-events:auto; position:relative; }
+    .city-tool { background:rgba(13,20,28,.9); border:1px solid rgba(255,208,96,.38); border-radius:8px; color:#ffe49a; padding:7px 9px; font:700 .7rem Cairo,sans-serif; cursor:pointer; white-space:nowrap; }
+    .city-tool:hover { filter:brightness(1.2); }
+    #cityMissionPanel { width:154px; padding:8px 10px; }
+    #cityMissionPanel h3 { margin:0 0 5px; color:#ffd060; font-size:.75rem; border-bottom:1px solid rgba(255,208,96,.2); padding-bottom:4px; }
+    #cityMissionText { color:#d7d7cf; font-size:.65rem; line-height:1.55; }
+    #cityAudioPanel { display:none; position:absolute; top:0; right:100%; width:184px; padding:10px; z-index:70; direction:rtl; }
+    #cityAudioPanel.open { display:block; }
+    #cityAudioPanel h3 { color:#ffd060; font-size:.8rem; margin:0 0 7px; }
+    .audio-row { display:flex; align-items:center; gap:7px; margin:6px 0; font-size:.65rem; color:#ddd; }
+    .audio-row input[type=range] { width:92px; }
+    @media (max-width: 600px) {
+        #hud { min-width:0; width:calc(100vw - 20px); padding:7px 12px; }
+        #invPanel { gap:10px; padding:7px 11px; }
+        #modalBox { min-width:0; width:calc(100vw - 24px); padding:24px 18px; }
+        #hint { max-width:calc(100vw - 24px); white-space:normal; text-align:center; }
+        #cityMinimap { right:4px; }
+        #cityHudCenter { display:none; }
+        #cityMissionPanel { display:none; }
+        #cityHudRight { transform:scale(.86); transform-origin:top right; }
+    }
 
     #questHint {
         position: fixed; bottom: 60px; left: 50%; transform: translateX(-50%);
@@ -88,25 +147,42 @@
 <canvas id="canvas"></canvas>
 
 <div id="hud">
-    <span>🏙️ المدينة</span>
-    <div class="bar-wrap">
-        ❤️ <div class="bar-bg"><div id="hpBar"></div></div>
-        <span id="hpVal">100/100</span>
+    <div id="cityHudLeft">
+        <div id="invPanel" class="city-hud-panel">
+            <div class="inv-item" style="border-left:1px solid #555;padding-left:0;padding-right:12px"><span class="inv-icon">🪙</span><span class="inv-count" id="inv-coins" style="color:#ffd060">0</span></div>
+            <div class="inv-item"><span class="inv-icon">🪵</span><span class="inv-count" id="inv-stick">0</span></div>
+            <div class="inv-item"><span class="inv-icon">🪨</span><span class="inv-count" id="inv-stone">0</span></div>
+            <div class="inv-item"><span class="inv-icon">🥩</span><span class="inv-count" id="inv-meat">0</span></div>
+            <div class="inv-item"><span class="inv-icon">🧥</span><span class="inv-count" id="inv-leather">0</span></div>
+            <div class="inv-item"><span class="inv-icon">🌿</span><span class="inv-count" id="inv-herb">0</span></div>
+            <div class="inv-item"><span class="inv-icon">🍯</span><span class="inv-count" id="inv-honey">0</span></div>
+            <div class="inv-item"><span class="inv-icon">🐟</span><span class="inv-count" id="inv-fish">0</span></div>
+            <div class="inv-item"><span class="inv-icon">🏹</span><span class="inv-count" id="inv-arrows">0</span></div>
+            <div class="inv-item"><span class="inv-icon">🦷</span><span class="inv-count" id="inv-teeth">0</span></div>
+            <div class="inv-item"><span class="inv-icon">🦴</span><span class="inv-count" id="inv-horn">0</span></div>
+        </div>
+        <div id="cityStatus" class="city-hud-panel">
+            <div class="stat-line">❤️ <div class="bar-bg"><div id="hpBar"></div></div><span id="hpVal">100/100</span></div>
+            <div class="city-stat-numbers"><span>⚔️ هجوم <strong id="atkVal">25</strong></span><span>🛡️ دفاع <strong id="defVal">5</strong></span><span>⭐ مستوى <strong id="levelVal">1</strong></span></div>
+        </div>
     </div>
-</div>
-
-<div id="invPanel">
-    <div class="inv-item" style="border-left:1px solid #555;padding-left:0;padding-right:12px"><span class="inv-icon">🪙</span><span class="inv-count" id="inv-coins" style="color:#ffd060">0</span></div>
-    <div class="inv-item"><span class="inv-icon">🪵</span><span class="inv-count" id="inv-stick">0</span></div>
-    <div class="inv-item"><span class="inv-icon">🪨</span><span class="inv-count" id="inv-stone">0</span></div>
-    <div class="inv-item"><span class="inv-icon">🥩</span><span class="inv-count" id="inv-meat">0</span></div>
-    <div class="inv-item"><span class="inv-icon">🧥</span><span class="inv-count" id="inv-leather">0</span></div>
-    <div class="inv-item"><span class="inv-icon">🌿</span><span class="inv-count" id="inv-herb">0</span></div>
-    <div class="inv-item"><span class="inv-icon">🍯</span><span class="inv-count" id="inv-honey">0</span></div>
-    <div class="inv-item"><span class="inv-icon">🐟</span><span class="inv-count" id="inv-fish">0</span></div>
-    <div class="inv-item"><span class="inv-icon">🏹</span><span class="inv-count" id="inv-arrows">0</span></div>
-    <div class="inv-item"><span class="inv-icon">🦷</span><span class="inv-count" id="inv-teeth">0</span></div>
-    <div class="inv-item"><span class="inv-icon">🦴</span><span class="inv-count" id="inv-horn">0</span></div>
+    <div id="cityHudCenter"><div id="cityHudTitle">🏙️ مدينة ريفنج</div></div>
+    <div id="cityHudRight">
+        <div id="cityHudTop">
+            <div id="cityHudTools">
+                <button class="city-tool" type="button" onclick="manualSaveCity()">💾 حفظ</button>
+                <button class="city-tool" type="button" onclick="toggleCityAudio()">🔊 الصوت</button>
+                <div id="cityAudioPanel" class="city-hud-panel">
+                    <h3>إعدادات الصوت</h3>
+                    <div class="audio-row"><label>الرئيسي</label><input type="range" min="0" max="100" value="100" oninput="setCityVolume('master',this.value)"></div>
+                    <div class="audio-row"><label>المؤثرات</label><input type="range" min="0" max="100" value="100" oninput="setCityVolume('sfx',this.value)"></div>
+                    <div class="audio-row"><label>الأجواء</label><input type="range" min="0" max="100" value="100" oninput="setCityVolume('ambient',this.value)"></div>
+                </div>
+            </div>
+            <div id="cityMinimap"><canvas id="cityMapCanvas" width="142" height="108"></canvas></div>
+        </div>
+        <div id="cityMissionPanel" class="city-hud-panel"><h3>📜 مهامي</h3><div id="cityMissionText">جاري تحميل المهمة…</div></div>
+    </div>
 </div>
 
 <div id="questHint"></div>
@@ -185,6 +261,9 @@ const player = {
     y: fromForest ? FOREST_PORTAL.y + 64 : H - CFG.TILE * 2.5,
     hp: Math.min(stats.hp || 100, stats.maxHp || 100),
     maxHp: stats.maxHp || 100,
+    attack: (stats.attack || 25) + (stats.absorbedAttack || 0),
+    defense: (stats.defense || 5) + (stats.absorbedDefense || 0),
+    level: stats.level || 1,
     inventory: (typeof GameState.normalizeInventory === 'function')
         ? GameState.normalizeInventory(inv)
         : Object.assign({
@@ -384,16 +463,22 @@ function saveAndGoSouthForest() {
 // ─────────────── CANVAS ───────────────
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
+const cityMapCanvas = document.getElementById('cityMapCanvas');
+const cityMapCtx = cityMapCanvas ? cityMapCanvas.getContext('2d') : null;
 
 function resize() {
-    const scale = Math.min(window.innerWidth / W, window.innerHeight / H);
     canvas.width  = W;
     canvas.height = H;
-    canvas.style.width  = (W * scale) + 'px';
-    canvas.style.height = (H * scale) + 'px';
+    // Keep the whole city visible without stretching or cropping it. The page
+    // background fills any spare browser space on wider/taller displays.
+    const scale = Math.min(window.innerWidth / W, window.innerHeight / H);
+    const displayW = W * scale;
+    const displayH = H * scale;
+    canvas.style.width  = displayW + 'px';
+    canvas.style.height = displayH + 'px';
     canvas.style.position = 'fixed';
-    canvas.style.left = ((window.innerWidth  - W * scale) / 2) + 'px';
-    canvas.style.top  = ((window.innerHeight - H * scale) / 2) + 'px';
+    canvas.style.left = ((window.innerWidth - displayW) / 2) + 'px';
+    canvas.style.top  = ((window.innerHeight - displayH) / 2) + 'px';
 }
 resize();
 window.addEventListener('resize', resize);
@@ -551,6 +636,25 @@ function stopCityAmbient() {
     if (typeof SFX === 'undefined' || !SFX.stopCityAmbient) return;
     SFX.stopCityAmbient();
 }
+function manualSaveCity() {
+    persistFullCityState();
+    if (typeof GameState !== 'undefined' && GameState.autoSave) GameState.autoSave(true);
+    notify('💾 تم حفظ تقدم المدينة', '#6ddc6d');
+}
+function toggleCityAudio() {
+    const panel = document.getElementById('cityAudioPanel');
+    if (panel) panel.classList.toggle('open');
+}
+function setCityVolume(kind, value) {
+    if (typeof SFX === 'undefined') return;
+    const amount = Math.max(0, Math.min(100, Number(value) || 0)) / 100;
+    if (kind === 'master' && SFX.setMasterVolume) SFX.setMasterVolume(amount);
+    if (kind === 'sfx' && SFX.setSfxVolume) SFX.setSfxVolume(amount);
+    if (kind === 'ambient' && SFX.setAmbientVolume) SFX.setAmbientVolume(amount);
+}
+window.manualSaveCity = manualSaveCity;
+window.toggleCityAudio = toggleCityAudio;
+window.setCityVolume = setCityVolume;
 // Start after first user gesture (click / keydown)
 document.addEventListener('click', () => startCityAmbient(), { once: true });
 document.addEventListener('keydown', () => startCityAmbient(), { once: true });
@@ -570,6 +674,12 @@ function notify(msg, color = '#ffd060', duration = 2200) {
 function updateHUD() {
     document.getElementById('hpBar').style.width = (player.hp / player.maxHp * 100) + '%';
     document.getElementById('hpVal').textContent = `${Math.ceil(player.hp)}/${player.maxHp}`;
+    const atkEl = document.getElementById('atkVal');
+    const defEl = document.getElementById('defVal');
+    const levelEl = document.getElementById('levelVal');
+    if (atkEl) atkEl.textContent = Math.floor(player.attack || 0);
+    if (defEl) defEl.textContent = Math.floor(player.defense || 0);
+    if (levelEl) levelEl.textContent = player.level || 1;
     const inv = player.inventory;
     document.getElementById('inv-coins').textContent = inv.coins || 0;
     document.getElementById('inv-stick').textContent = inv.stick || 0;
@@ -589,25 +699,24 @@ function updateHUD() {
 
 function refreshCityQuestHint() {
     const el = document.getElementById('questHint');
-    if (!el) return;
+    const missionEl = document.getElementById('cityMissionText');
+    if (el) el.style.display = 'none';
+    const setMission = text => { if (missionEl) missionEl.textContent = text; };
     if (isQuestDone('quest_valley_path')) {
         if (GameState.load('completedCity', false)) {
-            el.style.display = 'none';
+            setMission('✔️ اكتملت مهام المدينة. يمكنك متابعة رحلتك.');
         } else {
-            el.textContent = '🔓 البوابة الجنوبية مفتوحة — الغابة الجنوبية';
-            el.style.display = 'block';
+            setMission('🔓 البوابة الجنوبية مفتوحة — اذهب إلى الغابة الجنوبية.');
         }
         return;
     }
     if (isQuestDone('quest_traveler_supplies')) {
-        el.textContent = '📋 مهمة: طريق الوادي — سلّم للحداد 🐺 جلد وحشي + 🦷 3 أسنان';
-        el.style.display = 'block';
+        setMission('📋 طريق الوادي: سلّم للحداد جلد وحشي واحداً و3 أسنان.');
         return;
     }
     const st = getCityMapState();
     const barters = Array.isArray(st.boughtItems) ? st.boughtItems.length : 0;
-    el.textContent = `📋 مهمة: ذخيرة المسافر — مقايضات ${barters}/2 أو 🏹 سهام ≥20`;
-    el.style.display = 'block';
+    setMission(`📋 ذخيرة المسافر: مقايضات ${barters}/2 أو اجمع 20 سهماً.`);
 }
 
 function saveAndExit() {
@@ -684,22 +793,30 @@ function tradeRow(label, cost, costIcon, give, giveIcon, action) {
     return `<div class="trade-row">
         <span>${costIcon} ${cost} ${label}</span>
         <span>← ${giveIcon} +${give}</span>
-        <button class="trade-btn" onclick="${action}">تبادل</button>
+        <button class="trade-btn" onclick='${action}'>تبادل</button>
     </div>`;
 }
 
-function coinSellRow(label, cost, costIcon, coinAmt, action) {
+function coinSellRow(label, cost, costIcon, coinAmt, action, enabled = true) {
     return `<div class="trade-row">
         <span>${costIcon} ${label} ← +${coinAmt} 🪙</span>
-        <button class="trade-btn" onclick="${action}">بيع</button>
+        <button class="trade-btn" onclick='${action}' ${enabled ? '' : 'disabled'}>بيع</button>
     </div>`;
 }
-function coinBuyRow(label, give, giveIcon, coinAmt, action) {
+function coinBuyRow(label, give, giveIcon, coinAmt, action, enabled = true) {
     return `<div class="trade-row">
         <span>🪙 ${coinAmt} ← ${giveIcon} +${give} ${label}</span>
-        <button class="trade-btn" onclick="${action}">شراء</button>
+        <button class="trade-btn" onclick='${action}' ${enabled ? '' : 'disabled'}>شراء</button>
     </div>`;
 }
+
+const ITEM_NAMES = {
+    stick: 'العصي', stone: 'الحجر', horn: 'القرن', teeth: 'الأسنان', leather: 'الجلد',
+    beastHide: 'جلد الوحش', venomSac: 'كيس السم', arrows: 'السهام', herb: 'العشبة',
+    herbSalve: 'المرهم'
+};
+function itemName(id) { return ITEM_NAMES[id] || id; }
+function hasItems(id, amount) { return (player.inventory[id] || 0) >= amount; }
 
 function openMerchant() {
     const meatN = foodCount('meat');
@@ -714,24 +831,22 @@ function openMerchant() {
             <button class="trade-btn" onclick="checkTravelerQuest()">مهمة</button>
           </div>`;
     openModal('🧑‍💼 التاجر', `
-        <p style="margin-bottom:12px;color:#ccc">💳 رصيدك: 🪙 ${coins} دينار</p>
-        <p style="margin-bottom:8px;color:#ccc">بادل مواردك بالسهام:</p>
+        <div class="shop-balance">💳 رصيدك: 🪙 ${coins} دينار</div>
+        <p class="shop-section">بادل مواردك بالسهام</p>
         ${tradeRow('جلد', 2, '🧥', 8, '🏹', 'trade("leather",2,"arrows",8)')}
         ${tradeRow('جلد وحشي', 1, '🐺', 15, '🏹', 'trade("beastHide",1,"arrows",15)')}
         ${tradeRow('كيس سم', 1, '🧪', 12, '🏹', 'trade("venomSac",1,"arrows",12)')}
         ${tradeRow('لحم (' + meatN + ')', 3, '🥩', 6, '🏹', 'tradeFood("meat",3,"arrows",6)')}
         ${tradeRow('سمكة (' + fishN + ')', 2, '🐟', 5, '🏹', 'tradeFood("fish",2,"arrows",5)')}
         ${tradeRow('أسنان', 1, '🦷', 10, '🏹', 'trade("teeth",1,"arrows",10)')}
-        <hr style="border-color:#555;margin:14px 0">
-        <p style="color:#aaa;margin-bottom:10px">💰 بيع مواردك — اكسب دنانير:</p>
-        ${coinSellRow('2 🧥 جلد', 2, '🧥', 3, 'sellForCoins("leather",2,3)')}
-        ${coinSellRow('3 🦷 أسنان', 3, '🦷', 2, 'sellForCoins("teeth",3,2)')}
-        ${coinSellRow('1 🐺 جلد وحشي', 1, '🐺', 5, 'sellForCoins("beastHide",1,5)')}
-        <hr style="border-color:#555;margin:14px 0">
-        <p style="color:#aaa;margin-bottom:10px">🛒 اشترِ بالدنانير:</p>
-        ${coinBuyRow('🏹 سهام', 5, '🏹', 2, 'buyWithCoins("arrows",5,2)')}
-        ${coinBuyRow('🌿 عشبة', 2, '🌿', 1, 'buyWithCoins("herb",2,1)')}
-        ${coinBuyRow('🧪 مرهم', 1, '🧪', 3, 'buyWithCoins("herbSalve",1,3)')}
+        <p class="shop-section">💰 بيع مواردك — اكسب دنانير</p>
+        ${coinSellRow('2 جلد', 2, '🧥', 3, 'sellForCoins("leather",2,3)', hasItems('leather', 2))}
+        ${coinSellRow('3 أسنان', 3, '🦷', 2, 'sellForCoins("teeth",3,2)', hasItems('teeth', 3))}
+        ${coinSellRow('1 جلد وحشي', 1, '🐺', 5, 'sellForCoins("beastHide",1,5)', hasItems('beastHide', 1))}
+        <p class="shop-section">🛒 اشترِ بالدنانير</p>
+        ${coinBuyRow('سهام', 5, '🏹', 2, 'buyWithCoins("arrows",5,2)', coins >= 2)}
+        ${coinBuyRow('عشبة', 2, '🌿', 1, 'buyWithCoins("herb",2,1)', coins >= 1)}
+        ${coinBuyRow('مرهم', 1, '🧪', 3, 'buyWithCoins("herbSalve",1,3)', coins >= 3)}
         ${qBtn}
     `);
 }
@@ -787,6 +902,7 @@ function openHealer() {
 function openBlacksmith() {
     const upgraded = hasWeaponUpgraded();
     const questDone = isQuestDone('quest_valley_path');
+    const coins = player.inventory.coins || 0;
     const qBtn = questDone
         ? `<p style="margin-top:14px;color:#6ddc6d;font-size:0.85rem">✔️ طريق الوادي — البوابة مفتوحة</p>`
         : `<div class="trade-row" style="margin-top:14px">
@@ -794,7 +910,8 @@ function openBlacksmith() {
             <button class="trade-btn" onclick="checkValleyQuest()">تسليم</button>
           </div>`;
     openModal('⚒️ الحداد', `
-        <p style="margin-bottom:12px;color:#ccc">المعدات المصنوعة حتى الآن:</p>
+        <div class="shop-balance">🔨 ورشة الحدّاد &nbsp;|&nbsp; رصيدك: 🪙 ${coins} دينار</div>
+        <p class="shop-section">المعدات المصنوعة حتى الآن</p>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
             ${craftItem('🪓','الفأس','axe')}
             ${craftItem('🎣','السنارة','fishingRod')}
@@ -804,13 +921,16 @@ function openBlacksmith() {
             ${craftItem('🌑','درع الظلال','shadowArmor')}
             ${craftItem('🌙','نصل الليل','nightBlade')}
         </div>
-        <hr style="border-color:#555;margin:14px 0">
-        <p style="color:#ccc;margin-bottom:10px">تطوير:</p>
+        <p class="shop-section">تطوير السلاح</p>
         <div class="trade-row">
             <span>🔪 شحذ السلاح — 🪨 2 + 🦴 1 → +5 هجوم</span>
-            <button class="trade-btn" onclick="weaponSharpen()" ${upgraded ? 'disabled' : ''}>${upgraded ? '✔ تم' : 'شحذ'}</button>
+            <button class="trade-btn" onclick="weaponSharpen()" ${upgraded || !hasItems('stone', 2) || !hasItems('horn', 1) ? 'disabled' : ''}>${upgraded ? '✔ تم' : 'شحذ'}</button>
         </div>
-        <hr style="border-color:#555;margin:14px 0">
+        <p class="shop-section">♻️ اشترِ وبِع مواد الحدادة</p>
+        ${coinBuyRow('أحجار شحذ', 4, '🪨', 3, 'buyWithCoins("stone",4,3,"openBlacksmith")', coins >= 3)}
+        ${coinBuyRow('قرن متين', 1, '🦴', 6, 'buyWithCoins("horn",1,6,"openBlacksmith")', coins >= 6)}
+        ${coinSellRow('4 أحجار', 4, '🪨', 2, 'sellForCoins("stone",4,2,"openBlacksmith")', hasItems('stone', 4))}
+        ${coinSellRow('1 قرن', 1, '🦴', 4, 'sellForCoins("horn",1,4,"openBlacksmith")', hasItems('horn', 1))}
         ${qBtn}
         <p style="margin-top:14px;color:#888;font-size:0.8rem">اضغط F في الغابة لفتح قائمة الصناعة</p>
     `);
@@ -882,21 +1002,21 @@ window.tradeFood = function(kind, fromAmt, toItem, toAmt) {
     openMerchant();
 };
 
-window.sellForCoins = function(item, qty, coinAmt) {
+window.sellForCoins = function(item, qty, coinAmt, refreshShop = 'openMerchant') {
     const inv = player.inventory;
     if ((inv[item] || 0) < qty) {
-        notify(`❌ ليس لديك ما يكفي من ${item}`, '#e74c3c');
+        notify(`❌ ليس لديك ما يكفي من ${itemName(item)}`, '#e74c3c');
         return;
     }
     inv[item] = (inv[item] || 0) - qty;
     inv.coins = (inv.coins || 0) + coinAmt;
     persistCityInventory();
     updateHUD();
-    openMerchant();
+    (refreshShop === 'openBlacksmith' ? openBlacksmith : openMerchant)();
     notify(`💰 ربحت ${coinAmt} دينار`, '#ffd060');
 };
 
-window.buyWithCoins = function(item, qty, coinAmt) {
+window.buyWithCoins = function(item, qty, coinAmt, refreshShop = 'openMerchant') {
     const inv = player.inventory;
     if ((inv.coins || 0) < coinAmt) {
         notify(`❌ تحتاج ${coinAmt} دينار`, '#e74c3c');
@@ -906,8 +1026,8 @@ window.buyWithCoins = function(item, qty, coinAmt) {
     inv[item] = (inv[item] || 0) + qty;
     persistCityInventory();
     updateHUD();
-    openMerchant();
-    notify(`✅ اشتريت ${qty} ${item}`, '#6ddc6d');
+    (refreshShop === 'openBlacksmith' ? openBlacksmith : openMerchant)();
+    notify(`✅ اشتريت ${qty} ${itemName(item)}`, '#6ddc6d');
 };
 
 window.heal = function() {
@@ -1022,6 +1142,32 @@ function drawTerrain() {
     }
 }
 
+// Compact city overview: terrain material, services, citizens, and hero.
+function drawCityMinimap() {
+    if (!cityMapCtx) return;
+    const mw = cityMapCanvas.width, mh = cityMapCanvas.height;
+    const tw = mw / CFG.COLS, th = mh / CFG.ROWS;
+    const colors = {
+        [T.BUILDING]: '#5f4632', [T.STONE]: '#8a887f', [T.ROAD]: '#6c6252',
+        [T.GRASS]: '#347838', [T.WATER]: '#1769a8', [T.SAND]: '#b99b4b'
+    };
+    cityMapCtx.clearRect(0, 0, mw, mh);
+    for (let r = 0; r < CFG.ROWS; r++) {
+        for (let c = 0; c < CFG.COLS; c++) {
+            cityMapCtx.fillStyle = colors[getTile(c, r)] || '#555';
+            cityMapCtx.fillRect(c * tw, r * th, Math.ceil(tw) + 1, Math.ceil(th) + 1);
+        }
+    }
+    cityMapCtx.fillStyle = '#ffd060';
+    for (const npc of NPCS) cityMapCtx.fillRect(npc.x / W * mw - 1.5, npc.y / H * mh - 1.5, 3, 3);
+    cityMapCtx.fillStyle = '#93d8ff';
+    for (const citizen of walkers) cityMapCtx.fillRect(citizen.x / W * mw - 1, citizen.y / H * mh - 1, 2, 2);
+    cityMapCtx.fillStyle = '#fff';
+    cityMapCtx.beginPath();
+    cityMapCtx.arc(player.x / W * mw, player.y / H * mh, 3, 0, Math.PI * 2);
+    cityMapCtx.fill();
+}
+
 function drawPortal() {
     const { x, y, radius } = FOREST_PORTAL;
     const pulse = 0.85 + Math.sin(Date.now() * 0.002) * 0.15;
@@ -1092,21 +1238,49 @@ function drawBuildings() {
     ];
     for (const b of bldgs) {
         const bx = b.c * ts, by = b.r * ts, bw = b.w * ts, bh = b.h * ts;
-        // Roof
+        // Shadow, tiled roof, and a warm shopfront give each district a clearer silhouette.
+        ctx.fillStyle = 'rgba(0,0,0,0.22)';
+        ctx.fillRect(bx + 5, by + 7, bw, bh);
         ctx.fillStyle = b.color;
-        ctx.fillRect(bx, by, bw, bh);
+        ctx.fillRect(bx, by + 10, bw, bh - 10);
+        ctx.fillStyle = 'rgba(255,255,255,0.12)';
+        ctx.beginPath();
+        ctx.moveTo(bx - 4, by + 12); ctx.lineTo(bx + bw / 2, by - 5); ctx.lineTo(bx + bw + 4, by + 12);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = 'rgba(20,12,8,0.22)';
+        for (let tx = bx + 7; tx < bx + bw; tx += 16) {
+            ctx.fillRect(tx, by + 12, 10, 3);
+            ctx.fillRect(tx + 5, by + 20, 10, 3);
+        }
+        // Shop awning
+        ctx.fillStyle = 'rgba(15,18,18,0.48)';
+        ctx.fillRect(bx + 5, by + bh - 29, bw - 10, 5);
+        ctx.fillStyle = 'rgba(255,208,96,0.12)';
+        ctx.fillRect(bx + 5, by + bh - 24, bw - 10, 4);
         // Door
         ctx.fillStyle = '#2a1808';
-        ctx.fillRect(bx + bw/2 - 6, by + bh - 14, 12, 14);
+        ctx.fillRect(bx + bw/2 - 7, by + bh - 18, 14, 18);
+        ctx.fillStyle = '#d7ab4a'; ctx.fillRect(bx + bw/2 + 3, by + bh - 9, 2, 2);
         // Windows
-        ctx.fillStyle = 'rgba(255,220,100,0.6)';
-        ctx.fillRect(bx + 4, by + 5, 10, 8);
-        ctx.fillRect(bx + bw - 14, by + 5, 10, 8);
-        // Label
-        ctx.font = '9px Cairo';
-        ctx.fillStyle = '#ffd060';
+        ctx.fillStyle = 'rgba(255,220,100,0.72)';
+        ctx.fillRect(bx + 12, by + bh - 20, 12, 8);
+        ctx.fillRect(bx + bw - 24, by + bh - 20, 12, 8);
+        ctx.strokeStyle = 'rgba(45,30,16,0.7)'; ctx.lineWidth = 1;
+        ctx.strokeRect(bx + 12, by + bh - 20, 12, 8);
+        ctx.strokeRect(bx + bw - 24, by + bh - 20, 12, 8);
+        // Large signboard: room names remain readable at fullscreen size.
+        const signW = Math.min(bw - 18, Math.max(76, b.label.length * 10 + 24));
+        const signY = by + bh / 2 - 10;
+        ctx.fillStyle = 'rgba(18,14,10,0.82)';
+        ctx.strokeStyle = 'rgba(255,208,96,0.58)';
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.roundRect(bx + bw / 2 - signW / 2, signY, signW, 23, 5); ctx.fill(); ctx.stroke();
+        ctx.font = 'bold 13px Cairo';
+        ctx.fillStyle = '#ffe49a';
         ctx.textAlign = 'center';
-        ctx.fillText(b.label, bx + bw/2, by + bh/2 + 3);
+        ctx.textBaseline = 'middle';
+        ctx.fillText(b.label, bx + bw/2, signY + 12);
+        ctx.textBaseline = 'alphabetic';
     }
     ctx.restore();
 }
@@ -1122,21 +1296,23 @@ function drawNPCs() {
         // Shadow
         ctx.fillStyle = 'rgba(0,0,0,0.25)';
         ctx.beginPath(); ctx.ellipse(npc.x, npc.y + 12, 14, 6, 0, 0, Math.PI*2); ctx.fill();
-        // Body circle
+        // Large, high-contrast character marker (easy to identify at fullscreen).
         const pulse = near ? 1 + Math.sin(Date.now() * 0.005) * 0.08 : 1;
-        ctx.beginPath(); ctx.arc(npc.x, npc.y, 18 * pulse, 0, Math.PI*2);
+        ctx.beginPath(); ctx.arc(npc.x, npc.y, 21 * pulse, 0, Math.PI*2);
         ctx.fillStyle = npc.color; ctx.fill();
-        ctx.strokeStyle = near ? '#ffd060' : (spoken ? 'rgba(255,208,96,0.25)' : 'rgba(255,255,255,0.3)');
-        ctx.lineWidth = near ? 2 : 1; ctx.stroke();
+        ctx.strokeStyle = near ? '#ffd060' : (spoken ? 'rgba(255,208,96,0.42)' : 'rgba(255,255,255,0.52)');
+        ctx.lineWidth = near ? 3 : 2; ctx.stroke();
         // Emoji
-        ctx.font = `${18*pulse}px serif`;
+        ctx.font = `${22*pulse}px serif`;
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillText(npc.emoji, npc.x, npc.y);
         ctx.textBaseline = 'alphabetic';
         // Label
-        ctx.font = `bold ${near?11:9}px Cairo`;
-        ctx.fillStyle = near ? '#ffd060' : '#cccccc';
-        ctx.fillText(npc.label, npc.x, npc.y - 24 * pulse);
+        ctx.font = `bold ${near?14:12}px Cairo`;
+        ctx.fillStyle = near ? '#ffe49a' : '#f0eee7';
+        ctx.shadowColor = 'rgba(0,0,0,.9)'; ctx.shadowBlur = 4;
+        ctx.fillText(npc.label, npc.x, npc.y - 29 * pulse);
+        ctx.shadowBlur = 0;
         // Spoken checkmark
         if (spoken && !near) {
             ctx.font = '10px Cairo';
@@ -1159,6 +1335,7 @@ function drawPlayer() {
     const { x, y, walkTimer, isMoving, facing } = player;
     const t = walkTimer * 0.008;
     const legSwing = isMoving ? Math.sin(t) * 5 : 0;
+    const crafted = GameState.getCraftedItems ? GameState.getCraftedItems() : {};
 
     ctx.save();
     // Shadow
@@ -1173,9 +1350,13 @@ function drawPlayer() {
     // Body
     ctx.fillStyle = '#e8c88a';
     ctx.fillRect(x - 9, y - 12, 18, 16);
-    // Shirt
-    ctx.fillStyle = '#3060a0';
+    // Equipment material carries over from the forest crafting system.
+    ctx.fillStyle = crafted.leatherArmor ? '#7b542d' : '#3060a0';
     ctx.fillRect(x - 8, y - 8, 16, 10);
+    if (crafted.leatherArmor) {
+        ctx.strokeStyle = '#d6a55a'; ctx.lineWidth = 1;
+        ctx.strokeRect(x - 8, y - 8, 16, 10);
+    }
     // Belt
     ctx.fillStyle = '#60401a';
     ctx.fillRect(x - 9, y + 3, 18, 3);
@@ -1190,6 +1371,19 @@ function drawPlayer() {
     ctx.fillStyle = '#201008';
     ctx.beginPath(); ctx.arc(x-4, y-17, 2, 0, Math.PI*2); ctx.fill();
     ctx.beginPath(); ctx.arc(x+4, y-17, 2, 0, Math.PI*2); ctx.fill();
+
+    // Crafted weapon silhouette: it makes the city hero match the forest hero.
+    if (crafted.hornSword || crafted.nightBlade) {
+        ctx.strokeStyle = crafted.nightBlade ? '#a883ff' : '#d6d6d6';
+        ctx.lineWidth = 3; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(x + 10, y - 4); ctx.lineTo(x + 17, y - 16); ctx.stroke();
+        ctx.strokeStyle = '#8a5a2a'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(x + 8, y - 4); ctx.lineTo(x + 13, y + 1); ctx.stroke();
+    } else if (crafted.hornSpear) {
+        ctx.strokeStyle = '#b98a4b'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(x + 9, y + 8); ctx.lineTo(x + 19, y - 18); ctx.stroke();
+        ctx.fillStyle = '#ddd'; ctx.beginPath(); ctx.moveTo(x+19,y-20); ctx.lineTo(x+23,y-13); ctx.lineTo(x+16,y-14); ctx.closePath(); ctx.fill();
+    }
 
     ctx.restore();
 }
@@ -1359,66 +1553,93 @@ function drawSouthGate() {
     ctx.restore();
 }
 
-// ─────────────── WALKERS ───────────────
-const WALKER_WAYPOINTS = [
-    {
-        pts: [
-            { x: CFG.TILE * 6 + 12, y: CFG.TILE * 5 + CFG.TILE / 2 },
-            { x: CFG.TILE * 14 + 12, y: CFG.TILE * 5 + CFG.TILE / 2 },
-        ],
-        emoji: '👤', color: '#7a9a6a', speed: 0.03
-    },
-    {
-        pts: [
-            { x: W / 2, y: CFG.TILE * 7 + CFG.TILE / 2 },
-            { x: W / 2, y: CFG.TILE * 12 + CFG.TILE / 2 },
-        ],
-        emoji: '🧑', color: '#6a7a9a', speed: 0.025
-    },
-    {
-        pts: [
-            { x: CFG.TILE * 3 + 12, y: CFG.TILE * 13 + CFG.TILE / 2 },
-            { x: CFG.TILE * 20 + 12, y: CFG.TILE * 13 + CFG.TILE / 2 },
-        ],
-        emoji: '👩', color: '#9a7a6a', speed: 0.028
-    },
+// ─────────────── CITY CITIZENS ───────────────
+// Citizens visit real locations rather than repeating a fixed line.  Shared
+// stops make them naturally meet, pause, and exchange a few words.
+const CITY_STOPS = [
+    { name: 'التاجر', x: CFG.TILE * 11.5, y: CFG.TILE * 5.5 },
+    { name: 'الحداد', x: CFG.TILE * 3, y: CFG.TILE * 5.5 },
+    { name: 'المعالج', x: CFG.TILE * 7, y: CFG.TILE * 5.5 },
+    { name: 'الساحة', x: W / 2 - 56, y: CFG.TILE * 10.5 },
+    { name: 'البئر', x: W / 2 + 54, y: CFG.TILE * 9.5 },
+    { name: 'الحي الجنوبي', x: W / 2, y: CFG.TILE * 13.5 },
+];
+const CITY_CHAT_LINES = [
+    ['أهلاً يا صديقي!', 'أهلاً بك!'],
+    ['كيف الحال؟', 'بخير، الحمد لله.'],
+    ['هل زرت التاجر؟', 'نعم، اشتريت سهاماً.'],
+    ['الحداد مشغول اليوم.', 'سأمر عليه لاحقاً.'],
+    ['المدينة هادئة اليوم.', 'نعم، جو جميل.'],
+    ['إلى أين تذهب؟', 'إلى الساحة قليلاً.'],
 ];
 
-const walkers = WALKER_WAYPOINTS.map(w => ({
-    pts: w.pts,
-    emoji: w.emoji,
-    color: w.color,
-    speed: w.speed,
-    idx: 0,
-    t: 0,
-    x: w.pts[0].x,
-    y: w.pts[0].y,
-    pauseTimer: 0,
+const walkers = [
+    { name:'سالم', emoji:'🧑', color:'#6a7a9a', x:CITY_STOPS[0].x, y:CITY_STOPS[0].y, target: CITY_STOPS[3] },
+    { name:'ليلى', emoji:'👩', color:'#9a7a6a', x:CITY_STOPS[1].x, y:CITY_STOPS[1].y, target: CITY_STOPS[3] },
+    { name:'عمر', emoji:'👤', color:'#7a9a6a', x:CITY_STOPS[5].x, y:CITY_STOPS[5].y, target: CITY_STOPS[4] },
+    { name:'مريم', emoji:'🧕', color:'#96704f', x:CITY_STOPS[2].x, y:CITY_STOPS[2].y, target: CITY_STOPS[4] },
+].map(w => Object.assign(w, {
+    state: 'walking', waitUntil: 0, talkUntil: 0, partner: null,
+    bubble: '', bubbleUntil: 0, speed: 0.045 + Math.random() * 0.012
 }));
 
+function pickCitizenStop(citizen) {
+    let next = CITY_STOPS[Math.floor(Math.random() * CITY_STOPS.length)];
+    // A visit to the plaza is more likely, giving citizens a natural meeting point.
+    if (Math.random() < 0.38) next = CITY_STOPS[Math.random() < 0.5 ? 3 : 4];
+    if (next === citizen.target) next = CITY_STOPS[(CITY_STOPS.indexOf(next) + 1) % CITY_STOPS.length];
+    return next;
+}
+
+function startCitizenConversation(a, b, now) {
+    const lines = CITY_CHAT_LINES[Math.floor(Math.random() * CITY_CHAT_LINES.length)];
+    const duration = 2600 + Math.random() * 1500;
+    a.state = b.state = 'talking';
+    a.partner = b; b.partner = a;
+    a.talkUntil = b.talkUntil = now + duration;
+    a.bubble = lines[0]; b.bubble = lines[1];
+    a.bubbleUntil = b.bubbleUntil = now + duration;
+}
+
 function updateWalkers(dt) {
+    const now = performance.now();
     for (const w of walkers) {
-        if (w.pauseTimer > 0) {
-            w.pauseTimer -= dt;
+        if (w.state === 'talking') {
+            if (now >= w.talkUntil) {
+                w.state = 'waiting'; w.partner = null;
+                w.waitUntil = now + 900 + Math.random() * 1300;
+            }
             continue;
         }
-        const a = w.pts[w.idx];
-        const b = w.pts[(w.idx + 1) % w.pts.length];
-        const dx = b.x - a.x;
-        const dy = b.y - a.y;
-        const dist = Math.hypot(dx, dy);
-        if (dist < 1) continue;
-        w.t += w.speed * dt * 0.06;
-        if (w.t >= 1) {
-            w.t = 0;
-            w.idx = (w.idx + 1) % w.pts.length;
-            w.pauseTimer = 500 + Math.random() * 1000;
-            // Snap to endpoint before next lerp
-            w.x = b.x;
-            w.y = b.y;
-        } else {
-            w.x = a.x + (b.x - a.x) * w.t;
-            w.y = a.y + (b.y - a.y) * w.t;
+        if (w.state === 'waiting') {
+            if (now < w.waitUntil) continue;
+            w.target = pickCitizenStop(w);
+            w.state = 'walking';
+        }
+        const dx = w.target.x - w.x;
+        const dy = w.target.y - w.y;
+        const distance = Math.hypot(dx, dy);
+        if (distance <= 2) {
+            w.x = w.target.x; w.y = w.target.y;
+            w.state = 'waiting';
+            w.waitUntil = now + 900 + Math.random() * 2400;
+            w.bubble = `⇢ ${w.target.name}`;
+            w.bubbleUntil = now + 1050;
+            continue;
+        }
+        const step = Math.min(distance, w.speed * dt);
+        w.x += dx / distance * step;
+        w.y += dy / distance * step;
+    }
+
+    // Only idle citizens begin a conversation, so no one talks while walking.
+    for (let i = 0; i < walkers.length; i++) {
+        for (let j = i + 1; j < walkers.length; j++) {
+            const a = walkers[i], b = walkers[j];
+            if (a.state !== 'waiting' || b.state !== 'waiting') continue;
+            if (Math.hypot(a.x - b.x, a.y - b.y) < 58 && Math.random() < dt / 850) {
+                startCitizenConversation(a, b, now);
+            }
         }
     }
 }
@@ -1433,17 +1654,34 @@ function drawWalkers() {
         ctx.fill();
         // Body circle
         ctx.beginPath();
-        ctx.arc(w.x, w.y, 14, 0, Math.PI * 2);
+        ctx.arc(w.x, w.y, 16, 0, Math.PI * 2);
         ctx.fillStyle = w.color;
         ctx.fill();
-        ctx.strokeStyle = 'rgba(255,255,255,0.2)';
-        ctx.lineWidth = 1;
+        ctx.strokeStyle = 'rgba(255,255,255,0.62)';
+        ctx.lineWidth = 1.5;
         ctx.stroke();
         // Emoji
-        ctx.font = '16px serif';
+        ctx.font = '19px serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(w.emoji, w.x, w.y);
+        // Name and a short, readable speech bubble for nearby conversations.
+        ctx.font = 'bold 10px Cairo';
+        ctx.fillStyle = '#f5f1df';
+        ctx.shadowColor = 'rgba(0,0,0,.9)'; ctx.shadowBlur = 3;
+        ctx.fillText(w.name, w.x, w.y + 27);
+        ctx.shadowBlur = 0;
+        if (w.bubble && performance.now() < w.bubbleUntil) {
+            ctx.font = 'bold 9px Cairo';
+            const bw = Math.max(52, ctx.measureText(w.bubble).width + 16);
+            const by = w.y - 37;
+            ctx.fillStyle = 'rgba(18,23,28,0.9)';
+            ctx.strokeStyle = 'rgba(255,208,96,0.55)';
+            ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.roundRect(w.x - bw / 2, by - 11, bw, 20, 6); ctx.fill(); ctx.stroke();
+            ctx.fillStyle = '#fff0bd';
+            ctx.fillText(w.bubble, w.x, by);
+        }
         ctx.restore();
     }
 }
@@ -1472,6 +1710,7 @@ function gameLoop(ts) {
     drawNPCs();
     drawWalkers();
     drawPlayer();
+    drawCityMinimap();
 }
 
 document.addEventListener('visibilitychange', () => {
